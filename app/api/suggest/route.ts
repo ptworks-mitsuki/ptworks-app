@@ -1,0 +1,57 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest, NextResponse } from "next/server";
+import { Suggestion } from "@/types/medical";
+
+export const maxDuration = 15;
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+export interface ResolveResult {
+  direct: boolean;
+  disease: string | null;
+  candidates: Suggestion[];
+}
+
+const PROMPT = `あなたは理学療法士向け疾患検索システムのAIです。
+入力が「特定の疾患・障害名（正式名称）」か「症状・部位・あいまいな表現」かを判断してください。
+
+判断基準：
+- 疾患名の場合（例：脳梗塞、変形性膝関節症、パーキンソン病、COPD）→ direct: true
+- 症状・部位・あいまい表現（例：膝が痛い、肩が上がらない、歩けない、肩、腰）→ direct: false
+
+必ず以下のJSON形式のみで回答してください：
+- 疾患名の場合: {"direct":true,"disease":"正式疾患名","candidates":[]}
+- 症状等の場合: {"direct":false,"disease":null,"candidates":[{"name":"疾患名","description":"15字以内の説明"},...]} ※4〜5件`;
+
+export async function POST(req: NextRequest) {
+  const body = await req.json() as { query?: unknown };
+  const query = body.query;
+
+  if (!query || typeof query !== "string" || query.trim().length < 1) {
+    return NextResponse.json({ direct: false, disease: null, candidates: [] });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ direct: true, disease: query.trim(), candidates: [] });
+  }
+
+  try {
+    const message = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 400,
+      system: PROMPT,
+      messages: [{ role: "user", content: `入力：「${query.trim()}」` }],
+    });
+
+    const raw = message.content[0];
+    if (raw.type !== "text") throw new Error("no text");
+
+    const match = raw.text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("no json");
+
+    const result = JSON.parse(match[0]) as ResolveResult;
+    return NextResponse.json(result);
+  } catch {
+    // On error, treat as direct search
+    return NextResponse.json({ direct: true, disease: query.trim(), candidates: [] });
+  }
+}

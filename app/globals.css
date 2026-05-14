@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* ── CSS variables (light only) ── */
+:root {
+  --bg-page:    #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --text-base:  #1A1A2E;
+  --text-muted: #6B7280;
+  --border:     #E5E7EB;
+  --brand:      #E85D04;
+  --brand-dark: #1B4332;
+  --shadow-sm:  0 1px 4px rgba(0,0,0,0.06);
+  --shadow-md:  0 2px 12px rgba(0,0,0,0.08);
+  --shadow-lg:  0 4px 24px rgba(0,0,0,0.10);
+}
+
+@theme inline {
+  --color-background: var(--bg-page);
+  --color-foreground: var(--text-base);
+  --font-sans: var(--font-geist-sans);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text-base);
+  font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Card utility ── */
+.card {
+  background: var(--bg-surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+
+.card-hover {
+  transition: box-shadow 0.18s, border-color 0.18s, transform 0.18s;
+}
+.card-hover:hover {
+  box-shadow: var(--shadow-md);
+  border-color: #fcd9bf;
+  transform: translateY(-1px);
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn { animation: fadeIn 0.2s ease-out both; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slideIn { animation: slideIn 0.15s ease-out both; }
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-modalIn { animation: modalIn 0.2s cubic-bezier(0.34, 1.2, 0.64, 1) both; }
+
+/* ── Scrollbar (thin) ── */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #e5e7eb transparent;
+}
+
+/* ── Print styles ── */
+@media print {
+  @page { margin: 15mm 12mm; size: A4 portrait; }
+  body { background: #fff !important; color: #000 !important; font-size: 11pt; }
+  .print\:hidden       { display: none  !important; }
+  .print\:block        { display: block !important; }
+  .print\:shadow-none  { box-shadow: none !important; }
+  .print\:rounded-none { border-radius: 0 !important; }
+  [class*="rounded-xl"] { page-break-inside: avoid; }
+}
