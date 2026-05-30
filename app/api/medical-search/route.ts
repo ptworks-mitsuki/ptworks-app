@@ -1,14 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { SectionKey, SECTION_TITLES } from "@/types/medical";
+import {
+  createClient, getApiKey,
+  isBalanceError, translateError, notifyAdmin,
+} from "@/lib/api-error";
 
-export const maxDuration = 60;
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+export const maxDuration = 90;
 
 // Streaming order: primary sections first for faster visible feedback
 const SECTION_KEYS: SectionKey[] = [
-  "pathophysiology", "anatomy", "treatment",
+  "pathophysiology", "anatomy", "treatment", "patient_explanation",
   "staging", "prognosis", "assessment", "contraindications",
 ];
 
@@ -23,6 +24,9 @@ const SYSTEM_PROMPT = `あなたは日本の理学療法士向けの医療情報
 ・pathophysiology（病態）：発症機序→病理変化→症状・機能障害の流れを詳しく。数値・分類名も含める。
 ・anatomy（解剖学的背景）：関連する骨・筋・神経・靭帯の構造と役割、病変部位を詳しく。
 ・treatment（治療・アプローチ）：急性期・回復期・維持期ごとの具体的介入を詳しく。エビデンスベースで。
+
+【詳細項目（4〜6行）】
+・patient_explanation（患者説明テンプレート）：一般の患者・家族にもわかりやすい言葉で、病気の説明・リハビリの目的・自主トレのポイント・生活上の注意点をまとめた説明テンプレート。専門用語を避け「〜です」「〜しましょう」口調で記載。
 
 【コンパクト項目（3〜4行）】
 ・staging（病期・重症度分類）：主要分類法と各ステージの基準を簡潔に。
@@ -60,6 +64,10 @@ const SYSTEM_PROMPT = `あなたは日本の理学療法士向けの医療情報
   "contraindications": {
     "content": "・〇〇\n・〇〇\n・〇〇",
     "references": ["著者. 書名. 出版社, 年."]
+  },
+  "patient_explanation": {
+    "content": "・〇〇\n・〇〇\n・〇〇\n・〇〇",
+    "references": []
   }
 }
 
@@ -120,21 +128,23 @@ export async function POST(req: NextRequest) {
   if (!disease || typeof disease !== "string") {
     return NextResponse.json({ error: "検索キーワードを入力してください" }, { status: 400 });
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!getApiKey()) {
     return NextResponse.json(
-      { error: "APIキーが設定されていません。.env.local に ANTHROPIC_API_KEY を設定してください。" },
-      { status: 500 }
+      { error: "現在メンテナンス中です。しばらくお待ちください。" },
+      { status: 503 }
     );
   }
 
   const encoder = new TextEncoder();
+  const client = createClient();
 
   const stream = new ReadableStream({
     async start(controller) {
       const send = (payload: object) =>
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
 
-      try {
+      // Inner helper: one streaming attempt
+      async function runStream(): Promise<void> {
         const anthropicStream = client.messages.stream({
           model: "claude-sonnet-4-6",
           max_tokens: 5000,
@@ -160,19 +170,45 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Final pass for anything not yet caught
+        // Final pass for anything not yet emitted
         for (const key of SECTION_KEYS) {
           if (sent.has(key)) continue;
           const data = extractSection(accumulated, key);
           if (data) send({ section: key, data: { title: SECTION_TITLES[key], ...data } });
         }
-
-        send({ done: true });
-      } catch (err) {
-        send({ error: err instanceof Error ? err.message : "不明なエラーが発生しました" });
-      } finally {
-        controller.close();
       }
+
+      try {
+        // Attempt 1
+        await runStream();
+      } catch (firstErr) {
+        // Retry once on transient errors (rate-limit / overload)
+        const transient = (e: unknown) => {
+          const m = (e instanceof Error ? e.message : String(e)).toLowerCase();
+          return m.includes("429") || m.includes("529") || m.includes("overloaded") ||
+                 m.includes("rate_limit") || m.includes("timeout") || m.includes("fetch failed");
+        };
+
+        if (transient(firstErr)) {
+          await new Promise<void>(r => setTimeout(r, 1200));
+          try {
+            await runStream();
+          } catch (secondErr) {
+            if (isBalanceError(secondErr)) void notifyAdmin(secondErr);
+            send({ error: translateError(secondErr) });
+            controller.close();
+            return;
+          }
+        } else {
+          if (isBalanceError(firstErr)) void notifyAdmin(firstErr);
+          send({ error: translateError(firstErr) });
+          controller.close();
+          return;
+        }
+      }
+
+      send({ done: true });
+      controller.close();
     },
   });
 

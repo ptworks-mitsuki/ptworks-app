@@ -3,14 +3,17 @@
 import { useState } from "react";
 import { MedicalSection } from "@/types/medical";
 import { TreatmentFilter } from "./TreatmentFilter";
+import { SECTION_LEVEL, TIER_BADGE } from "@/hooks/useExperienceLevel";
 
 interface SectionCardProps {
-  section: MedicalSection;
-  icon: string;
-  colorClass: string;
-  disease: string;
-  sectionKey: string;
-  variant?: "primary" | "secondary";
+  section:     MedicalSection;
+  icon:        string;
+  colorClass:  string;
+  disease:     string;
+  sectionKey:  string;
+  variant?:    "primary" | "secondary";
+  /** optional: highlight tier based on user experience */
+  userTier?:  "basic" | "applied" | "expert" | null;
 }
 
 // Left-border accent colors + term highlight color per section
@@ -138,10 +141,19 @@ function TermPopupBox({ termPopup, onClose }: { termPopup: TermPopup; onClose: (
 // ── Main component ───────────────────────────────────────────────────────
 
 export function SectionCard({
-  section, icon, colorClass, disease, sectionKey, variant = "primary",
+  section, icon, colorClass, disease, sectionKey, variant = "primary", userTier,
 }: SectionCardProps) {
-  const isPrimary   = variant === "primary";
+  const isPrimary    = variant === "primary";
   const summaryCount = isPrimary ? 5 : 2;
+
+  // Difficulty badge for this section
+  const sectionTier  = SECTION_LEVEL[sectionKey] ?? "applied";
+  const tierMeta     = TIER_BADGE[sectionTier];
+
+  // Highlight: user's tier matches or exceeds this section's tier
+  const tierOrder   = { basic: 0, applied: 1, expert: 2 };
+  const isHighlight = userTier != null && tierOrder[userTier] >= tierOrder[sectionTier];
+  const isNextStep  = userTier != null && tierOrder[userTier] === tierOrder[sectionTier] - 1;
 
   const [cardOpen,  setCardOpen]  = useState(true);
   const [expanded,  setExpanded]  = useState(false);
@@ -214,20 +226,39 @@ export function SectionCard({
   const cardPad     = isPrimary ? "py-3.5"          : "py-2.5";
 
   return (
-    <div className={`rounded-xl border border-gray-200 ${borderWidth} ${c.accent} bg-white overflow-hidden shadow-sm print:shadow-none print:rounded-none print:mb-4`}>
+    <div
+      className={`rounded-xl border ${borderWidth} ${c.accent} bg-white overflow-hidden shadow-sm print:shadow-none print:rounded-none print:mb-4 transition-all ${
+        isHighlight ? "border-gray-200 ring-2 ring-offset-1 ring-blue-100" :
+        isNextStep  ? "border-gray-200 opacity-90" :
+        "border-gray-200"
+      }`}
+    >
 
       {/* Title bar */}
       <button
         onClick={() => setCardOpen(v => !v)}
         className={`w-full flex items-center justify-between px-4 ${cardPad} bg-white hover:bg-gray-50 transition print:cursor-default print:hover:bg-white`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <span className={isPrimary ? "text-lg" : "text-base"}>{icon}</span>
           <span className={`font-semibold ${titleSize} ${c.titleText} print:text-gray-900`}>
             {section.title}
           </span>
+          {/* Difficulty badge */}
+          <span
+            className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+            style={{ background: tierMeta.bg, color: tierMeta.color }}
+          >
+            {tierMeta.label}
+          </span>
+          {/* Next-step label */}
+          {isNextStep && (
+            <span className="shrink-0 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
+              次のステップ
+            </span>
+          )}
         </div>
-        <span className="text-gray-300 text-xs print:hidden">{cardOpen ? "▲" : "▼"}</span>
+        <span className="text-gray-300 text-xs print:hidden ml-2">{cardOpen ? "▲" : "▼"}</span>
       </button>
 
       {/* Card body */}

@@ -175,11 +175,17 @@ export default function LandingPage() {
           </h1>
 
           {/* ── Sub copy ── */}
-          <p className="text-gray-500 text-base sm:text-lg leading-[1.85] mb-10 max-w-lg mx-auto">
-            収入の壁・副業の不安・独立への迷い。<br />
-            PT Works は、<span className="font-bold text-gray-700">現役PTが作った<br className="hidden sm:block" />
-            理学療法士専用の AI ツール</span>です。
+          <p className="text-gray-500 text-base sm:text-lg leading-[1.85] mb-6 max-w-lg mx-auto">
+            臨床の質を上げるための準備を、もっと効率よく。<br />
+            PT Works は、<span className="font-bold text-gray-700">現役PT自身が作った<br className="hidden sm:block" />
+            理学療法士専用の準備ツール</span>です。
           </p>
+          {/* ── PT badge ── */}
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-2 shadow-sm">
+              <span className="text-sm font-bold text-green-800">👨‍⚕️ 現役理学療法士が開発・運営中</span>
+            </div>
+          </div>
 
           {/* ── CTA ── */}
           <div className="flex flex-col items-center gap-3">
@@ -237,7 +243,7 @@ export default function LandingPage() {
               そのすべての悩み、PT Works が解決します
             </p>
             <p className="text-white/70 text-sm mt-1">
-              臨床・副業・開業・集客 — PTのキャリア全フェーズをAIでサポート
+              臨床準備・副業・開業・集客 — 現役PTが作ったツールでキャリア全フェーズをサポート
             </p>
           </div>
         </div>
@@ -255,8 +261,8 @@ export default function LandingPage() {
               PT Works は、理学療法士専用の AI ツールです
             </h2>
             <p className="text-gray-500 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-              臨床・副業・開業。PTのキャリア全フェーズを<br className="hidden sm:block" />
-              1つのツールで一気通貫サポートします。
+              臨床前の準備から副業・開業まで。<br className="hidden sm:block" />
+              現役PTが現場目線で作ったツールで、キャリア全フェーズをサポートします。
             </p>
           </div>
 
@@ -406,7 +412,7 @@ export default function LandingPage() {
                     className="inline-flex items-center rounded-full px-3 py-1.5 mb-5 text-xs font-bold text-white"
                     style={{ background: "#1B4332" }}
                   >
-                    現役PTが作った、現場のためのAIツール
+                    👨‍⚕️ 現役PTが作った、臨床の質を上げるための準備ツール
                   </div>
 
                   {/* Story text */}
@@ -473,9 +479,14 @@ export default function LandingPage() {
           </div>
 
           {/* Bottom trust note */}
-          <p className="text-center text-xs text-gray-400 mt-5">
-            現場の悩みを知っているから作れた — PT Works は現役理学療法士が開発・運営しています
-          </p>
+          <div className="mt-5 flex items-center justify-center">
+            <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-5 py-3 shadow-sm">
+              <span className="text-lg">👨‍⚕️</span>
+              <p className="text-sm font-bold text-green-800">
+                現役PTが、現場を知っているから作れた — PT Works は現役理学療法士が開発・運営しています
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -838,15 +849,18 @@ export default function LandingPage() {
       >
         <div className="max-w-2xl mx-auto text-center">
 
+          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 mb-5 text-xs font-bold text-white/80">
+            👨‍⚕️ 現役理学療法士が開発・運営中
+          </div>
           <h2 className="text-2xl sm:text-4xl font-black mb-4 leading-tight">
-            まず無料で試してみてください
+            臨床の質を上げる準備を、<br />今日から始めてみてください
           </h2>
 
           <p className="text-white/70 text-sm sm:text-base leading-relaxed mb-2">
             クレジットカード不要・30秒で登録完了
           </p>
           <p className="text-white/60 text-sm mb-10">
-            PT のキャリアを変える第一歩を、今日踏み出しましょう。
+            文献・論文をもとに整理された臨床情報で、準備の質を変えましょう。
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

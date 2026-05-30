@@ -1,10 +1,12 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { Suggestion } from "@/types/medical";
+import {
+  createClient, getApiKey,
+  withRetry, isBalanceError,
+  translateError, notifyAdmin,
+} from "@/lib/api-error";
 
 export const maxDuration = 15;
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export interface ResolveResult {
   direct: boolean;
@@ -30,17 +32,23 @@ export async function POST(req: NextRequest) {
   if (!query || typeof query !== "string" || query.trim().length < 1) {
     return NextResponse.json({ direct: false, disease: null, candidates: [] });
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
+
+  // No API key → fall back to direct search silently (UX should not break)
+  if (!getApiKey()) {
     return NextResponse.json({ direct: true, disease: query.trim(), candidates: [] });
   }
 
   try {
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 400,
-      system: PROMPT,
-      messages: [{ role: "user", content: `入力：「${query.trim()}」` }],
-    });
+    const client = createClient();
+
+    const message = await withRetry(() =>
+      client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 400,
+        system: PROMPT,
+        messages: [{ role: "user", content: `入力：「${query.trim()}」` }],
+      })
+    );
 
     const raw = message.content[0];
     if (raw.type !== "text") throw new Error("no text");
@@ -50,8 +58,11 @@ export async function POST(req: NextRequest) {
 
     const result = JSON.parse(match[0]) as ResolveResult;
     return NextResponse.json(result);
-  } catch {
-    // On error, treat as direct search
+
+  } catch (err) {
+    if (isBalanceError(err)) void notifyAdmin(err);
+    // Suggest falls back gracefully — never shows error to user
+    console.error("[suggest] Error:", translateError(err));
     return NextResponse.json({ direct: true, disease: query.trim(), candidates: [] });
   }
 }

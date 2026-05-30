@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,9 @@ interface FilterResult {
   recommendations: string;
   references: string[];
 }
+
+const MAX_RETRIES = 3;
+const SLOW_WARNING_MS = 15_000;
 
 const INITIAL_STATE: FilterState = {
   ageGroups: [], gender: "",
@@ -214,11 +217,15 @@ function RomJointEditor({
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function TreatmentFilter({ disease }: { disease: string }) {
-  const [open,    setOpen]    = useState(true);
-  const [filters, setFilters] = useState<FilterState>(INITIAL_STATE);
-  const [result,  setResult]  = useState<FilterResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const [open,        setOpen]        = useState(true);
+  const [filters,     setFilters]     = useState<FilterState>(INITIAL_STATE);
+  const [result,      setResult]      = useState<FilterResult | null>(null);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [retrying,    setRetrying]    = useState(false);
+  const [retryCount,  setRetryCount]  = useState(0);
+  const [slowWarning, setSlowWarning] = useState(false);
+  const slowTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPain = showPainFields(disease);
 
@@ -296,24 +303,94 @@ export function TreatmentFilter({ disease }: { disease: string }) {
     }));
   };
 
+  /** Translate any English/unknown error to Japanese before showing the user */
+  const toJapanese = (msg: string): string => {
+    const m = msg.toLowerCase();
+    if (m.includes("did not match the expected pattern") || m.includes("invalid_request")) {
+      return "現在メンテナンス中です。しばらくお待ちください。";
+    }
+    if (m.includes("401") || m.includes("authentication") || m.includes("api key") || m.includes("x-api-key")) {
+      return "現在メンテナンス中です。しばらくお待ちください。";
+    }
+    if (m.includes("402") || m.includes("billing") || m.includes("credit") || m.includes("balance")) {
+      return "現在アクセスが集中しています。しばらくお待ちください。";
+    }
+    if (m.includes("429") || m.includes("rate_limit") || m.includes("529") || m.includes("overload")) {
+      return "現在アクセスが集中しています。しばらくお待ちください。";
+    }
+    if (m.includes("fetch") || m.includes("network") || m.includes("econnrefused") || m.includes("timeout")) {
+      return "ネットワークエラーが発生しました。接続を確認してください。";
+    }
+    // If the message looks Japanese already, return as-is
+    if (/[ぁ-ん]/.test(msg) || /[ァ-ン]/.test(msg) || /[一-鿿]/.test(msg)) {
+      return msg;
+    }
+    // Fallback for any remaining English errors
+    return "現在メンテナンス中です。しばらくお待ちください。";
+  };
+
   const handleSearch = async () => {
     setLoading(true);
     setError(null);
     setResult(null);
-    try {
-      const res  = await fetch("/api/treatment-filter", {
+    setRetrying(false);
+    setRetryCount(0);
+
+    // Start slow-warning timer
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+    setSlowWarning(false);
+    slowTimerRef.current = setTimeout(() => setSlowWarning(true), SLOW_WARNING_MS);
+
+    const tryOnce = async (): Promise<FilterResult | null> => {
+      const res = await fetch("/api/treatment-filter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ disease, filters }),
       });
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("non-json response");
+      }
       const data = await res.json() as FilterResult | { error: string };
       if ("error" in data) throw new Error(data.error);
-      setResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
-    } finally {
-      setLoading(false);
+      return data;
+    };
+
+    const isRetryable = (err: unknown) => {
+      const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+      return (
+        m.includes("429") || m.includes("529") || m.includes("overload") ||
+        m.includes("timeout") || m.includes("fetch") || m.includes("network") ||
+        m.includes("econnreset") || m.includes("アクセスが集中") || m.includes("通信")
+      );
+    };
+
+    let lastErr: unknown;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        setRetrying(true);
+        setRetryCount(attempt);
+        await new Promise<void>(r => setTimeout(r, 1_500 * attempt));
+        setRetrying(false);
+      }
+      try {
+        const data = await tryOnce();
+        if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+        setSlowWarning(false);
+        setResult(data);
+        setLoading(false);
+        return;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < MAX_RETRIES && isRetryable(err)) continue;
+        break;
+      }
     }
+
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+    setSlowWarning(false);
+    setError(toJapanese(lastErr instanceof Error ? lastErr.message : String(lastErr)));
+    setLoading(false);
   };
 
   // ── Render ──
@@ -332,7 +409,7 @@ export function TreatmentFilter({ disease }: { disease: string }) {
             患者状態で治療を絞り込む
           </p>
           <p className="text-blue-200 text-xs mt-0.5">
-            年代・痛み・ROM・術後経過などを選択 → AIが最適なアプローチを提案
+            年代・痛み・ROM・術後経過などを選択 → 文献・論文をもとに最適なアプローチを整理
           </p>
         </div>
         <span className="text-white/70 text-sm ml-4 shrink-0">{open ? "▲" : "▼"}</span>
@@ -575,15 +652,28 @@ export function TreatmentFilter({ disease }: { disease: string }) {
             disabled={loading}
             className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-sm"
           >
-            {loading ? (
+            {retrying ? (
               <>
                 <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                AIが条件に合ったアプローチを生成中…
+                再接続しています… ({retryCount}/{MAX_RETRIES}回目)
+              </>
+            ) : loading ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                文献・論文をもとに整理中…
               </>
             ) : (
               "この条件で治療アプローチを検索"
             )}
           </button>
+
+          {/* Slow warning */}
+          {slowWarning && loading && !retrying && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5">
+              <span className="inline-block w-3.5 h-3.5 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
+              <p className="text-xs text-blue-700">生成中です。しばらくお待ちください…</p>
+            </div>
+          )}
 
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
 

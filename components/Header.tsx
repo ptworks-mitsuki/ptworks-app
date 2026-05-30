@@ -63,7 +63,7 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
 
         {/* ── Center tagline ── */}
         <div className="hidden md:block flex-1 max-w-xs">
-          <p className="text-xs text-gray-400 text-center truncate">理学療法士のキャリアをAIで広げる</p>
+          <p className="text-xs text-gray-400 text-center truncate">現役PTが作る、臨床準備のためのAIツール</p>
         </div>
 
         {/* ── Right: actions ── */}

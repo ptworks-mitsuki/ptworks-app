@@ -1,9 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  createClient, getApiKey,
+  withRetry, isBalanceError,
+  translateError, notifyAdmin,
+} from "@/lib/api-error";
 
 export const maxDuration = 60;
-
-const client = new Anthropic();
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -11,10 +13,10 @@ export type SlideType = "case" | "research" | "study" | "discharge";
 
 interface CaseForm {
   disease:    string;
-  patient:    string;  // 患者背景
-  evaluation: string;  // 理学療法評価
-  treatment:  string;  // 治療内容
-  outcome:    string;  // 結果・考察
+  patient:    string;
+  evaluation: string;
+  treatment:  string;
+  outcome:    string;
   presenter:  string;
 }
 
@@ -38,10 +40,10 @@ interface StudyForm {
 
 interface DischargeForm {
   patientBg:  string;
-  reason:     string;  // 入院経緯
-  rehab:      string;  // リハビリ内容
-  condition:  string;  // 退院時状態
-  notes:      string;  // 注意事項
+  reason:     string;
+  rehab:      string;
+  condition:  string;
+  notes:      string;
   presenter:  string;
 }
 
@@ -174,31 +176,54 @@ Output JSON format:
 // ── Handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  let body: { type?: SlideType; form?: CaseForm | ResearchForm | StudyForm | DischargeForm };
   try {
-    const body = await req.json();
-    const { type, form } = body as { type: SlideType; form: CaseForm | ResearchForm | StudyForm | DischargeForm };
+    body = await req.json() as typeof body;
+  } catch {
+    return NextResponse.json({ error: "リクエストの解析に失敗しました" }, { status: 400 });
+  }
 
-    if (!type || !form) {
-      return NextResponse.json({ error: "type and form are required" }, { status: 400 });
-    }
+  const { type, form } = body;
+  if (!type || !form) {
+    return NextResponse.json({ error: "type と form は必須です" }, { status: 400 });
+  }
 
+  if (!getApiKey()) {
+    return NextResponse.json(
+      { error: "現在メンテナンス中です。しばらくお待ちください。" },
+      { status: 503 }
+    );
+  }
+
+  try {
+    const client = createClient();
     const prompt = buildPrompt(type, form);
 
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 3000,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const msg = await withRetry(() =>
+      client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 3000,
+        messages: [{ role: "user", content: prompt }],
+      })
+    );
 
     const raw = msg.content[0].type === "text" ? msg.content[0].text : "";
 
     // Strip potential markdown code fences
-    const cleaned = raw.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "").trim();
+    const cleaned = raw
+      .replace(/^```(?:json)?\n?/m, "")
+      .replace(/\n?```$/m, "")
+      .trim();
 
     const parsed = JSON.parse(cleaned);
     return NextResponse.json(parsed);
+
   } catch (err) {
-    console.error("Slides API error:", err);
-    return NextResponse.json({ error: "スライド生成に失敗しました" }, { status: 500 });
+    if (isBalanceError(err)) void notifyAdmin(err);
+    console.error("[slides] Error:", translateError(err));
+    return NextResponse.json(
+      { error: translateError(err) },
+      { status: 503 }
+    );
   }
 }

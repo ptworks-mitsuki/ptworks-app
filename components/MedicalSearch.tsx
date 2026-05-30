@@ -3,7 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { MedicalSection, SectionKey, SECTIONS, PRIMARY_SECTION_KEYS, Suggestion } from "@/types/medical";
 import { SectionCard } from "./SectionCard";
+import { ComedicalSection } from "./ComedicalSection";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
+import { useSearchCache } from "@/hooks/useSearchCache";
+import { useExperienceLevel, TIER_BADGE } from "@/hooks/useExperienceLevel";
 import type { ResolveResult } from "@/app/api/suggest/route";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -20,10 +23,47 @@ type SsePayload =
   | { done: true }
   | { error: string };
 
+const MAX_RETRIES = 3;
+const SLOW_WARNING_MS  = 20_000; // show "生成中です" banner after 20s
+const STALL_TIMEOUT_MS = 25_000; // show "続きを読み込む" if no chunks for 25s
+
 const QUICK_SEARCHES = [
   "脳梗塞", "変形性膝関節症", "腰部脊柱管狭窄症", "パーキンソン病",
   "慢性閉塞性肺疾患", "骨粗鬆症", "肩関節周囲炎", "糖尿病性神経障害",
 ];
+
+// ─── Error classification (client-side) ──────────────────────────────────
+
+function classifyError(err: unknown): string {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  if (m.includes("401") || m.includes("authentication") || m.includes("maintenance")) {
+    return "現在メンテナンス中です。しばらくお待ちください。";
+  }
+  if (m.includes("402") || m.includes("billing") || m.includes("credit") ||
+      m.includes("429") || m.includes("529") || m.includes("overload") ||
+      m.includes("アクセスが集中")) {
+    return "現在アクセスが集中しています。しばらくお待ちください。";
+  }
+  if (m.includes("timeout") || m.includes("timed out") || m.includes("時間がかかって")) {
+    return "通信に時間がかかっています。しばらくお待ちください。";
+  }
+  if (m.includes("fetch") || m.includes("network") || m.includes("offline") ||
+      m.includes("econnreset") || m.includes("通信環境")) {
+    return "通信環境をご確認ください。";
+  }
+  // Already Japanese — pass through
+  if (/[ぁ-ん]/.test(m) || /[ァ-ン]/.test(m)) return err instanceof Error ? err.message : String(err);
+  return "現在メンテナンス中です。しばらくお待ちください。";
+}
+
+function isRetryableClient(err: unknown): boolean {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    m.includes("429") || m.includes("529") || m.includes("overload") ||
+    m.includes("timeout") || m.includes("fetch failed") || m.includes("network") ||
+    m.includes("econnreset") || m.includes("アクセスが集中") || m.includes("通信")
+  );
+}
 
 // ─── Export helpers ────────────────────────────────────────────────────────
 
@@ -44,26 +84,42 @@ function formatAsText(disease: string, sections: Partial<Record<SectionKey, Medi
     }
     lines.push("");
   }
-  lines.push("※ 本情報はAI生成です。臨床判断は専門家の責任において行ってください。");
+  lines.push("※ 本情報は文献・論文をもとに整理した情報です。臨床判断は専門家の責任において行ってください。");
   return lines.join("\n");
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export function MedicalSearch() {
-  const [query,       setQuery]       = useState("");
-  const [phase,       setPhase]       = useState<Phase>("idle");
-  const [candidates,  setCandidates]  = useState<Suggestion[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [partial,     setPartial]     = useState<PartialResult | null>(null);
-  const [streaming,   setStreaming]   = useState(false);
-  const [done,        setDone]        = useState(false);
-  const [error,       setError]       = useState<string | null>(null);
-  const [copied,      setCopied]      = useState(false);
+  const [query,        setQuery]        = useState("");
+  const [phase,        setPhase]        = useState<Phase>("idle");
+  const [candidates,   setCandidates]   = useState<Suggestion[]>([]);
+  const [searchQuery,  setSearchQuery]  = useState("");
+  const [partial,      setPartial]      = useState<PartialResult | null>(null);
+  const [streaming,    setStreaming]     = useState(false);
+  const [done,         setDone]         = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [copied,       setCopied]       = useState(false);
+
+  // Retry / stability state
+  const [retrying,     setRetrying]     = useState(false);
+  const [retryCount,   setRetryCount]   = useState(0);
+  const [slowWarning,  setSlowWarning]  = useState(false);
+  const [stalled,      setStalled]      = useState(false);
+  const [fromCache,    setFromCache]    = useState(false);
 
   const { history, addHistory, removeHistory, clearHistory } = useSearchHistory();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const cache = useSearchCache();
+  const { level: expLevel, meta: expMeta } = useExperienceLevel();
+  const inputRef       = useRef<HTMLInputElement>(null);
+  const abortRef       = useRef<AbortController | null>(null);
+  const lastChunkRef   = useRef<number>(0);
+  const slowTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stallTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const partialRef     = useRef<PartialResult | null>(null); // mirror for use in closures
+
+  // Keep partialRef in sync
+  useEffect(() => { partialRef.current = partial; }, [partial]);
 
   // "/" shortcut focuses search
   useEffect(() => {
@@ -77,74 +133,197 @@ export function MedicalSearch() {
     return () => document.removeEventListener("keydown", h);
   }, []);
 
-  // ── Start the streaming 7-section search ──
-  const startFullSearch = useCallback(async (disease: string) => {
+  // Clear timers on unmount
+  useEffect(() => () => {
+    if (slowTimerRef.current)  clearTimeout(slowTimerRef.current);
+    if (stallTimerRef.current) clearInterval(stallTimerRef.current);
+  }, []);
+
+  // ── Timer helpers ──
+
+  const startTimers = useCallback(() => {
+    if (slowTimerRef.current)  clearTimeout(slowTimerRef.current);
+    if (stallTimerRef.current) clearInterval(stallTimerRef.current);
+
+    setSlowWarning(false);
+    setStalled(false);
+    lastChunkRef.current = Date.now();
+
+    slowTimerRef.current = setTimeout(() => setSlowWarning(true), SLOW_WARNING_MS);
+
+    stallTimerRef.current = setInterval(() => {
+      if (Date.now() - lastChunkRef.current > STALL_TIMEOUT_MS) {
+        setStalled(true);
+        if (stallTimerRef.current) clearInterval(stallTimerRef.current);
+      }
+    }, 2_000);
+  }, []);
+
+  const stopTimers = useCallback(() => {
+    if (slowTimerRef.current)  { clearTimeout(slowTimerRef.current);  slowTimerRef.current  = null; }
+    if (stallTimerRef.current) { clearInterval(stallTimerRef.current); stallTimerRef.current = null; }
+    setSlowWarning(false);
+    setStalled(false);
+  }, []);
+
+  // ── Core SSE runner (single attempt) ──
+
+  const runStream = useCallback(async (
+    disease: string,
+    signal: AbortSignal,
+    keepExisting: boolean,
+  ): Promise<void> => {
+    const res = await fetch("/api/medical-search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disease }),
+      signal,
+    });
+
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(data.error ?? `HTTP ${res.status}`);
+    }
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer    = "";
+
+    while (true) {
+      const { done: rd, value } = await reader.read();
+      if (rd) break;
+
+      lastChunkRef.current = Date.now(); // reset stall clock on every chunk
+      setSlowWarning(false);             // clear slow-warning once data arrives
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+
+        let payload: SsePayload;
+        try { payload = JSON.parse(raw) as SsePayload; } catch { continue; }
+
+        if ("error" in payload) throw new Error(payload.error);
+        if ("done"  in payload) { setDone(true); continue; }
+        if ("section" in payload) {
+          const { section, data } = payload;
+          setPartial(prev => {
+            if (!prev) return prev;
+            return { ...prev, sections: { ...prev.sections, [section]: data } };
+          });
+        }
+      }
+    }
+  }, []);
+
+  // ── Main search with retry loop ──
+
+  const startFullSearch = useCallback(async (
+    disease: string,
+    opts?: { keepPartial?: boolean },
+  ) => {
     abortRef.current?.abort();
     const abort = new AbortController();
     abortRef.current = abort;
 
     setPhase("results");
-    setStreaming(true);
     setDone(false);
     setError(null);
     setCopied(false);
-    setPartial({ disease, sections: {} });
+    setRetrying(false);
+    setRetryCount(0);
+    setFromCache(false);
+
+    if (!opts?.keepPartial) {
+      setPartial({ disease, sections: {} });
+    }
+
     addHistory(disease);
 
-    try {
-      const res = await fetch("/api/medical-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disease }),
-        signal: abort.signal,
-      });
+    // ── Cache check ──
+    const cached = cache.get(disease);
+    if (cached && Object.keys(cached).length >= SECTIONS.length) {
+      setPartial({ disease, sections: cached });
+      setStreaming(false);
+      setDone(true);
+      setFromCache(true);
+      return;
+    }
 
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(data.error ?? "エラーが発生しました");
+    setStreaming(true);
+    startTimers();
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (abort.signal.aborted) { stopTimers(); return; }
+
+      if (attempt > 0) {
+        setRetrying(true);
+        setRetryCount(attempt);
+        await new Promise<void>(r => setTimeout(r, 1_500 * attempt));
+        if (abort.signal.aborted) { stopTimers(); return; }
+        setRetrying(false);
+        // Reset stall clock after reconnect delay
+        lastChunkRef.current = Date.now();
+        setStalled(false);
       }
 
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer    = "";
+      try {
+        await runStream(disease, abort.signal, !!opts?.keepPartial);
 
-      while (true) {
-        const { done: rd, value } = await reader.read();
-        if (rd) break;
+        // Success
+        stopTimers();
+        setStreaming(false);
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const raw = line.slice(6).trim();
-          if (!raw) continue;
-
-          let payload: SsePayload;
-          try { payload = JSON.parse(raw) as SsePayload; } catch { continue; }
-
-          if ("error" in payload) throw new Error(payload.error);
-          if ("done"  in payload) { setDone(true); continue; }
-          if ("section" in payload) {
-            const { section, data } = payload;
-            setPartial(prev =>
-              prev ? { ...prev, sections: { ...prev.sections, [section]: data } } : prev
-            );
-          }
+        // Save full result to cache
+        const current = partialRef.current;
+        if (current && Object.keys(current.sections).length > 0) {
+          cache.set(disease, current.sections);
         }
+        return;
+
+      } catch (err) {
+        if ((err as Error).name === "AbortError") { stopTimers(); return; }
+        if (abort.signal.aborted) { stopTimers(); return; }
+
+        const canRetry = attempt < MAX_RETRIES && isRetryableClient(err);
+        if (!canRetry) {
+          stopTimers();
+          setStreaming(false);
+          setError(classifyError(err));
+          if (!opts?.keepPartial) {
+            setPartial(null);
+            setPhase("idle");
+          }
+          return;
+        }
+        // else: loop continues with next attempt
       }
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    }
+
+    // Exhausted all retries
+    stopTimers();
+    setStreaming(false);
+    setError("再試行しましたが接続できませんでした。通信環境をご確認ください。");
+    if (!opts?.keepPartial) {
       setPartial(null);
       setPhase("idle");
-    } finally {
-      setStreaming(false);
     }
-  }, [addHistory]);
+  }, [addHistory, cache, runStream, startTimers, stopTimers]);
+
+  // ── Resume from stall (keep already-loaded sections) ──
+
+  const handleResume = useCallback(() => {
+    if (!partial) return;
+    startFullSearch(partial.disease, { keepPartial: true });
+  }, [partial, startFullSearch]);
 
   // ── Main search trigger ──
+
   const handleSearch = useCallback(async (input: string = query, opts?: { direct?: boolean }) => {
     const q = input.trim();
     if (!q) return;
@@ -179,12 +358,15 @@ export function MedicalSearch() {
 
   const handleClear = () => {
     abortRef.current?.abort();
+    stopTimers();
     setPhase("idle");
     setPartial(null);
     setDone(false);
     setError(null);
     setQuery("");
     setCandidates([]);
+    setRetrying(false);
+    setRetryCount(0);
     inputRef.current?.focus();
   };
 
@@ -198,7 +380,6 @@ export function MedicalSearch() {
   const loadedCount   = partial ? Object.keys(partial.sections).length : 0;
   const totalSections = SECTIONS.length;
 
-  // Derived section lists
   const primarySections   = SECTIONS.filter(s =>  PRIMARY_SECTION_KEYS.has(s.key));
   const secondarySections = SECTIONS.filter(s => !PRIMARY_SECTION_KEYS.has(s.key));
 
@@ -316,7 +497,12 @@ export function MedicalSearch() {
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center print:hidden">
           <p className="text-red-700 font-medium">エラーが発生しました</p>
           <p className="text-red-500 text-sm mt-1">{error}</p>
-          <button onClick={() => handleSearch()} className="mt-3 text-sm text-red-600 underline hover:no-underline">もう一度試す</button>
+          <button
+            onClick={() => { setError(null); handleSearch(partial?.disease ?? query, { direct: true }); }}
+            className="mt-3 text-sm text-red-600 underline hover:no-underline"
+          >
+            もう一度試す
+          </button>
         </div>
       )}
 
@@ -328,7 +514,14 @@ export function MedicalSearch() {
             <div>
               <h2 className="text-xl font-bold text-gray-900 print:text-2xl">「{partial.disease}」</h2>
               <div className="print:hidden mt-0.5">
-                {streaming ? (
+                {retrying ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-amber-400/40 border-t-amber-400 rounded-full animate-spin" />
+                    <span className="text-xs text-amber-600 font-medium">
+                      再接続しています… ({retryCount}/{MAX_RETRIES}回目)
+                    </span>
+                  </div>
+                ) : streaming ? (
                   <div className="flex items-center gap-2">
                     <div className="flex gap-0.5">
                       {[0,1,2].map(i => (
@@ -339,7 +532,12 @@ export function MedicalSearch() {
                     <span className="text-xs text-blue-600">{loadedCount} / {totalSections} 項目完了</span>
                   </div>
                 ) : done ? (
-                  <p className="text-xs text-green-600">✓ {totalSections} 項目生成完了</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-green-600">✓ {totalSections} 項目生成完了</p>
+                    {fromCache && (
+                      <span className="text-[10px] text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">キャッシュ</span>
+                    )}
+                  </div>
                 ) : null}
               </div>
               <p className="hidden print:block text-sm text-gray-500 mt-1">
@@ -370,11 +568,64 @@ export function MedicalSearch() {
             </div>
           </div>
 
+          {/* ── Slow warning banner ── */}
+          {slowWarning && streaming && !stalled && !retrying && (
+            <div className="mb-4 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 print:hidden">
+              <span className="inline-block w-4 h-4 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
+              <p className="text-sm text-blue-700">生成中です。しばらくお待ちください…</p>
+            </div>
+          )}
+
+          {/* ── Stall banner with resume button ── */}
+          {stalled && !done && !retrying && (
+            <div className="mb-4 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 print:hidden">
+              <p className="text-sm text-amber-700">
+                表示が止まっています。残りの項目を読み込みますか？
+              </p>
+              <button
+                onClick={handleResume}
+                className="shrink-0 text-xs font-bold px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
+              >
+                続きを読み込む
+              </button>
+            </div>
+          )}
+
           {/* Progress bar */}
-          {streaming && (
+          {streaming && !stalled && (
             <div className="w-full bg-gray-100 rounded-full h-1 mb-5 overflow-hidden print:hidden">
               <div className="bg-blue-500 h-full rounded-full transition-all duration-500"
                 style={{ width: `${(loadedCount / totalSections) * 100}%` }} />
+            </div>
+          )}
+
+          {/* ── Experience level message ── */}
+          {expMeta && done && (
+            <div
+              className="mb-3 flex items-start gap-2 rounded-xl border px-4 py-3 print:hidden"
+              style={{ background: expMeta.bg, borderColor: expMeta.border }}
+            >
+              <span className="text-base shrink-0 mt-0.5">👨‍⚕️</span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold mb-0.5" style={{ color: expMeta.color }}>
+                  あなた（{expMeta.label}）へのメッセージ
+                </p>
+                <p className="text-xs leading-relaxed" style={{ color: expMeta.color }}>
+                  {expMeta.message}
+                </p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {(["basic", "applied", "expert"] as const).map(t => (
+                    <span
+                      key={t}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: TIER_BADGE[t].bg, color: TIER_BADGE[t].color }}
+                    >
+                      {TIER_BADGE[t].label}
+                    </span>
+                  ))}
+                  <span className="text-[10px] text-gray-400 self-center">… は各セクションの難易度バッジです</span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -392,6 +643,7 @@ export function MedicalSearch() {
                     disease={partial.disease}
                     sectionKey={section.key}
                     variant="primary"
+                    userTier={expMeta?.badgeTier ?? null}
                   />
                 );
               }
@@ -427,6 +679,7 @@ export function MedicalSearch() {
                     disease={partial.disease}
                     sectionKey={section.key}
                     variant="secondary"
+                    userTier={expMeta?.badgeTier ?? null}
                   />
                 );
               }
@@ -441,8 +694,15 @@ export function MedicalSearch() {
             })}
           </div>
 
+          {/* ── Comedical section (after main results) ── */}
+          {done && (
+            <div className="mt-4">
+              <ComedicalSection disease={partial.disease} />
+            </div>
+          )}
+
           <p className="text-xs text-gray-400 text-center mt-5 pb-2 print:hidden">
-            ※ AI生成情報です。臨床判断には必ず一次文献・専門家への確認をお取りください。
+            ※ 文献・論文をもとに整理した情報です。臨床判断には必ず一次文献・専門家への確認をお取りください。
           </p>
         </div>
       )}

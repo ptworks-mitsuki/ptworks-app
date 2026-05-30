@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { EXPERIENCE_OPTIONS, type ExperienceLevel } from "@/hooks/useExperienceLevel";
+
+const STORAGE_KEY = "pt-experience-level";
 
 export default function RegisterPage() {
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted,    setSubmitted]    = useState(false);
+  const [expLevel,     setExpLevel]     = useState<ExperienceLevel>("");
 
   if (submitted) {
     return (
@@ -49,7 +53,13 @@ export default function RegisterPage() {
         </div>
 
         <form
-          onSubmit={e => { e.preventDefault(); setSubmitted(true); }}
+          onSubmit={e => {
+            e.preventDefault();
+            if (expLevel) {
+              try { localStorage.setItem(STORAGE_KEY, expLevel); } catch { /* ignore */ }
+            }
+            setSubmitted(true);
+          }}
           className="space-y-4"
         >
           <div>
@@ -96,6 +106,30 @@ export default function RegisterPage() {
               <option>あん摩マッサージ指圧師</option>
               <option>その他の医療従事者</option>
             </select>
+          </div>
+
+          {/* Experience level */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              経験年数
+              <span className="text-gray-400 font-normal ml-1">（検索結果の難易度表示に使用します）</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {EXPERIENCE_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setExpLevel(opt.value)}
+                  className={`px-3 py-2.5 rounded-xl border-2 text-sm font-semibold transition text-left ${
+                    expLevel === opt.value
+                      ? "border-[#E85D04] bg-orange-50 text-[#E85D04]"
+                      : "border-gray-200 text-gray-600 hover:border-orange-200"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button
