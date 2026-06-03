@@ -1,161 +1,279 @@
 import Link from "next/link";
+import { FounderPhoto } from "@/components/FounderPhoto";
+
+function SectionDivider() {
+  return <div className="h-px bg-gray-100" />;
+}
 
 export default function AboutPage() {
   return (
-    <main className="max-w-3xl mx-auto px-4 py-10">
+    <main className="min-h-screen">
 
-      {/* Hero */}
-      <div className="text-center mb-12">
-        <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-full px-4 py-1.5 mb-4">
-          <span style={{ color: "#E85D04" }}>PT Works</span>
-          <span className="text-xs font-semibold text-orange-700">PT Worksとは</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-3">
-          PTの「もっとこうだったら」を<br />全部解決したくて作りました。
-        </h1>
-        <p className="text-gray-500 text-sm leading-relaxed">
-          PT Works 創業者・代表 田島 啓介（理学療法士 / PT歴8年）
-        </p>
-      </div>
-
-      {/* Founder photo + intro */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 flex gap-5">
-        <div className="shrink-0 w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-black"
-          style={{ background: "linear-gradient(135deg, #1B4332, #2D6A4F)" }}>
-          PT
-        </div>
-        <div>
-          <p className="font-bold text-gray-900 mb-1">田島 啓介</p>
-          <p className="text-xs text-gray-400 mb-2">理学療法士（PT）資格保有 / PT歴8年 / PT Works 創業者</p>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            病院・クリニック・訪問リハビリを経験後、副業・独立を経てPT Worksを創業。
-            「PTとして生きることをもっと豊かにしたい」というビジョンのもとサービスを開発中。
+      {/* ── ① HERO ─────────────────────────────────────────────── */}
+      <section style={{ background: "#1B4332" }}>
+        <div className="max-w-4xl mx-auto px-6 py-16 sm:py-24">
+          <p className="text-xs font-bold text-white/40 uppercase tracking-[0.25em] mb-5">
+            PT Works について
+          </p>
+          <h1 className="text-4xl sm:text-5xl font-black text-white leading-[1.18] tracking-tight mb-6">
+            理学療法士の、<br />可能性を広げる。
+          </h1>
+          <p className="text-white/65 text-base sm:text-lg leading-[1.9] max-w-xl">
+            臨床の質を上げ、収入の壁を越え、<br />
+            キャリアを自分でデザインできる。<br />
+            そんな環境を、すべてのPTに届けたい。
           </p>
         </div>
-      </div>
+      </section>
 
-      {/* Story sections */}
-      <div className="space-y-8">
-
-        <section>
-          <h2 className="text-lg font-black text-gray-900 mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-sm font-black"
-              style={{ background: "#E85D04" }}>1</span>
-            悩みは、仲間たちが教えてくれた
+      {/* ── ② MISSION ──────────────────────────────────────────── */}
+      <section className="bg-white">
+        <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-4">Mission</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-8">
+            PT Worksのミッション
           </h2>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            PTとして8年間働く中で、同僚や後輩から同じ悩みを繰り返し聞いてきました。
-          </p>
-          <div className="mt-3 space-y-2">
-            {[
-              "「最新の疾患情報を調べるのに時間がかかりすぎる」",
-              "「副業したいけど何から始めればいいかわからない」",
-              "「独立開業したいけど集客のやり方が全然わからない」",
-              "「PTの給料だけじゃ将来が不安。でも何をすればいいか…」",
-            ].map(t => (
-              <div key={t} className="flex items-start gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
-                <p className="text-sm text-gray-700">{t}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-sm text-gray-600 leading-relaxed mt-3">
-            これは個人の問題ではなく、<strong className="text-gray-900">PT業界全体の構造的な課題</strong>だと気づきました。
-            情報・副業・独立、この3つを一気に解決できるツールを作ろうと決めたのが、PT Works誕生のきっかけです。
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-black text-gray-900 mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-sm font-black"
-              style={{ background: "#1B4332" }}>2</span>
-            PT Worksが目指すビジョン
-          </h2>
-          <p className="text-sm text-gray-600 leading-relaxed mb-4">
-            私たちのビジョンは、<strong className="text-gray-900">「すべてのPTが、自分らしいキャリアを歩める社会」</strong>を作ることです。
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { title: "臨床サポートパック", desc: "疾患・治療情報を素早くキャッチアップ。現場の臨床力を高める。" },
-              { title: "副業・開業パック", desc: "副業収入を得て、やがては自分の治療院を開く。" },
-              { title: "全部入りパック", desc: "集客・採用・経営まで。AIがあなたの整体院を支える。" },
-            ].map(v => (
-              <div key={v.title} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
-                <p className="font-bold text-gray-900 text-sm mb-1">{v.title}</p>
-                <p className="text-xs text-gray-500 leading-relaxed">{v.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-black text-gray-900 mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-sm font-black"
-              style={{ background: "#7c3aed" }}>3</span>
-            最終ゴールは「整体院独立」のサポート
-          </h2>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            PT Worksの最終形は、<strong className="text-gray-900">PTが自分の整体院を開業・経営するための集客・採用ツール</strong>です。
-          </p>
-          <div className="mt-4 bg-gradient-to-r from-purple-50 to-orange-50 border border-purple-100 rounded-xl p-5">
-            <p className="font-bold text-gray-800 mb-2 text-sm">PT Worksが実現したいこと</p>
-            <ul className="space-y-1.5">
-              {[
-                "Googleマップ・SNSで自動集客できる",
-                "求人・採用を効率化して良いスタッフを集められる",
-                "患者さんとのコミュニケーションをAIがサポート",
-                "経費管理・確定申告をAIが自動化する",
-                "開業から1年以内に安定経営できる仕組みを提供する",
-              ].map(t => (
-                <li key={t} className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="font-bold shrink-0" style={{ color: "#E85D04" }}>●</span> {t}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-black text-gray-900 mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-sm font-black"
-              style={{ background: "#E85D04" }}>4</span>
-            創業者からのメッセージ
-          </h2>
-          <div className="bg-white border border-gray-200 rounded-2xl p-5">
-            <p className="text-sm text-gray-700 leading-relaxed">
-              「PTとして働き始めた頃、患者さんの回復を助けることにやりがいを感じながらも、
-              <strong className="text-gray-900">収入・情報・将来のキャリア</strong>に不安を抱えていました。
+          <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.9]">
+            <p className="text-xl sm:text-2xl font-black text-gray-900">
+              理学療法士が、正当に評価される社会をつくる。
             </p>
-            <p className="text-sm text-gray-700 leading-relaxed mt-3">
-              副業を始め、独立を経験する中で気づいたのは、
-              <strong className="text-gray-900">正しい情報とツールさえあれば、PTでも十分に豊かなキャリアが作れる</strong>ということ。
+            <p>
+              医療の最前線で患者と向き合い、<br />
+              専門的な知識と技術を磨き続けながらも、<br />
+              収入が上がらない。副業の始め方がわからない。<br />
+              独立したいけど、方法がわからない。
             </p>
-            <p className="text-sm text-gray-700 leading-relaxed mt-3">
-              PT Worksはそのツールを、全国のPT仲間に届けるために作りました。
-              一緒に、PTの可能性を広げていきましょう。」
-            </p>
-            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0"
-                style={{ background: "linear-gradient(135deg, #1B4332, #2D6A4F)" }}>
-                PT
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-900">田島 啓介</p>
-                <p className="text-[10px] text-gray-400">PT Works 創業者 / 理学療法士</p>
-              </div>
+            <p>そんな現実を変えるために、PT Worksは存在します。</p>
+          </div>
+        </div>
+      </section>
+
+      <SectionDivider />
+
+      {/* ── ③ BACKGROUND ───────────────────────────────────────── */}
+      <section style={{ background: "#FFF8F0" }}>
+        <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20 relative overflow-hidden">
+          {/* 大きな引用符デザイン */}
+          <div
+            className="absolute top-4 right-4 sm:right-10 font-black select-none pointer-events-none leading-none"
+            style={{ fontSize: "200px", color: "#E85D04", opacity: 0.06, fontFamily: "serif" }}
+            aria-hidden="true"
+          >
+            &#x300C;
+          </div>
+
+          <div className="relative z-10">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-4">Background</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-8">
+              なぜ、PT Worksは生まれたのか。
+            </h2>
+            <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
+              <p>
+                理学療法士として働き始めて気づいたことがあります。<br />
+                自分が心から尊敬する先輩PTの年収が、<br />
+                約300万円だという現実。
+              </p>
+              <p>
+                8年、10年とキャリアを積んでも、<br />
+                どれだけ患者さんのために努力しても、<br />
+                その価値が収入に反映されない。
+              </p>
+              <p>
+                さらに、給料の低さから副業を探した友人が<br />
+                マルチ商法の被害に遭いました。<br />
+                助けることができなかったあの経験は、<br />
+                今も忘れることができません。
+              </p>
+              <p>
+                PTは真面目で純粋な人が多い。<br />
+                だからこそ、間違った方向に進んでしまう。
+              </p>
+              <p>
+                正しい知識と安全な手段で収入を上げてほしい。<br />
+                同じ思いを持つ仲間を、一人でも多く守りたい。
+              </p>
+              <p className="font-bold text-gray-900">
+                その思いから、PT Worksは生まれました。
+              </p>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
-      {/* CTA */}
-      <div className="mt-12 text-center">
-        <Link href="/register"
-          className="inline-block px-8 py-3.5 rounded-xl font-bold text-white text-sm transition hover:opacity-90 shadow-sm"
-          style={{ background: "#E85D04" }}>
-          無料でPT Worksを始める →
-        </Link>
-        <p className="mt-2 text-xs text-gray-400">クレジットカード不要・30秒で登録完了</p>
-      </div>
+      <SectionDivider />
+
+      {/* ── ④ PROBLEMS ─────────────────────────────────────────── */}
+      <section style={{ background: "#F9FAFB" }}>
+        <div className="max-w-5xl mx-auto px-6 py-14 sm:py-20">
+          <div className="text-center mb-10">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-3">Problems</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+              PT Worksが解決する3つの課題
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            {([
+              {
+                num: "01", title: "臨床の孤独",
+                body: "先輩に聞くのが申し訳ない。\n一人職場で相談できる人がいない。",
+                solution: "24時間いつでも臨床をサポート",
+                accent: "#1d4ed8", top: "#2563EB",
+              },
+              {
+                num: "02", title: "収入の壁",
+                body: "どれだけ頑張っても給料が上がらない。\n副業したいけど何から始めればいいかわからない。",
+                solution: "安全に収入を増やす仕組みを提供",
+                accent: "#15803d", top: "#16a34a",
+              },
+              {
+                num: "03", title: "キャリアの不安",
+                body: "独立したいけど方法がわからない。\nこのまま働き続けていいのか不安。",
+                solution: "学生から独立開業まで全ステージをサポート",
+                accent: "#b45309", top: "#E85D04",
+              },
+            ] as const).map(c => (
+              <div key={c.num}
+                className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col border border-gray-200">
+                <div className="h-1.5" style={{ background: c.top }} />
+                <div className="p-6 flex flex-col flex-1">
+                  <p className="text-3xl font-black mb-3 leading-none" style={{ color: c.top, opacity: 0.15 }}>{c.num}</p>
+                  <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: c.accent }}>課題</p>
+                  <p className="text-lg font-black text-gray-900 mb-3">{c.title}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed flex-1 whitespace-pre-line">{c.body}</p>
+                  <div className="mt-5 pt-4 border-t border-gray-100">
+                    <p className="text-xs font-bold mb-1" style={{ color: c.accent }}>解決</p>
+                    <p className="text-sm font-semibold text-gray-800">{c.solution}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <SectionDivider />
+
+      {/* ── ⑤ FOUNDER ──────────────────────────────────────────── */}
+      <section className="bg-white">
+        <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-3">Founder</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-10">
+            代表プロフィール
+          </h2>
+
+          <div className="flex flex-col sm:flex-row gap-8 sm:gap-12">
+            {/* 左: 丸型写真プレースホルダー */}
+            <FounderPhoto />
+
+            {/* 右: プロフィール情報 */}
+            <div className="flex-1">
+              <div className="mb-6">
+                <p className="text-2xl sm:text-3xl font-black text-gray-900">藤 充輝</p>
+                <p className="text-sm text-gray-400 mt-0.5">とう みつき</p>
+                <p className="text-sm text-gray-600 mt-1.5">理学療法士 / PT Works 創業者</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-7">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">略歴</p>
+                  <ul className="space-y-2.5">
+                    {[
+                      "理学療法士 国家資格取得後、整形外科病院に勤務",
+                      "整体院にて店長職を経験",
+                      "PT Works 創業",
+                    ].map(item => (
+                      <li key={item} className="flex items-start gap-2.5">
+                        <span className="shrink-0 mt-2 w-1.5 h-1.5 rounded-full" style={{ background: "#1B4332" }} />
+                        <span className="text-sm text-gray-700 leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">資格・実績</p>
+                  <ul className="space-y-2.5">
+                    {[
+                      "理学療法士 国家資格",
+                      "筋膜マニピュレーション Level 1 取得",
+                      "カヌーポロ日本代表コーチ",
+                      "世界大会・アジア大会 出場",
+                    ].map(item => (
+                      <li key={item} className="flex items-start gap-2.5">
+                        <span className="shrink-0 mt-2 w-1.5 h-1.5 rounded-full" style={{ background: "#1B4332" }} />
+                        <span className="text-sm text-gray-700 leading-relaxed">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <blockquote className="border-l-4 pl-5 py-1" style={{ borderColor: "#1B4332" }}>
+                <p className="text-sm sm:text-base text-gray-700 leading-[1.9] italic">
+                  「自分がほしかったツールを、<br />
+                  同じ悩みを持つ仲間のために作る。<br />
+                  それがPT Worksを作り続けている理由です。」
+                </p>
+                <p className="text-xs text-gray-400 mt-2 not-italic">— 藤 充輝</p>
+              </blockquote>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400 mt-8 text-center">
+            写真エリアをクリックすると写真を変更できます（推奨 400×400px 以上 / JPG・PNG）
+          </p>
+        </div>
+      </section>
+
+      {/* ── ⑥ PROMISE ──────────────────────────────────────────── */}
+      <section style={{ background: "#1B4332" }}>
+        <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20">
+          <p className="text-xs font-bold text-white/40 uppercase tracking-[0.22em] mb-4">Our Promise</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white mb-10">
+            私たちの約束
+          </h2>
+          <ul className="space-y-5">
+            {[
+              "AIの出力は必ず文献・論文をもとに整理します",
+              "医療情報の正確性を最優先に考えます",
+              "PTが安心して使えるサービスであり続けます",
+              "現役PTの声を反映し、常に改善し続けます",
+            ].map(item => (
+              <li key={item} className="flex items-center gap-4">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(74,222,128,0.15)", border: "1.5px solid rgba(74,222,128,0.5)" }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 6 L5 9 L10 3" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <p className="text-base text-white/80 leading-relaxed">{item}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* ── ⑦ CTA ──────────────────────────────────────────────── */}
+      <section className="bg-white">
+        <div className="max-w-xl mx-auto px-6 py-14 sm:py-20 text-center">
+          <p className="text-2xl sm:text-3xl font-black text-gray-900 mb-3">
+            まず、試してみてください。
+          </p>
+          <p className="text-gray-400 text-sm mb-8">クレジットカード不要 · 30秒で登録完了</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link href="/register"
+              className="w-full sm:w-auto px-10 py-4 rounded-2xl font-black text-white text-base hover:opacity-90 shadow-lg transition"
+              style={{ background: "#E85D04" }}>
+              無料で始める
+            </Link>
+            <Link href="/stage1"
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold text-gray-700 text-base border-2 border-gray-200 hover:bg-gray-50 transition">
+              登録なしで試す
+            </Link>
+          </div>
+        </div>
+      </section>
+
     </main>
   );
 }

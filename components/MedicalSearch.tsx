@@ -77,7 +77,11 @@ function formatAsText(disease: string, sections: Partial<Record<SectionKey, Medi
     const data = sections[s.key];
     if (!data) continue;
     lines.push(`■ ${data.title}`);
-    lines.push(stripMarkers(data.content));
+    lines.push(stripMarkers(data.summary));
+    if (data.detail?.trim()) {
+      lines.push("");
+      lines.push(stripMarkers(data.detail));
+    }
     if (data.references.length > 0) {
       lines.push("  参考文献:");
       data.references.forEach((r, i) => lines.push(`  ${i + 1}. ${r}`));

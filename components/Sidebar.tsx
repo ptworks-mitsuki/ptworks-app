@@ -24,8 +24,10 @@ const PLAN_META = {
 
 const PLAN_LEVEL = { free: 0, stage1: 1, stage2: 2, stage3: 3, stage4: 4 };
 
-function canAccess(required: "free" | "stage1" | "stage2" | "stage3" | "stage4") {
-  return PLAN_LEVEL[CURRENT_PLAN] >= PLAN_LEVEL[required];
+// 開発中: 全ユーザーが全機能を使えるようロックを一時的に無効化
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function canAccess(_required: "free" | "stage1" | "stage2" | "stage3" | "stage4") {
+  return true;
 }
 
 // ── Stage feature groups ──────────────────────────────────────────────────
@@ -244,6 +246,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* ── Nav (scrollable) ── */}
         <div className="flex-1 overflow-y-auto scrollbar-thin py-1">
 
+          {/* PT Worksとは — 最上部 */}
+          <NavLink href="/about" icon="›" label="PT Worksとは" pathname={pathname} onClose={onClose} />
+
           {/* Home */}
           <NavLink href="/" icon="›" label="ホーム" pathname={pathname} onClose={onClose} />
 
@@ -255,45 +260,104 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </p>
           </div>
 
-          {/* Stage1 nav items */}
-          <NavLink href="/stage1"        icon="🔬" label="疾患AI検索" sub badge={canAccess("stage1") ? "無制限" : "月5回"} pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"        icon="🩺" label="症例相談機能" sub locked={!canAccess("stage1")} pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"        icon="📋" label="自主トレ指導書作成" sub locked={!canAccess("stage1")} pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1/slides" icon="📊" label="スライド自動生成" sub locked={!canAccess("stage1")} pathname={pathname} onClose={onClose} />
-          <NavLink href="/learn"         icon="📚" label={canAccess("stage1") ? "学習コンテンツ" : "学習コンテンツ（一部）"} sub pathname={pathname} onClose={onClose} />
+          {/* Stage1 nav items — 全ロック解除済み */}
+          <NavLink href="/stage1"        icon="🔬" label="メディカルサーチ" sub badge="無制限" pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1"        icon="📋" label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/slides" icon="📊" label="スライド自動生成" sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/learn"         icon="📚" label="学習コンテンツ" sub pathname={pathname} onClose={onClose} />
 
           {/* Divider */}
           <div className="mx-3 my-2 border-t border-gray-100" />
 
-          {/* Stage 2 */}
-          <LockedStageSection
-            title="副業支援パック"
-            price="¥3,980/月"
-            color="#2563EB"
-            features={STAGE2_FEATURES}
-            isExpanded={openStage2}
-            onToggle={() => setOpenStage2(v => !v)}
-          />
+          {/* Stage 2 — unlocked, all users can view */}
+          <div className="mx-2 mb-0.5">
+            <button
+              onClick={() => setOpenStage2(v => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm hover:bg-blue-50 transition"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-xs" style={{ color: "#2563EB" }}>副業支援パック</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#2563EB" }}>初月¥980</span>
+              </div>
+              <span className="text-gray-400 text-xs transition-transform" style={{ transform: openStage2 ? "rotate(180deg)" : "" }}>▾</span>
+            </button>
+            {openStage2 && (
+              <div className="ml-3 pb-1">
+                {STAGE2_FEATURES.map(f => (
+                  <Link key={f.label} href="/stage2" onClick={onClose}
+                    className="flex items-center gap-2 ml-2 px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-blue-50 hover:text-blue-700 transition">
+                    <span className="text-gray-300 text-xs">└</span>
+                    <span>{f.label}</span>
+                  </Link>
+                ))}
+                <Link href="/stage2" onClick={onClose}
+                  className="flex items-center justify-center gap-1 mx-2 mt-2 py-1.5 rounded-lg text-[10px] font-bold text-white transition hover:opacity-90"
+                  style={{ background: "#2563EB" }}>
+                  詳細・申し込みを見る →
+                </Link>
+              </div>
+            )}
+          </div>
 
-          {/* Stage 3 */}
-          <LockedStageSection
-            title="開業・院運営パック"
-            price="¥5,980/月"
-            color="#7C3AED"
-            features={STAGE3_FEATURES}
-            isExpanded={openStage3}
-            onToggle={() => setOpenStage3(v => !v)}
-          />
+          {/* Stage 3 — unlocked */}
+          <div className="mx-2 mb-0.5">
+            <button
+              onClick={() => setOpenStage3(v => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm hover:bg-purple-50 transition"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-xs" style={{ color: "#7C3AED" }}>開業・院運営パック</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#7C3AED" }}>初月¥2,980</span>
+              </div>
+              <span className="text-gray-400 text-xs" style={{ transform: openStage3 ? "rotate(180deg)" : "" }}>▾</span>
+            </button>
+            {openStage3 && (
+              <div className="ml-3 pb-1">
+                {STAGE3_FEATURES.map(f => (
+                  <Link key={f.label} href="/stage3" onClick={onClose}
+                    className="flex items-center gap-2 ml-2 px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-purple-50 hover:text-purple-700 transition">
+                    <span className="text-gray-300 text-xs">└</span>
+                    <span>{f.label}</span>
+                  </Link>
+                ))}
+                <Link href="/stage3" onClick={onClose}
+                  className="flex items-center justify-center gap-1 mx-2 mt-2 py-1.5 rounded-lg text-[10px] font-bold text-white transition hover:opacity-90"
+                  style={{ background: "#7C3AED" }}>
+                  詳細を見る →
+                </Link>
+              </div>
+            )}
+          </div>
 
-          {/* Stage 4 */}
-          <LockedStageSection
-            title="全部入りパック"
-            price="¥6,980/月"
-            color="#E85D04"
-            features={STAGE4_FEATURES}
-            isExpanded={openStage4}
-            onToggle={() => setOpenStage4(v => !v)}
-          />
+          {/* Stage 4 — unlocked */}
+          <div className="mx-2 mb-0.5">
+            <button
+              onClick={() => setOpenStage4(v => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm hover:bg-orange-50 transition"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-xs" style={{ color: "#E85D04" }}>全部入りパック</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: "#E85D04" }}>初月¥3,480</span>
+              </div>
+              <span className="text-gray-400 text-xs" style={{ transform: openStage4 ? "rotate(180deg)" : "" }}>▾</span>
+            </button>
+            {openStage4 && (
+              <div className="ml-3 pb-1">
+                {STAGE4_FEATURES.map(f => (
+                  <Link key={f.label} href="/stage4" onClick={onClose}
+                    className="flex items-center gap-2 ml-2 px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-orange-50 hover:text-orange-700 transition">
+                    <span className="text-gray-300 text-xs">└</span>
+                    <span>{f.label}</span>
+                  </Link>
+                ))}
+                <Link href="/stage4" onClick={onClose}
+                  className="flex items-center justify-center gap-1 mx-2 mt-2 py-1.5 rounded-lg text-[10px] font-bold text-white transition hover:opacity-90"
+                  style={{ background: "#E85D04" }}>
+                  詳細を見る →
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* Divider */}
           <div className="mx-3 my-2 border-t border-gray-100" />

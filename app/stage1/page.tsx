@@ -1,152 +1,170 @@
 "use client";
 
 import { useState } from "react";
-import { MedicalSearch }       from "@/components/MedicalSearch";
-import { TreatmentEvidence }   from "@/components/TreatmentEvidence";
-import { CaseConsultation }    from "@/components/CaseConsultation";
+import { MedicalSearch }         from "@/components/MedicalSearch";
+import { TreatmentEvidence }     from "@/components/TreatmentEvidence";
+import { CaseConsultation }      from "@/components/CaseConsultation";
 import { ExperienceLevelWidget } from "@/components/ExperienceLevelWidget";
 
-// ── Tab definitions ────────────────────────────────────────────────────────
+// ── Tab IDs ────────────────────────────────────────────────────────────────
 
 type TabId = "search" | "evidence" | "case";
 
-const TABS: { id: TabId; icon: string; label: string; desc: string }[] = [
-  {
-    id:    "search",
-    icon:  "🔍",
-    label: "検索サーチ",
-    desc:  "教科書・ガイドラインベース",
-  },
-  {
-    id:    "evidence",
-    icon:  "🌍",
-    label: "治療アプローチ",
-    desc:  "最新エビデンス付き",
-  },
-  {
-    id:    "case",
-    icon:  "🩺",
-    label: "症例相談",
-    desc:  "患者状態を入力して相談",
-  },
-];
+// ── SVG Icons (same as top-screen icons, but smaller) ─────────────────────
 
-const TAB_ACTIVE: Record<TabId, { bg: string; border: string; text: string; dot: string }> = {
-  search:   { bg: "#eff6ff", border: "#3b82f6", text: "#1d4ed8", dot: "#3b82f6" },
-  evidence: { bg: "#f0fdf4", border: "#22c55e", text: "#15803d", dot: "#22c55e" },
-  case:     { bg: "#fff7ed", border: "#f97316", text: "#c2410c", dot: "#f97316" },
-};
+function BookIcon({ active }: { active: boolean }) {
+  const c = active ? "#2563EB" : "#9ca3af";
+  return (
+    <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6">
+      <rect x="5" y="4" width="16" height="22" rx="2" fill={c} fillOpacity="0.15" stroke={c} strokeWidth="1.5"/>
+      <rect x="5" y="4" width="4" height="22" rx="1" fill={c} fillOpacity="0.4"/>
+      <line x1="12" y1="10" x2="18" y2="10" stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="12" y1="14" x2="18" y2="14" stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="12" y1="18" x2="16" y2="18" stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="20" y="7" width="8" height="19" rx="1.5" fill={c} fillOpacity="0.08" stroke={c} strokeWidth="1" strokeDasharray="2 1.5"/>
+    </svg>
+  );
+}
+
+function ChecklistIcon({ active }: { active: boolean }) {
+  const c = active ? "#16a34a" : "#9ca3af";
+  return (
+    <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6">
+      <circle cx="16" cy="9" r="5" fill={c} fillOpacity="0.15" stroke={c} strokeWidth="1.5"/>
+      <path d="M8 24 C8 17 24 17 24 24 L24 26 L8 26 Z" fill={c} fillOpacity="0.12" stroke={c} strokeWidth="1.5" strokeLinejoin="round"/>
+      <rect x="19" y="16" width="10" height="12" rx="1.5" fill="white" stroke={c} strokeWidth="1.5"/>
+      <polyline points="21,21 22.5,22.5 26,19.5" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points="21,25 22.5,26.5 26,23.5" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function ChatIcon({ active }: { active: boolean }) {
+  const c = active ? "#ea580c" : "#9ca3af";
+  return (
+    <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6">
+      <rect x="3" y="5" width="20" height="14" rx="4" fill={c} fillOpacity="0.15" stroke={c} strokeWidth="1.5"/>
+      <path d="M7 19 L5 26 L13 21" fill={c} fillOpacity="0.15" stroke={c} strokeWidth="1.2" strokeLinejoin="round"/>
+      <circle cx="9" cy="12" r="1.5" fill={c}/>
+      <circle cx="13" cy="12" r="1.5" fill={c} fillOpacity="0.6"/>
+      <circle cx="17" cy="12" r="1.5" fill={c} fillOpacity="0.35"/>
+      <rect x="19" y="4" width="10" height="8" rx="3" fill={c} fillOpacity="0.1" stroke={c} strokeWidth="1.2" strokeDasharray="2 1.5"/>
+    </svg>
+  );
+}
+
+// ── Tab config ─────────────────────────────────────────────────────────────
+
+const TABS: {
+  id:          TabId;
+  label:       string;
+  sublabel:    string;
+  activeColor: string;
+  activeBg:    string;
+}[] = [
+  { id: "search",   label: "疾患を調べる",  sublabel: "教科書・ガイドライン",  activeColor: "#2563EB", activeBg: "#eff6ff" },
+  { id: "evidence", label: "治療を考える",  sublabel: "エビデンス＋個別提案",  activeColor: "#16a34a", activeBg: "#f0fdf4" },
+  { id: "case",     label: "相談する",      sublabel: "患者状態を入力",        activeColor: "#ea580c", activeBg: "#fff7ed" },
+];
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function Stage1Page() {
   const [activeTab, setActiveTab] = useState<TabId>("search");
 
+  const activeMeta = TABS.find(t => t.id === activeTab)!;
+
   return (
-    <main className="max-w-4xl mx-auto px-4 py-6" role="main">
+    <div
+      className="flex flex-col print:block"
+      style={{ height: "calc(100vh - 3.5rem)" }}
+    >
+      {/* ── Sticky catchphrase bar ── */}
+      <div className="shrink-0 bg-white border-b border-gray-100 px-4 py-2 flex items-center justify-between print:hidden">
+        <p className="text-xs text-gray-400 font-medium">
+          臨床で必要なものが、全部ここにある。
+        </p>
+        {activeTab === "search" && <ExperienceLevelWidget />}
+      </div>
 
-      {/* ── Header ── */}
-      <div className="mb-5 print:hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1">
-                <span className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-xs font-semibold text-green-700">臨床サポートパック</span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-200 rounded-full px-3 py-1">
-                <span className="text-xs font-bold text-orange-700">現役PTが作っています</span>
-              </div>
+      {/* ── Content area (scrollable) ── */}
+      <div className="flex-1 overflow-y-auto min-h-0 print:overflow-visible">
+        <div className="max-w-4xl mx-auto px-4 py-5">
+
+          {/* Tab mode label */}
+          <div
+            className="flex items-center gap-2 rounded-xl px-3 py-2 mb-4 print:hidden"
+            style={{ background: activeMeta.activeBg }}
+          >
+            {activeTab === "search"   && <BookIcon     active />}
+            {activeTab === "evidence" && <ChecklistIcon active />}
+            {activeTab === "case"     && <ChatIcon      active />}
+            <div>
+              <p className="text-sm font-black" style={{ color: activeMeta.activeColor }}>
+                {activeMeta.label}
+              </p>
+              <p className="text-[10px]" style={{ color: activeMeta.activeColor, opacity: 0.7 }}>
+                {activeMeta.sublabel}
+              </p>
             </div>
-            <h1 className="text-xl font-bold text-gray-800">
-              メディカルサーチ
-            </h1>
-            <p className="text-gray-500 text-sm mt-0.5">
-              臨床の質を上げるための準備ツール — 文献・論文をもとに整理します
-            </p>
-          </div>
-          {/* Experience level picker */}
-          <ExperienceLevelWidget />
-        </div>
 
-        {/* ── 3-mode Tabs ── */}
-        <div className="grid grid-cols-3 gap-2">
+            {/* Badges (search only) */}
+            {activeTab === "search" && (
+              <div className="ml-auto flex gap-1.5">
+                <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">現役PTが作成</span>
+              </div>
+            )}
+          </div>
+
+          {/* Feature content */}
+          <div
+            key={activeTab}
+            className="animate-in fade-in duration-200"
+          >
+            {activeTab === "search"   && <MedicalSearch />}
+            {activeTab === "evidence" && <TreatmentEvidence />}
+            {activeTab === "case"     && <CaseConsultation />}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Fixed bottom tab bar ── */}
+      <div className="shrink-0 bg-white border-t border-gray-200 print:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex max-w-4xl mx-auto">
           {TABS.map(tab => {
             const isActive = activeTab === tab.id;
-            const ac = TAB_ACTIVE[tab.id];
             return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className="rounded-xl border-2 px-3 py-3 text-center transition-all"
-                style={
-                  isActive
-                    ? { background: ac.bg, borderColor: ac.border }
-                    : { background: "#f9fafb", borderColor: "#e5e7eb" }
-                }
+                className="flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-all relative"
+                style={{ color: isActive ? tab.activeColor : "#9ca3af" }}
               >
-                <div className="flex items-center justify-center gap-1.5 mb-0.5">
-                  {isActive && (
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: ac.dot }}
-                    />
-                  )}
-                  <span className="text-base leading-none">{tab.icon}</span>
-                  <span
-                    className="font-bold text-sm"
-                    style={{ color: isActive ? ac.text : "#374151" }}
-                  >
-                    {tab.label}
-                  </span>
-                </div>
-                <p
-                  className="text-[10px] leading-tight"
-                  style={{ color: isActive ? ac.text : "#9ca3af" }}
+                {/* Active indicator */}
+                {isActive && (
+                  <div
+                    className="absolute top-0 left-4 right-4 h-0.5 rounded-full"
+                    style={{ background: tab.activeColor }}
+                  />
+                )}
+
+                {/* Icon */}
+                {tab.id === "search"   && <BookIcon     active={isActive} />}
+                {tab.id === "evidence" && <ChecklistIcon active={isActive} />}
+                {tab.id === "case"     && <ChatIcon      active={isActive} />}
+
+                {/* Label */}
+                <span
+                  className={`text-[10px] leading-tight font-semibold transition-all ${isActive ? "font-black" : ""}`}
                 >
-                  {tab.desc}
-                </p>
+                  {tab.label}
+                </span>
               </button>
             );
           })}
         </div>
-
-        {/* Tab description strip */}
-        {activeTab === "search" && (
-          <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
-            <span className="text-blue-500 shrink-0">ℹ</span>
-            <p className="text-xs text-blue-700">
-              日本の教科書・ガイドラインに準拠した病態・解剖・評価・禁忌など<strong> 8項目</strong>を整理します。
-              各セクションに参考文献・難易度バッジを表示します。
-            </p>
-          </div>
-        )}
-        {activeTab === "evidence" && (
-          <div className="mt-3 flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
-            <span className="text-green-600 shrink-0">ℹ</span>
-            <p className="text-xs text-green-800">
-              日本の標準的アプローチに加え、<strong>海外の最新エビデンス（RCT・系統的レビュー）</strong>を出典付きで表示します。
-              教科書と最新文献の違いが一目でわかります。
-            </p>
-          </div>
-        )}
-        {activeTab === "case" && (
-          <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5">
-            <span className="text-orange-500 shrink-0">ℹ</span>
-            <p className="text-xs text-orange-800">
-              患者の<strong>年代・痛み・ROM・術後経過・受療環境</strong>などを入力すると、
-              その患者に合った具体的なアプローチを文献・論文をもとに整理します。
-            </p>
-          </div>
-        )}
       </div>
-
-      {/* ── Tab content ── */}
-      {activeTab === "search"   && <MedicalSearch />}
-      {activeTab === "evidence" && <TreatmentEvidence />}
-      {activeTab === "case"     && <CaseConsultation />}
-
-    </main>
+    </div>
   );
 }

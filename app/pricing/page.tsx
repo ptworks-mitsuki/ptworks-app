@@ -8,116 +8,121 @@ import { useState } from "react";
 
 const PLANS = [
   {
-    id:          "free",
-    label:       "無料プラン",
-    price:       "¥0",
-    period:      "ずっと無料",
-    tagline:     "PTの辞書として気軽に使い始める",
-    color:       "#6B7280",
-    border:      "border-gray-300",
-    btnStyle:    { background: "#6B7280" },
-    btnLabel:    "無料で始める",
-    href:        "/register",
-    recommended: false,
-    badge:       null,
-    target:      "まずは試してみたい方",
-    features:    [
-      { label: "疾患AI検索（月5回まで）",  ok: true  },
-      { label: "7項目の臨床情報生成",       ok: true  },
-      { label: "治療アプローチ提案",        ok: true  },
-      { label: "学習コンテンツ（一部）",    ok: true  },
-      { label: "スライド自動生成",          ok: false },
-      { label: "症例相談・指導書作成",      ok: false },
+    id:           "free",
+    label:        "無料プラン",
+    price:        "¥0",
+    firstPrice:   null,
+    period:       "ずっと無料",
+    tagline:      "まずは試してみたい方へ",
+    color:        "#6B7280",
+    border:       "border-gray-300",
+    btnStyle:     { background: "#6B7280" },
+    btnLabel:     "無料で始める",
+    href:         "/register",
+    recommended:  false,
+    badge:        null,
+    guarantee:    null,
+    target:       "まずは試してみたい方",
+    features:     [
+      { label: "メディカルサーチ（月5回）",    ok: true  },
+      { label: "副業診断 1回無料体験",         ok: true  },
+      { label: "メディカルサーチ無制限",       ok: false },
+      { label: "治療を考える・相談する",        ok: false },
+      { label: "スライド自動生成",             ok: false },
     ],
   },
   {
-    id:          "stage1",
-    label:       "臨床サポートパック",
-    price:       "¥980",
-    period:      "月",
-    tagline:     "PTの辞書として毎日使える。疾患情報を即座に検索",
-    color:       "#1B4332",
-    border:      "border-green-600",
-    btnStyle:    { background: "#1B4332" },
-    btnLabel:    "このパックで始める",
-    href:        "/register?plan=stage1",
-    recommended: true,
-    badge:       "人気No.1",
-    target:      "臨床力を高めたい現役PT",
-    features:    [
-      { label: "疾患AI検索（無制限）",    ok: true },
-      { label: "7項目の臨床情報生成",     ok: true },
-      { label: "治療アプローチ提案",      ok: true },
-      { label: "症例相談機能",            ok: true },
-      { label: "自主トレ指導書作成",      ok: true },
-      { label: "スライド自動生成",        ok: true },
-      { label: "学習コンテンツ（全閲覧）", ok: true },
+    id:           "stage1",
+    label:        "臨床サポートパック",
+    price:        "¥980",
+    firstPrice:   null,
+    period:       "月",
+    tagline:      "臨床の準備を、もっと速く。毎日使う道具として",
+    color:        "#1B4332",
+    border:       "border-green-600",
+    btnStyle:     { background: "#1B4332" },
+    btnLabel:     "このパックで始める",
+    href:         "/register?plan=stage1",
+    recommended:  true,
+    badge:        "人気No.1",
+    guarantee:    null,
+    target:       "臨床力を高めたい現役PT",
+    features:     [
+      { label: "メディカルサーチ無制限",        ok: true },
+      { label: "疾患を調べる・治療を考える・相談する", ok: true },
+      { label: "患者説明文の自動生成",          ok: true },
+      { label: "スライド自動生成",              ok: true },
+      { label: "副業診断 1回無料体験付き",      ok: true },
     ],
   },
   {
-    id:          "stage2",
-    label:       "副業支援パック",
-    price:       "¥3,980",
-    period:      "月",
-    tagline:     "副業収入の第一歩。AIがあなたの副業をサポート",
-    color:       "#2563EB",
-    border:      "border-blue-500",
-    btnStyle:    { background: "#2563EB" },
-    btnLabel:    "このパックで始める",
-    href:        "/register?plan=stage2",
-    recommended: false,
-    badge:       "準備中",
-    target:      "副業・収入アップを目指すPT",
-    features:    [
-      { label: "臨床サポートパックの全機能",       ok: true },
-      { label: "副業診断・ロードマップ診断",       ok: true },
-      { label: "AIコーチング（今月やること提案）", ok: true },
-      { label: "SNS・ブログ・LP文章生成",          ok: true },
-      { label: "収益管理ダッシュボード",           ok: true },
-      { label: "先輩PT成功事例データベース",       ok: true },
+    id:           "stage2",
+    label:        "副業支援パック",
+    price:        "¥3,980",
+    firstPrice:   "¥980",
+    period:       "月",
+    tagline:      "知識を収入に変える仕組みを、まるごと提供",
+    color:        "#2563EB",
+    border:       "border-blue-500",
+    btnStyle:     { background: "#2563EB" },
+    btnLabel:     "このパックで始める",
+    href:         "/register?plan=stage2",
+    recommended:  false,
+    badge:        "初月¥980",
+    guarantee:    "3ヶ月返金保証",
+    target:       "副業・収入アップを目指すPT",
+    features:     [
+      { label: "臨床サポートの全機能",             ok: true },
+      { label: "セミナー動画・PDF 投稿・販売",      ok: true },
+      { label: "収益 50% 還元",                    ok: true },
+      { label: "AIコーチング・SNS記事生成",         ok: true },
+      { label: "収益管理ダッシュボード",            ok: true },
+      { label: "3ヶ月返金保証付き",                ok: true },
     ],
   },
   {
-    id:          "stage3",
-    label:       "開業・院運営パック",
-    price:       "¥5,980",
-    period:      "月",
-    tagline:     "院運営をAIに任せて本業に集中できる",
-    color:       "#E85D04",
-    border:      "border-orange-500",
-    btnStyle:    { background: "#E85D04" },
-    btnLabel:    "このパックで始める",
-    href:        "/register?plan=stage3",
-    recommended: false,
-    badge:       "準備中",
-    target:      "整体院・クリニック運営者",
-    features:    [
-      { label: "臨床・副業パックの全機能",         ok: true },
-      { label: "口コミ返信文ジェネレーター",       ok: true },
-      { label: "Googleビジネスプロフィール最適化", ok: true },
-      { label: "問い合わせ対応チャットボット",     ok: true },
-      { label: "確定申告・経費管理補助",           ok: true },
+    id:           "stage3",
+    label:        "開業・院運営パック",
+    price:        "¥5,980",
+    firstPrice:   "¥2,980",
+    period:       "月",
+    tagline:      "院の集客・運営をAIに任せて本業に集中",
+    color:        "#7C3AED",
+    border:       "border-purple-500",
+    btnStyle:     { background: "#7C3AED" },
+    btnLabel:     "このパックで始める",
+    href:         "/register?plan=stage3",
+    recommended:  false,
+    badge:        "初月¥2,980",
+    guarantee:    null,
+    target:       "整体院・クリニック運営者",
+    features:     [
+      { label: "副業支援の全機能",                 ok: true },
+      { label: "口コミ返信・SNS投稿生成",           ok: true },
+      { label: "確定申告補助",                     ok: true },
+      { label: "Googleビジネス最適化",             ok: true },
     ],
   },
   {
-    id:          "stage4",
-    label:       "全部入りパック",
-    price:       "¥6,980",
-    period:      "月",
-    tagline:     "全機能使い放題。PTのキャリア全てをAIが支援",
-    color:       "#B45309",
-    border:      "border-amber-600",
-    btnStyle:    { background: "#B45309" },
-    btnLabel:    "このパックで始める",
-    href:        "/register?plan=stage4",
-    recommended: false,
-    badge:       "BEST VALUE",
-    target:      "PTとしてキャリアを最大化したい方",
-    features:    [
-      { label: "全パックの機能を使い放題",    ok: true },
-      { label: "優先サポート（専用チャット）", ok: true },
-      { label: "新機能の先行アクセス",        ok: true },
-      { label: "月1回 AIキャリア相談",        ok: true },
+    id:           "stage4",
+    label:        "全部入りパック",
+    price:        "¥6,980",
+    firstPrice:   "¥3,480",
+    period:       "月",
+    tagline:      "全機能使い放題＋優先サポート＋新機能先行アクセス",
+    color:        "#E85D04",
+    border:       "border-orange-500",
+    btnStyle:     { background: "#E85D04" },
+    btnLabel:     "このパックで始める",
+    href:         "/register?plan=stage4",
+    recommended:  false,
+    badge:        "初月¥3,480",
+    guarantee:    null,
+    target:       "PTとしてキャリアを最大化したい方",
+    features:     [
+      { label: "全機能使い放題",               ok: true },
+      { label: "優先サポート",                 ok: true },
+      { label: "新機能先行アクセス",           ok: true },
     ],
   },
 ] as const;
@@ -493,14 +498,34 @@ export default function PricingPage() {
               <div className="p-4 flex-1">
                 <p className="font-black text-sm mb-1.5 leading-snug" style={{ color: plan.color }}>{plan.label}</p>
                 <div className="mb-3">
-                  <span className="text-2xl font-black text-gray-900">{plan.price}</span>
-                  {plan.period !== "ずっと無料" && (
-                    <span className="text-xs text-gray-400 ml-1">/{plan.period}</span>
-                  )}
-                  {plan.period === "ずっと無料" && (
-                    <p className="text-[10px] text-gray-400">{plan.period}</p>
+                  {"firstPrice" in plan && plan.firstPrice ? (
+                    <>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xl font-black" style={{ color: plan.color }}>{plan.firstPrice}</span>
+                        <span className="text-[10px] text-gray-400">初月</span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm font-bold text-gray-400 line-through">{plan.price}</span>
+                        <span className="text-[10px] text-gray-400">2ヶ月目〜/{plan.period}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-black text-gray-900">{plan.price}</span>
+                      {plan.period !== "ずっと無料" && (
+                        <span className="text-xs text-gray-400 ml-1">/{plan.period}</span>
+                      )}
+                      {plan.period === "ずっと無料" && (
+                        <p className="text-[10px] text-gray-400">{plan.period}</p>
+                      )}
+                    </>
                   )}
                 </div>
+                {"guarantee" in plan && plan.guarantee && (
+                  <div className="mb-2 inline-flex items-center gap-1 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                    <span className="text-[10px] font-bold text-green-700">{plan.guarantee}</span>
+                  </div>
+                )}
 
                 <div className="bg-gray-50 rounded-lg px-2.5 py-2 mb-3">
                   <p className="text-[10px] text-gray-400 font-semibold mb-0.5">こんな人に</p>
@@ -530,6 +555,19 @@ export default function PricingPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── 初月割引の説明 ── */}
+        <div className="mb-10 bg-blue-50 border border-blue-200 rounded-2xl px-6 py-5">
+          <p className="text-sm font-black text-blue-800 mb-2">初月割引についての説明</p>
+          <p className="text-sm text-blue-700 leading-relaxed">
+            副業支援パックは初月¥980で全機能を体験できます。<br />
+            2ヶ月目から通常価格¥3,980になります。<br />
+            まず試してみてください。
+          </p>
+          <p className="text-xs text-blue-500 mt-2">
+            ※ 開業・院運営パック（初月¥2,980）、全部入りパック（初月¥3,480）も同様です。
+          </p>
         </div>
 
         {/* ── Comparison table ── */}

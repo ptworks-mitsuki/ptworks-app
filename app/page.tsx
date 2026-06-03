@@ -130,79 +130,151 @@ export default function LandingPage() {
     <div className="w-full">
 
       {/* ① ══════════════════════════════════════════════════════════════════
-          HERO
+          HERO — white/gray gradient + desk illustration
       ══════════════════════════════════════════════════════════════════════ */}
-      <section className="bg-white px-4 pt-14 pb-16 sm:pt-20 sm:pb-24">
-        <div className="max-w-3xl mx-auto text-center">
+      <section
+        className="px-4 pt-12 pb-14 sm:pt-18 sm:pb-20"
+        style={{ background: "linear-gradient(160deg, #ffffff 0%, #F0FDF4 40%, #f9fafb 100%)" }}
+      >
+        <div className="max-w-5xl mx-auto">
+          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
 
-          {/* ── Logo block ── */}
-          <div className="flex flex-col items-center gap-3 mb-8">
-            {/* Logo mark + wordmark */}
-            <div className="flex items-center gap-3">
-              <div
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-white font-black text-3xl sm:text-4xl shadow-md"
-                style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}
-              >
-                P
+            {/* ── Left: text column ── */}
+            <div className="flex-1 text-center lg:text-left">
+
+              {/* Logo + wordmark */}
+              <div className="flex items-center gap-3 mb-5 justify-center lg:justify-start">
+                <div
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-white font-black text-2xl sm:text-3xl shadow-md"
+                  style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}
+                >
+                  P
+                </div>
+                <span className="text-4xl sm:text-5xl font-black tracking-tight" style={{ color: "#1A1A2E" }}>
+                  PT<span style={{ color: "#E85D04" }}>Works</span>
+                </span>
               </div>
-              <span
-                className="text-5xl sm:text-6xl font-black tracking-tight"
-                style={{ color: "#1A1A2E" }}
+
+              {/* Sub-head pill */}
+              <div className="inline-flex items-center gap-2 bg-white border border-gray-200 rounded-full px-4 py-1.5 mb-6 shadow-sm">
+                <span className="w-2 h-2 rounded-full" style={{ background: "#1B4332" }} />
+                <span className="text-xs sm:text-sm font-bold tracking-wide" style={{ color: "#1B4332" }}>
+                  現役PTが作る、理学療法士専用ツール
+                </span>
+              </div>
+
+              {/* Main catchphrase */}
+              <h1
+                className="text-3xl sm:text-4xl md:text-[2.6rem] font-black leading-[1.22] mb-5 tracking-tight"
+                style={{ color: "#1B4332" }}
               >
-                PT<span style={{ color: "#E85D04" }}>Works</span>
-              </span>
-            </div>
-            {/* Sub-head */}
-            <div className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5">
-              <span className="text-sm sm:text-base font-bold text-gray-500 tracking-widest">
-                理学療法士 <span style={{ color: "#E85D04" }}>×</span> AI 専用ツール
-              </span>
-            </div>
-          </div>
+                臨床で必要なものが、<br />全部ここにある。
+              </h1>
 
-          {/* ── Catch copy ── */}
-          <h1 className="text-3xl sm:text-4xl md:text-[2.75rem] font-black text-gray-900 leading-[1.25] mb-5 tracking-tight">
-            <span className="relative inline-block">
-              <span className="relative z-10">
-                理学療法士として、<br />このまま終わりたくない。
-              </span>
-              {/* underline accent */}
-              <span
-                className="absolute -bottom-1 left-0 right-0 h-3 -z-0 opacity-[0.15] rounded-sm"
-                style={{ background: "#E85D04" }}
-              />
-            </span>
-          </h1>
+              {/* Sub copy */}
+              <p className="text-gray-500 text-base sm:text-lg leading-[1.9] mb-3 max-w-md mx-auto lg:mx-0">
+                教科書も、参考書も、相談できる先輩も。<br />
+                <span className="font-bold text-gray-700">PTの臨床準備に必要なものが、<br className="hidden sm:block"/>このアプリひとつに。</span>
+              </p>
 
-          {/* ── Sub copy ── */}
-          <p className="text-gray-500 text-base sm:text-lg leading-[1.85] mb-6 max-w-lg mx-auto">
-            臨床の質を上げるための準備を、もっと効率よく。<br />
-            PT Works は、<span className="font-bold text-gray-700">現役PT自身が作った<br className="hidden sm:block" />
-            理学療法士専用の準備ツール</span>です。
-          </p>
-          {/* ── PT badge ── */}
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-2 shadow-sm">
-              <span className="text-sm font-bold text-green-800">👨‍⚕️ 現役理学療法士が開発・運営中</span>
+              {/* Visual hint */}
+              <p className="text-xs text-gray-400 mb-6 max-w-xs mx-auto lg:mx-0">
+                ← 机の上にあるものが、全部このアプリに入っています
+              </p>
+
+              {/* CTA */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">
+                <Link
+                  href="/register"
+                  className="w-full sm:w-auto px-10 py-4 rounded-2xl font-black text-white text-lg transition hover:opacity-90 shadow-xl text-center"
+                  style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}
+                >
+                  無料で始める →
+                </Link>
+                <Link
+                  href="/stage1"
+                  className="text-sm font-semibold text-gray-500 hover:text-[#1B4332] transition underline underline-offset-4 decoration-dashed"
+                >
+                  登録なしで試してみる
+                </Link>
+              </div>
+              <p className="text-xs text-gray-400 mt-2 text-center lg:text-left">クレジットカード不要 · 30秒で登録完了</p>
             </div>
-          </div>
 
-          {/* ── CTA ── */}
-          <div className="flex flex-col items-center gap-3">
-            <Link
-              href="/register"
-              className="w-full sm:w-auto px-12 py-4 rounded-2xl font-black text-white text-lg transition hover:opacity-90 shadow-xl text-center"
-              style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}
-            >
-              無料で始める →
-            </Link>
-            <p className="text-xs text-gray-400">クレジットカード不要 · 30秒で登録完了</p>
-            <Link
-              href="/stage1"
-              className="text-sm font-semibold text-gray-400 hover:text-[#E85D04] transition underline underline-offset-4 decoration-dashed"
-            >
-              まずは登録なしで試してみる
-            </Link>
+            {/* ── Right: desk illustration ── */}
+            <div className="shrink-0 w-full max-w-xs lg:max-w-sm">
+              <svg viewBox="0 0 340 280" fill="none" className="w-full" aria-hidden="true">
+
+                {/* Desk surface */}
+                <rect x="10" y="212" width="320" height="16" rx="5" fill="#1B4332" fillOpacity="0.08" stroke="#1B4332" strokeWidth="1" strokeOpacity="0.15"/>
+
+                {/* ── Books (left) ── */}
+                <rect x="22"  y="132" width="18" height="80" rx="3" fill="#1B4332" fillOpacity="0.75"/>
+                <rect x="42"  y="118" width="14" height="94" rx="3" fill="#E85D04" fillOpacity="0.65"/>
+                <rect x="58"  y="140" width="16" height="72" rx="3" fill="#2563EB" fillOpacity="0.6"/>
+                <rect x="76"  y="125" width="12" height="87" rx="3" fill="#7C3AED" fillOpacity="0.55"/>
+                {/* Book title lines */}
+                <line x1="26"  y1="148" x2="36"  y2="148" stroke="white" strokeWidth="1" strokeOpacity="0.5"/>
+                <line x1="26"  y1="155" x2="36"  y2="155" stroke="white" strokeWidth="1" strokeOpacity="0.4"/>
+                <line x1="45"  y1="134" x2="53"  y2="134" stroke="white" strokeWidth="1" strokeOpacity="0.5"/>
+
+                {/* ── Laptop (center) ── */}
+                <rect x="96" y="168" width="144" height="46" rx="5"   fill="#1F2937" stroke="#374151" strokeWidth="1.5"/>
+                <rect x="100" y="171" width="136" height="40" rx="3"  fill="#E5E7EB"/>
+                {/* Screen lines (content) */}
+                <rect x="105" y="175" width="60"  height="4" rx="2"  fill="#1B4332" fillOpacity="0.6"/>
+                <rect x="105" y="182" width="48"  height="3" rx="1.5" fill="#6B7280" fillOpacity="0.4"/>
+                <rect x="105" y="188" width="55"  height="3" rx="1.5" fill="#6B7280" fillOpacity="0.35"/>
+                <rect x="105" y="194" width="40"  height="3" rx="1.5" fill="#6B7280" fillOpacity="0.3"/>
+                {/* Logo on screen */}
+                <rect x="170" y="175" width="60" height="22" rx="3" fill="#1B4332" fillOpacity="0.08"/>
+                <text x="177" y="186" fontSize="8" fill="#1B4332" fontWeight="bold" fontFamily="sans-serif">PT Works</text>
+                <rect x="173" y="189" width="52" height="5" rx="2.5" fill="#E85D04" fillOpacity="0.7"/>
+                {/* Laptop hinge + base */}
+                <path d="M90 214 L110 212 L226 212 L246 214 L252 218 L84 218 Z" fill="#374151"/>
+
+                {/* ── Coffee cup ── */}
+                <ellipse cx="265" cy="178" rx="13" ry="5" fill="#7C3AED" fillOpacity="0.15"/>
+                <rect x="252"  y="178" width="26" height="32" rx="4"  fill="#7C3AED" fillOpacity="0.12" stroke="#7C3AED" strokeWidth="1.5" strokeOpacity="0.35"/>
+                <path d="M278 184 Q288 184 288 192 Q288 200 278 200" stroke="#7C3AED" strokeWidth="1.5" fill="none" strokeOpacity="0.45"/>
+                {/* Steam */}
+                <path d="M260 174 Q262 168 260 162" stroke="#7C3AED" strokeWidth="1" fill="none" strokeOpacity="0.3" strokeLinecap="round"/>
+                <path d="M265 174 Q267 166 265 160" stroke="#7C3AED" strokeWidth="1" fill="none" strokeOpacity="0.25" strokeLinecap="round"/>
+
+                {/* ── Phone (right) ── */}
+                <rect x="290" y="140" width="40" height="72" rx="8"  fill="#1A1A2E" stroke="#374151" strokeWidth="1.5"/>
+                <rect x="293" y="143" width="34" height="66" rx="6"  fill="#F8FAFC"/>
+                {/* Phone status bar */}
+                <rect x="293" y="143" width="34" height="8" rx="3"   fill="#1B4332"/>
+                <text x="296" y="150" fontSize="4" fill="white" fontFamily="sans-serif" fontWeight="bold">PT Works</text>
+                {/* Phone content */}
+                <rect x="296" y="155" width="28" height="4"   rx="2"   fill="#1B4332" fillOpacity="0.7"/>
+                <rect x="296" y="162" width="22" height="3"   rx="1.5" fill="#6B7280" fillOpacity="0.45"/>
+                <rect x="296" y="168" width="25" height="3"   rx="1.5" fill="#6B7280" fillOpacity="0.4"/>
+                <rect x="296" y="174" width="20" height="3"   rx="1.5" fill="#6B7280" fillOpacity="0.35"/>
+                {/* Phone CTA button */}
+                <rect x="296" y="195" width="28" height="10" rx="4"   fill="#E85D04"/>
+                <rect x="301" y="198" width="18" height="3"   rx="1.5" fill="white" fillOpacity="0.85"/>
+
+                {/* ── Pen / pencil ── */}
+                <rect x="82"  y="208" width="6"  height="40" rx="3"  fill="#E85D04" fillOpacity="0.5" transform="rotate(-10, 85, 220)"/>
+
+                {/* ── Decorative dots ── */}
+                <circle cx="50"  cy="112" r="4"   fill="#E85D04" fillOpacity="0.25"/>
+                <circle cx="248" cy="134" r="3"   fill="#1B4332" fillOpacity="0.2"/>
+                <circle cx="20"  cy="200" r="2.5" fill="#2563EB" fillOpacity="0.2"/>
+
+                {/* ── Arrow: books → phone (visual metaphor) ── */}
+                <path d="M90 175 Q195 100 285 162" stroke="#1B4332" strokeWidth="1.5" strokeDasharray="5 4" fill="none" strokeOpacity="0.2" strokeLinecap="round"/>
+                <path d="M282 158 L285 162 L280 163" stroke="#1B4332" strokeWidth="1.5" fill="none" strokeOpacity="0.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+
+              {/* Caption */}
+              <p className="text-center text-xs text-gray-400 mt-2">
+                机の上にあるものが全部このアプリに
+              </p>
+            </div>
+
           </div>
         </div>
       </section>

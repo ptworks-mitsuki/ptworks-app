@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import type { SectionKey, MedicalSection } from "@/types/medical";
 
-const CACHE_KEY = "pt-search-cache-v1";
+const CACHE_KEY = "pt-search-cache-v2";
 const TTL_MS    = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CacheEntry {
