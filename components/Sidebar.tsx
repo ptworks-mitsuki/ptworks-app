@@ -269,6 +269,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* Divider */}
           <div className="mx-3 my-2 border-t border-gray-100" />
 
+          {/* コンテンツマーケット */}
+          <div className="mx-2 mb-0.5">
+            <p className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              コンテンツマーケット
+            </p>
+          </div>
+          <NavLink href="/market" icon="🎬" label="動画・PDF一覧" sub pathname={pathname} onClose={onClose} />
+
+          {/* Divider */}
+          <div className="mx-3 my-2 border-t border-gray-100" />
+
           {/* Stage 2 — unlocked, all users can view */}
           <div className="mx-2 mb-0.5">
             <button

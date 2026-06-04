@@ -14,18 +14,23 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 w-full max-w-md text-center">
-          <div className="text-4xl mb-4">🎉</div>
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-md mx-auto mb-4"
+            style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}
+          >
+            P
+          </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">ご登録ありがとうございます</h2>
           <p className="text-gray-500 text-sm mb-6">
-            現在ベータ版の準備中です。<br />
-            サービス開始時にメールでご連絡いたします。
+            ご利用するプランを選んでください。<br />
+            いつでも変更・解約できます。
           </p>
           <Link
-            href="/stage1"
-            className="inline-block w-full py-3 rounded-xl font-bold text-white text-sm text-center transition"
-            style={{ background: "#E85D04" }}
+            href="/plan-select"
+            className="inline-block w-full py-3.5 rounded-xl font-bold text-white text-sm text-center transition hover:opacity-90 shadow-md"
+            style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}
           >
-            今すぐ無料のStage 1を使ってみる
+            プランを選ぶ →
           </Link>
           <Link href="/" className="block mt-3 text-xs text-gray-400 hover:text-gray-600 transition">
             ← トップページに戻る

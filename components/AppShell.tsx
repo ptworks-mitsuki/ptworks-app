@@ -5,7 +5,33 @@ import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { ThemeProvider } from "./ThemeProvider";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+
+// ── 戻るボタン ────────────────────────────────
+function BackButton() {
+  const pathname = usePathname();
+  const router   = useRouter();
+
+  // ホームページでは非表示
+  if (pathname === "/") return null;
+
+  return (
+    <div className="px-4 pt-3 pb-0">
+      <button
+        onClick={() => router.back()}
+        className="inline-flex items-center gap-1.5 min-h-[44px] px-3 text-sm font-medium transition hover:text-gray-900"
+        style={{ color: "#6B7280" }}
+        aria-label="前のページに戻る"
+      >
+        <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 shrink-0" aria-hidden="true">
+          <path d="M13 15l-5-5 5-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        戻る
+      </button>
+    </div>
+  );
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -32,6 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="flex-1 lg:ml-64 min-w-0 flex flex-col">
           <main className="flex-1">
+            <BackButton />
             {children}
           </main>
 

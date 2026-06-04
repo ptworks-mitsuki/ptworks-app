@@ -193,19 +193,17 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
 // Page
 // ══════════════════════════════════════════════════════════════
 
-type Tab = "papers" | "columns" | "diseases" | "board";
+type Tab = "papers" | "columns" | "board";
 const TABS: { id: Tab; label: string; badge?: string }[] = [
-  { id: "papers",   label: "注目論文",      badge: "毎週更新" },
-  { id: "columns",  label: "PTコラム",       badge: "週1配信" },
-  { id: "diseases", label: "疾患別学習" },
-  { id: "board",    label: "勉強会掲示板" },
+  { id: "papers",  label: "注目論文",   badge: "毎週更新" },
+  { id: "columns", label: "PTコラム",   badge: "週1配信" },
+  { id: "board",   label: "勉強会掲示板" },
 ];
 
 export default function LearnPage() {
   const [activeTab,      setActiveTab]      = useState<Tab>("papers");
   const [expandedPaper,  setExpandedPaper]  = useState<string | null>(null);
-  const [diseaseTab,     setDiseaseTab]     = useState<Category>("整形");
-  const [expandedDisease,setExpandedDisease]= useState<string | null>(null);
+
   const [boardCat,       setBoardCat]       = useState("全て");
   const [boardPref,      setBoardPref]      = useState("全国");
   const [boardFormat,    setBoardFormat]    = useState("全て");
@@ -336,54 +334,7 @@ export default function LearnPage() {
         </div>
       )}
 
-      {/* ══ ③ 疾患別学習 ══════════════════════════════════════════════ */}
-      {activeTab === "diseases" && (
-        <div>
-          <div className="flex flex-wrap gap-2 mb-5">
-            {CATS.map(c => (
-              <button key={c} onClick={() => { setDiseaseTab(c); setExpandedDisease(null); }}
-                className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
-                  diseaseTab === c ? "bg-[#1B4332] border-[#1B4332] text-white" : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"
-                }`}>{c}</button>
-            ))}
-          </div>
-          <div className="space-y-3">
-            {(DISEASE_DATA[diseaseTab] ?? []).map(d => {
-              const isOpen = expandedDisease === d.name;
-              const lv = LEVEL_BADGE[d.level];
-              return (
-                <div key={d.name} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                  <button className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition"
-                    onClick={() => setExpandedDisease(isOpen ? null : d.name)}>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-gray-900">{d.name}</span>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: lv.bg, color: lv.color }}>{d.level}</span>
-                    </div>
-                    <span className="text-gray-400 text-xs">{isOpen ? "▲" : "▼"}</span>
-                  </button>
-                  {isOpen && (
-                    <div className="px-5 pb-5 border-t border-gray-100">
-                      <p className="text-sm text-gray-700 mt-3 mb-3 leading-relaxed">{d.summary}</p>
-                      <p className="text-xs font-bold text-[#1B4332] mb-2">学習ポイント</p>
-                      <ul className="space-y-2">
-                        {d.points.map((pt, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                            <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-[#1B4332]" />
-                            {pt}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ══ ④ 勉強会掲示板 ══════════════════════════════════════════════ */}
+      {/* ══ ③ 勉強会掲示板 ══════════════════════════════════════════════ */}
       {activeTab === "board" && (
         <div>
           <div className="flex items-center justify-between mb-4">
