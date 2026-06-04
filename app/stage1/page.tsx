@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { MedicalSearch }         from "@/components/MedicalSearch";
-import { TreatmentEvidence }     from "@/components/TreatmentEvidence";
-import { CaseConsultation }      from "@/components/CaseConsultation";
-import { ExperienceLevelWidget } from "@/components/ExperienceLevelWidget";
+import dynamic from "next/dynamic";
+
+const MedicalSearch         = dynamic(() => import("@/components/MedicalSearch").then(m => ({ default: m.MedicalSearch })), { ssr: false });
+const TreatmentEvidence     = dynamic(() => import("@/components/TreatmentEvidence").then(m => ({ default: m.TreatmentEvidence })), { ssr: false });
+const CaseConsultation      = dynamic(() => import("@/components/CaseConsultation").then(m => ({ default: m.CaseConsultation })), { ssr: false });
+const ExperienceLevelWidget = dynamic(() => import("@/components/ExperienceLevelWidget").then(m => ({ default: m.ExperienceLevelWidget })), { ssr: false });
 
 // ── Tab IDs ────────────────────────────────────────────────────────────────
 

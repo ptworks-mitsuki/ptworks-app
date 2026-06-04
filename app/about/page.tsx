@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { FounderPhoto } from "@/components/FounderPhoto";
 
+export const dynamic = "force-static";
+
 function SectionDivider() {
   return <div className="h-px bg-gray-100" />;
 }
