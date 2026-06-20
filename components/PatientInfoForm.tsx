@@ -5,6 +5,14 @@ import type { PatientInfo, RomJointEntry } from "@/app/api/treatment-evidence/ro
 
 export { type PatientInfo };
 
+export interface HighlightConfig {
+  fim: boolean;
+  bi:  boolean;
+  mmt: boolean;
+  rom: boolean;
+  nrs: boolean;
+}
+
 // ── Initial state ─────────────────────────────────────────────────────────
 
 export const INITIAL_PATIENT_INFO: PatientInfo = {
@@ -213,11 +221,16 @@ function RomEditor({ joints, onChange }: {
 // ── Main form component ───────────────────────────────────────────────────
 
 interface PatientInfoFormProps {
-  info:     PatientInfo;
-  onChange: (info: PatientInfo) => void;
+  info:       PatientInfo;
+  onChange:   (info: PatientInfo) => void;
+  highlights?: HighlightConfig;
 }
 
-export function PatientInfoForm({ info, onChange }: PatientInfoFormProps) {
+const HL_STYLE = "rounded-xl ring-2 ring-green-400 bg-green-50/60 p-2 -mx-2";
+const NO_HL_STYLE = "";
+
+export function PatientInfoForm({ info, onChange, highlights }: PatientInfoFormProps) {
+  const hl = highlights ?? { fim: false, bi: false, mmt: false, rom: false, nrs: false };
   const set = <K extends keyof PatientInfo>(key: K, val: PatientInfo[K]) =>
     onChange({ ...info, [key]: val });
 
@@ -289,7 +302,8 @@ export function PatientInfoForm({ info, onChange }: PatientInfoFormProps) {
       <SectionHeader label="現在の状態" />
 
       {/* NRS */}
-      <div>
+      <div className={hl.nrs ? HL_STYLE : NO_HL_STYLE}>
+        {hl.nrs && <p className="text-[10px] font-bold text-green-700 mb-1">この疾患に関連性が高い項目です</p>}
         <FieldLabel hint="任意">疼痛レベル（NRS）</FieldLabel>
         <div className="mt-2 px-1">
           <div className="flex items-center justify-between mb-1">
@@ -313,7 +327,8 @@ export function PatientInfoForm({ info, onChange }: PatientInfoFormProps) {
       </div>
 
       {/* MMT */}
-      <div>
+      <div className={hl.mmt ? HL_STYLE : NO_HL_STYLE}>
+        {hl.mmt && <p className="text-[10px] font-bold text-green-700 mb-1">この疾患に関連性が高い項目です</p>}
         <FieldLabel hint="任意">筋力低下（MMT）</FieldLabel>
         <ChipGroup
           options={["なし", "軽度低下（MMT4）", "中等度低下（MMT3）", "重度低下（MMT2以下）"]}
@@ -333,7 +348,8 @@ export function PatientInfoForm({ info, onChange }: PatientInfoFormProps) {
       </div>
 
       {/* ROM */}
-      <div>
+      <div className={hl.rom ? HL_STYLE : NO_HL_STYLE}>
+        {hl.rom && <p className="text-[10px] font-bold text-green-700 mb-1">この疾患に関連性が高い項目です</p>}
         <FieldLabel hint="任意">関節可動域制限（ROM）</FieldLabel>
         <ChipGroup
           options={["なし", "軽度", "中等度", "高度"]}
@@ -349,7 +365,8 @@ export function PatientInfoForm({ info, onChange }: PatientInfoFormProps) {
       </div>
 
       {/* ADL - FIM */}
-      <div>
+      <div className={hl.fim ? HL_STYLE : NO_HL_STYLE}>
+        {hl.fim && <p className="text-[10px] font-bold text-green-700 mb-1">この疾患に関連性が高い項目です</p>}
         <FieldLabel hint="任意">ADL評価 — FIM（機能的自立度評価表）</FieldLabel>
         <div className="space-y-2">
           <div className="flex items-center gap-3">
@@ -393,7 +410,8 @@ export function PatientInfoForm({ info, onChange }: PatientInfoFormProps) {
       </div>
 
       {/* ADL - BI */}
-      <div>
+      <div className={hl.bi ? HL_STYLE : NO_HL_STYLE}>
+        {hl.bi && <p className="text-[10px] font-bold text-green-700 mb-1">この疾患に関連性が高い項目です</p>}
         <FieldLabel hint="任意">ADL評価 — バーサルインデックス（BI）</FieldLabel>
         <div className="flex items-center gap-2">
           <input type="number" min="0" max="100" value={info.biTotal}

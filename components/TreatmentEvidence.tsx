@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import type { TreatmentEvidenceResult, EvidenceItem } from "@/app/api/treatment-evidence/route";
 import type { PatientExplanationResult } from "@/app/api/patient-explanation/route";
 import { PatientInfoForm, INITIAL_PATIENT_INFO } from "./PatientInfoForm";
-import type { PatientInfo } from "./PatientInfoForm";
+import type { PatientInfo, HighlightConfig } from "./PatientInfoForm";
 
 // ── Error helpers ─────────────────────────────────────────────────────────
 
@@ -24,6 +24,23 @@ function isRetryable(err: unknown): boolean {
   const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return m.includes("429") || m.includes("529") || m.includes("overload") ||
          m.includes("timeout") || m.includes("fetch") || m.includes("network");
+}
+
+// ── 疾患カテゴリ判定 → ハイライト設定 ───────────────────────────────────
+
+function detectHighlights(disease: string): HighlightConfig {
+  const d = disease;
+  const isNeuro   = /脳|stroke|パーキンソン|麻痺|神経|髄|脊髄|片麻|ALS|多発性硬化|ニューロ/.test(d);
+  const isOrtho   = /骨折|関節|膝|股|肩|腰|頸|脊椎|TKA|THA|靭帯|腱|整形|変形性|半月板|rotator|椎間板|すべり|狭窄|側弯/.test(d);
+  const isCardio  = /心|肺|COPD|呼吸|心不全|循環|狭心|心筋|大動脈|慢性閉塞/.test(d);
+
+  return {
+    fim: isNeuro,
+    bi:  isNeuro,
+    mmt: isOrtho,
+    rom: isOrtho,
+    nrs: isOrtho || isCardio,
+  };
 }
 
 // ── Study type badge ──────────────────────────────────────────────────────
@@ -112,19 +129,17 @@ function ExplanationDisplay({
 
 // ── Main component ────────────────────────────────────────────────────────
 
-type Step = "disease" | "form" | "results";
-
 export function TreatmentEvidence() {
-  const [step,        setStep]        = useState<Step>("disease");
-  const [query,       setQuery]       = useState("");
-  const [disease,     setDisease]     = useState("");
-  const [patientInfo, setPatientInfo] = useState<PatientInfo>(INITIAL_PATIENT_INFO);
-  const [result,      setResult]      = useState<TreatmentEvidenceResult | null>(null);
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState<string | null>(null);
-  const [retrying,    setRetrying]    = useState(false);
-  const [retryN,      setRetryN]      = useState(0);
-  const [slow,        setSlow]        = useState(false);
+  const [showResults, setShowResults]   = useState(false);
+  const [query,       setQuery]         = useState("");
+  const [disease,     setDisease]       = useState("");
+  const [patientInfo, setPatientInfo]   = useState<PatientInfo>(INITIAL_PATIENT_INFO);
+  const [result,      setResult]        = useState<TreatmentEvidenceResult | null>(null);
+  const [loading,     setLoading]       = useState(false);
+  const [error,       setError]         = useState<string | null>(null);
+  const [retrying,    setRetrying]      = useState(false);
+  const [retryN,      setRetryN]        = useState(0);
+  const [slow,        setSlow]          = useState(false);
 
   // Patient explanation state
   const [expLoading, setExpLoading] = useState(false);
@@ -133,16 +148,15 @@ export function TreatmentEvidence() {
 
   const slowRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Step 1: disease confirmed
-  const handleDiseaseNext = () => {
+  // 疾患名 → ハイライト設定（リアルタイム）
+  const highlights = detectHighlights(query);
+
+  // 送信：治療エビデンス取得
+  const handleSubmit = async () => {
     const q = query.trim();
     if (!q) return;
-    setDisease(q);
-    setStep("form");
-  };
-
-  // Step 2: fetch treatment evidence
-  const handleSubmit = async () => {
+    const currentDisease = q;
+    setDisease(currentDisease);
     setLoading(true);
     setError(null);
     setResult(null);
@@ -158,7 +172,7 @@ export function TreatmentEvidence() {
       const res = await fetch("/api/treatment-evidence", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ disease, patientInfo }),
+        body:    JSON.stringify({ disease: currentDisease, patientInfo }),
       });
       const ct = res.headers.get("content-type") ?? "";
       if (!ct.includes("application/json")) throw new Error("non-json");
@@ -180,7 +194,7 @@ export function TreatmentEvidence() {
         if (slowRef.current) clearTimeout(slowRef.current);
         setSlow(false);
         setResult(data);
-        setStep("results");
+        setShowResults(true);
         setLoading(false);
         return;
       } catch (err) {
@@ -201,9 +215,7 @@ export function TreatmentEvidence() {
     setExpLoading(true);
     setExpError(null);
     setExpResult(null);
-
     const treatmentSummary = result.standard.points.slice(0, 3).join("、");
-
     try {
       const res = await fetch("/api/patient-explanation", {
         method:  "POST",
@@ -220,98 +232,12 @@ export function TreatmentEvidence() {
     }
   };
 
-  // ── Step 1: Disease input ──────────────────────────────────────────────
+  // ── 結果表示 ──────────────────────────────────────────────────────────────
 
-  if (step === "disease") {
-    return (
-      <div className="w-full">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <p className="text-xs font-semibold text-gray-600 mb-3">
-            担当患者さんの疾患名を入力してください
-          </p>
-          <div className="flex gap-2">
-            <input type="text" value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleDiseaseNext()}
-              placeholder="例：変形性膝関節症、脳梗塞、腰部脊柱管狭窄症"
-              className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none text-gray-900 placeholder-gray-400 text-base transition"
-              autoComplete="off"
-            />
-            <button onClick={handleDiseaseNext} disabled={!query.trim()}
-              className="px-5 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition whitespace-nowrap">
-              次へ →
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step 2: Patient info form ──────────────────────────────────────────
-
-  if (step === "form") {
-    return (
-      <div className="w-full space-y-4">
-        {/* Disease header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">対象疾患</p>
-            <h2 className="text-xl font-black text-gray-900">「{disease}」</h2>
-          </div>
-          <button onClick={() => setStep("disease")} className="text-xs text-gray-400 hover:text-gray-600 transition">
-            ← 疾患を変更
-          </button>
-        </div>
-
-        {/* Form card */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <p className="text-sm font-bold text-gray-700">患者情報を入力（全てスキップ可）</p>
-            <span className="text-[10px] text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-              入力した情報が提案に反映されます
-            </span>
-          </div>
-          <PatientInfoForm info={patientInfo} onChange={setPatientInfo} />
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-            <p className="text-red-600 text-sm">{error}</p>
-            <button onClick={() => setError(null)} className="mt-2 text-xs text-red-400 underline">閉じる</button>
-          </div>
-        )}
-
-        {/* Submit button */}
-        <button type="button" onClick={handleSubmit} disabled={loading}
-          className="w-full py-4 rounded-2xl text-white font-black text-base hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-md"
-          style={{ background: "linear-gradient(135deg, #15803d, #22c55e)" }}
-        >
-          {retrying ? (
-            <><span className="inline-block w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />再接続しています…（{retryN}/{MAX_RETRIES}回目）</>
-          ) : loading ? (
-            <><span className="inline-block w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />文献・論文をもとに整理中…</>
-          ) : (
-            <>この患者の治療アプローチを提案する →</>
-          )}
-        </button>
-
-        {slow && loading && !retrying && (
-          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-            <span className="inline-block w-4 h-4 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
-            <p className="text-sm text-blue-700">生成中です。しばらくお待ちください…</p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Step 3: Results ────────────────────────────────────────────────────
-
-  if (step === "results" && result) {
+  if (showResults && result) {
     return (
       <div className="w-full space-y-5">
-        {/* Header */}
+        {/* ヘッダー */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-400 mb-0.5">治療アプローチ提案</p>
@@ -322,8 +248,10 @@ export function TreatmentEvidence() {
               </p>
             )}
           </div>
-          <button onClick={() => { setStep("form"); setResult(null); setExpResult(null); }}
-            className="text-xs text-gray-400 hover:text-gray-600 transition">
+          <button
+            onClick={() => { setShowResults(false); setResult(null); setExpResult(null); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition"
+          >
             ← 条件を変更
           </button>
         </div>
@@ -404,7 +332,7 @@ export function TreatmentEvidence() {
           </details>
         )}
 
-        {/* ── 患者説明文ボタン ── */}
+        {/* 患者説明文 */}
         {!expResult && (
           <div className="rounded-2xl border-2 border-green-200 bg-green-50 p-5">
             <p className="text-sm font-bold text-green-800 mb-1">
@@ -429,11 +357,7 @@ export function TreatmentEvidence() {
             </button>
           </div>
         )}
-
-        {/* Explanation result */}
-        {expResult && (
-          <ExplanationDisplay result={expResult} onClose={() => setExpResult(null)} />
-        )}
+        {expResult && <ExplanationDisplay result={expResult} onClose={() => setExpResult(null)} />}
 
         <p className="text-xs text-gray-400 text-center pb-2">
           ※ 文献・論文をもとに整理した情報です。臨床判断には一次文献・専門家への確認をお取りください。
@@ -442,5 +366,91 @@ export function TreatmentEvidence() {
     );
   }
 
-  return null;
+  // ── 入力フォーム（疾患名＋患者情報を最初から同時表示） ─────────────────
+
+  // ハイライトが1件以上あるか（ラベル表示用）
+  const hasHighlight = Object.values(highlights).some(Boolean);
+
+  return (
+    <div className="w-full space-y-4">
+
+      {/* ── 疾患名入力 ── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <p className="text-xs font-semibold text-gray-600 mb-3">
+          担当患者さんの疾患名を入力してください
+        </p>
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleSubmit()}
+          placeholder="例：変形性膝関節症、脳梗塞、腰部脊柱管狭窄症"
+          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-100 focus:outline-none text-gray-900 placeholder-gray-400 text-base transition"
+          autoComplete="off"
+        />
+
+        {/* ハイライト案内（疾患名入力後に表示） */}
+        {hasHighlight && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+            <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 shrink-0" aria-hidden="true">
+              <circle cx="8" cy="8" r="7" stroke="#16a34a" strokeWidth="1.5"/>
+              <path d="M5.5 8.5l2 2 3-4" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>
+              <span className="font-bold">「{query}」</span> に関連性が高い項目を
+              <span className="font-bold text-green-800"> 緑色 </span>
+              でハイライトしています
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ── 患者情報フォーム（最初から表示） ── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <p className="text-sm font-bold text-gray-700">患者情報を入力</p>
+          <span className="text-[10px] text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+            全てスキップ可・入力した情報が提案に反映されます
+          </span>
+        </div>
+        <PatientInfoForm
+          info={patientInfo}
+          onChange={setPatientInfo}
+          highlights={highlights}
+        />
+      </div>
+
+      {/* エラー */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <p className="text-red-600 text-sm">{error}</p>
+          <button onClick={() => setError(null)} className="mt-2 text-xs text-red-400 underline">閉じる</button>
+        </div>
+      )}
+
+      {/* 送信ボタン */}
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={loading || !query.trim()}
+        className="w-full py-4 rounded-2xl text-white font-black text-base hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-md"
+        style={{ background: "linear-gradient(135deg, #15803d, #22c55e)" }}
+      >
+        {retrying ? (
+          <><span className="inline-block w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />再接続しています…（{retryN}/{MAX_RETRIES}回目）</>
+        ) : loading ? (
+          <><span className="inline-block w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />文献・論文をもとに整理中…</>
+        ) : (
+          <>この患者の治療アプローチを提案する →</>
+        )}
+      </button>
+
+      {slow && loading && !retrying && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+          <span className="inline-block w-4 h-4 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
+          <p className="text-sm text-blue-700">生成中です。しばらくお待ちください…</p>
+        </div>
+      )}
+    </div>
+  );
 }
