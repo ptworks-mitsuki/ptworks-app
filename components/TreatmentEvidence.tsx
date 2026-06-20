@@ -377,6 +377,17 @@ export function TreatmentEvidence({
         )}
         {expResult && <ExplanationDisplay result={expResult} onClose={() => setExpResult(null)} />}
 
+        {/* 文献検索ショートカット */}
+        {query && (
+          <a
+            href={`/stage1/literature?q=${encodeURIComponent(query)}`}
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-bold text-sm transition hover:opacity-90"
+            style={{ borderColor: "#1B4332", color: "#1B4332" }}
+          >
+            「{query}」の文献検索で探す →
+          </a>
+        )}
+
         <p className="text-xs text-gray-400 text-center pb-2">
           ※ 文献・論文をもとに整理した情報です。臨床判断には一次文献・専門家への確認をお取りください。
         </p>

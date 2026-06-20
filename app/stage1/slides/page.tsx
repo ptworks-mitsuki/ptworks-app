@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import type {
   GeneratedSlideData, GeneratedSlide, TemplateType,
@@ -380,6 +380,7 @@ export default function SlidesPage() {
 
   // ── 参考文献（全スライドタイプ共通）
   const [references,    setReferences]    = useState("");
+  const [pendingRefBanner, setPendingRefBanner] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestions,   setSuggestions]   = useState<string[]>([]);
   const [selectedSugs,  setSelectedSugs]  = useState<Set<number>>(new Set());
@@ -418,6 +419,24 @@ export default function SlidesPage() {
   const effectiveDuration = durationOpt === -1
     ? Math.max(1, parseInt(customMin) || 10)
     : durationOpt;
+
+  // 文献検索ページから追加された参考文献を読み込む
+  useEffect(() => {
+    const pending = localStorage.getItem("ptworks:pendingRefs");
+    if (!pending) return;
+    try {
+      const items: string[] = JSON.parse(pending);
+      if (items.length > 0) {
+        setReferences(prev => {
+          const existing = prev.trim();
+          const toAdd = items.join("\n");
+          return existing ? `${existing}\n${toAdd}` : toAdd;
+        });
+        setPendingRefBanner(true);
+        localStorage.removeItem("ptworks:pendingRefs");
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const hasRefs      = references.trim().length > 0;
   const expectedSlides = calcSlideCount(effectiveDuration, hasRefs);
@@ -781,12 +800,29 @@ export default function SlidesPage() {
               placeholder={"例：山田太郎 他. 変形性膝関節症に対する運動療法の効果. 理学療法学雑誌. 2023;38(2):123-130.\n（1文献1行で入力してください）"}
             />
 
+            {/* 文献検索から追加済みバナー */}
+            {pendingRefBanner && (
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold"
+                style={{ background: "#F0FDF4", color: "#15803d" }}>
+                <span>文献検索ページからの文献が追加されました</span>
+                <button
+                  type="button"
+                  onClick={() => setPendingRefBanner(false)}
+                  className="text-green-400 hover:text-green-600 ml-2"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* ボタン行：AI提案 + 文献検索リンク */}
+            <div className="flex flex-col sm:flex-row gap-2">
             {/* AI提案ボタン */}
             <button
               type="button"
               onClick={suggestRefs}
               disabled={suggestLoading}
-              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl border-2 transition disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 text-sm font-bold px-4 py-2 rounded-xl border-2 transition disabled:opacity-50"
               style={{ borderColor: "#1B4332", color: "#1B4332" }}
             >
               {suggestLoading ? (
@@ -795,6 +831,15 @@ export default function SlidesPage() {
                 <>AIにおすすめの文献を提案してもらう</>
               )}
             </button>
+
+              <Link
+                href="/stage1/literature"
+                className="flex-1 flex items-center justify-center gap-2 text-sm font-bold px-4 py-2 rounded-xl border-2 transition"
+                style={{ borderColor: "#E85D04", color: "#E85D04" }}
+              >
+                文献検索ページで探す →
+              </Link>
+            </div>
 
             {suggestError && (
               <p className="text-xs text-red-500 px-1">{suggestError}</p>

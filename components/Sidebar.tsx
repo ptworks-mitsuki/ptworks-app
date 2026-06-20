@@ -261,10 +261,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
 
           {/* Stage1 nav items — 全ロック解除済み */}
-          <NavLink href="/stage1"        icon="🔬" label="メディカルサーチ" sub badge="無制限" pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"        icon="📋" label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1/slides" icon="📊" label="スライド自動生成" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/learn"         icon="📚" label="学習コンテンツ" sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1"                 icon="›" label="疾患を調べる"     sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/literature"      icon="›" label="文献検索"         sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1"                 icon="›" label="治療を考える"     sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1"                 icon="›" label="相談する"         sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1"                 icon="›" label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/slides"          icon="›" label="スライド自動生成" sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/learn"                  icon="›" label="学習コンテンツ"   sub pathname={pathname} onClose={onClose} />
 
           {/* Divider */}
           <div className="mx-3 my-2 border-t border-gray-100" />

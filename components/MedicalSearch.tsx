@@ -705,6 +705,19 @@ export function MedicalSearch() {
             </div>
           )}
 
+          {/* 文献検索ショートカット */}
+          {done && partial?.disease && (
+            <div className="mt-4 print:hidden">
+              <a
+                href={`/stage1/literature?q=${encodeURIComponent(partial.disease)}`}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-bold text-sm transition hover:opacity-90"
+                style={{ borderColor: "#1B4332", color: "#1B4332" }}
+              >
+                「{partial.disease}」の文献検索で探す →
+              </a>
+            </div>
+          )}
+
           <p className="text-xs text-gray-400 text-center mt-5 pb-2 print:hidden">
             ※ 文献・論文をもとに整理した情報です。臨床判断には必ず一次文献・専門家への確認をお取りください。
           </p>
