@@ -334,6 +334,14 @@ export default function SlidesPage() {
   const [fontKey,   setFontKey]   = useState("sans");
   const [sizeKey,   setSizeKey]   = useState("md");
 
+  // ── チャット編集
+  const [chatInput,    setChatInput]    = useState("");
+  const [chatLoading,  setChatLoading]  = useState(false);
+  const [chatStatus,   setChatStatus]   = useState<string | null>(null);  // "変更しました" など
+  const [chatUnsupported, setChatUnsupported] = useState<string | null>(null);
+  const [slideHistory, setSlideHistory] = useState<GeneratedSlide[][]>([]); // undo用
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
   const theme    = THEMES.find(t => t.key === themeKey)!;
   const fontCss  = FONTS.find(f => f.key === fontKey)!.css;
   const scale    = FONT_SIZES.find(s => s.key === sizeKey)!.scale;
@@ -391,6 +399,70 @@ export default function SlidesPage() {
     a.download = `${slideData.title}_原稿.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ── チャット編集送信 ─────────────────────────────────────────────────────
+
+  async function handleChat() {
+    const instr = chatInput.trim();
+    if (!instr || chatLoading || !slideData) return;
+
+    setChatLoading(true);
+    setChatStatus(null);
+    setChatUnsupported(null);
+
+    try {
+      const res = await fetch("/api/slide-edit", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          instruction:       instr,
+          currentSlideIndex: currentSlide,
+          allSlides:         slideData.slides,
+        }),
+      });
+      const data = await res.json() as {
+        type: "design" | "content" | "unsupported" | "error";
+        message: string;
+        themeKey?: string; fontKey?: string; sizeKey?: string;
+        slides?: GeneratedSlide[];
+      };
+
+      if (data.type === "design") {
+        // undo スタック：デザイン変更は state のみなので不要だが一応記録
+        if (data.themeKey) setThemeKey(data.themeKey);
+        if (data.fontKey)  setFontKey(data.fontKey);
+        if (data.sizeKey)  setSizeKey(data.sizeKey);
+        setChatStatus(data.message || "デザインを変更しました");
+        setChatInput("");
+      }
+
+      if (data.type === "content" && data.slides) {
+        // undo のためにスタックに現在のスライドを保存
+        setSlideHistory(prev => [...prev.slice(-9), slideData.slides]);
+        setSlideData(prev => prev ? { ...prev, slides: data.slides! } : prev);
+        setChatStatus(data.message || "変更しました");
+        setChatInput("");
+      }
+
+      if (data.type === "unsupported" || data.type === "error") {
+        setChatUnsupported(data.message);
+      }
+    } catch {
+      setChatUnsupported("通信エラーが発生しました。もう一度お試しください。");
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  // ── 1つ前に戻す ─────────────────────────────────────────────────────────
+
+  function handleUndo() {
+    if (slideHistory.length === 0 || !slideData) return;
+    const prev = slideHistory[slideHistory.length - 1];
+    setSlideHistory(h => h.slice(0, -1));
+    setSlideData(d => d ? { ...d, slides: prev } : d);
+    setChatStatus("元に戻しました");
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -589,6 +661,104 @@ export default function SlidesPage() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* ── チャット型編集パネル ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-wider">チャットで編集</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  現在表示中：<span className="font-bold text-gray-700">スライド {currentSlide + 1}</span> を基準に指示が反映されます
+                </p>
+              </div>
+              {slideHistory.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  className="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition"
+                >
+                  1つ前に戻す
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <textarea
+                ref={chatInputRef}
+                value={chatInput}
+                onChange={e => { setChatInput(e.target.value); setChatStatus(null); setChatUnsupported(null); }}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    handleChat();
+                  }
+                }}
+                rows={2}
+                placeholder={`例：「2枚目をもっとシンプルにして」「全体的に文字を大きくして」`}
+                className="w-full px-4 pt-3 pb-10 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none placeholder-gray-300 leading-relaxed transition"
+                style={{
+                  // フォーカス時オレンジ枠
+                  boxShadow: chatInput ? "0 0 0 2px #E85D04" : undefined,
+                  borderColor: chatInput ? "#E85D04" : undefined,
+                }}
+                onFocus={e => { e.currentTarget.style.boxShadow = "0 0 0 2px #E85D04"; e.currentTarget.style.borderColor = "#E85D04"; }}
+                onBlur={e  => { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.borderColor = ""; }}
+              />
+              <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                <p className="text-[10px] text-gray-300">Enter で送信</p>
+                <button
+                  type="button"
+                  onClick={handleChat}
+                  disabled={!chatInput.trim() || chatLoading}
+                  className="px-4 py-1.5 text-xs font-bold text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition hover:opacity-90"
+                  style={{ background: "#E85D04" }}
+                >
+                  {chatLoading ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      調整中
+                    </span>
+                  ) : "送信"}
+                </button>
+              </div>
+            </div>
+
+            {/* ステータス表示 */}
+            {chatStatus && (
+              <div className="mt-2 flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-lg"
+                style={{ background: "#F0FDF4", color: "#15803d" }}>
+                <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5 shrink-0">
+                  <circle cx="8" cy="8" r="7" stroke="#16a34a" strokeWidth="1.5"/>
+                  <path d="M5 8.5l2.5 2.5 3.5-5" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {chatStatus}
+              </div>
+            )}
+            {chatUnsupported && (
+              <div className="mt-2 text-xs px-3 py-2 rounded-lg border"
+                style={{ background: "#FFF7ED", color: "#9A3412", borderColor: "#FDBA74" }}>
+                {chatUnsupported}
+              </div>
+            )}
+
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                `スライド${currentSlide + 1}をシンプルにして`,
+                "全体的に文字を大きくして",
+                "もっと落ち着いた色合いにして",
+                "箇条書きを減らして",
+              ].map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => { setChatInput(s); chatInputRef.current?.focus(); }}
+                  className="text-[10px] px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-500 hover:border-[#E85D04] hover:text-[#E85D04] transition"
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           </div>
 
