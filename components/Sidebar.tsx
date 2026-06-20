@@ -167,7 +167,7 @@ function LockedStageSection({ title, price, color, features, isExpanded, onToggl
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { used, total, remaining, percentage } = useFreeQuota();
+  const { used, total, remaining, isExhausted, percentage } = useFreeQuota();
 
   const [openStage2, setOpenStage2] = useState(false);
   const [openStage3, setOpenStage3] = useState(false);
@@ -197,18 +197,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* ── Plan badge + upgrade ── */}
         <div className="shrink-0 px-3 pt-3 pb-2">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: plan.bg, color: plan.text }}>
-                {plan.label}
-              </span>
-            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: plan.bg, color: plan.text }}>
+              {plan.label}
+            </span>
             <Link href="/pricing" className="text-[10px] font-bold text-[#E85D04] hover:underline">
               プラン変更
             </Link>
           </div>
 
-          {/* Upgrade CTA */}
-          {CURRENT_PLAN === "free" && (
+          {/* Upgrade CTA (non-free plans only) */}
+          {CURRENT_PLAN !== "free" && (
             <Link
               href="/pricing"
               className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl font-bold text-white text-xs transition hover:opacity-90 shadow-sm"
@@ -221,26 +219,79 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* ── Free quota banner ── */}
         <div className="shrink-0 px-3 pb-2">
-          <div className="bg-orange-50 border border-orange-100 rounded-xl p-2.5">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[10px] font-bold text-orange-700">今月の無料枠</p>
-              <span className="text-[10px] font-semibold text-orange-600">
-                残り <span className="text-sm font-black">{remaining}</span> 回
-              </span>
+          {isExhausted ? (
+            /* 使い切った状態 */
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+              <p className="text-[10px] font-black text-red-700 mb-1">今月の無料枠を使い切りました</p>
+              <p className="text-[10px] text-red-500 mb-2.5">引き続きご利用いただくにはプランのアップグレードが必要です</p>
+              <Link
+                href="/pricing"
+                className="flex items-center justify-center gap-1 w-full py-2 rounded-xl font-black text-white text-[10px] transition hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #dc2626, #b91c1c)" }}
+              >
+                プランをアップグレードする
+              </Link>
             </div>
-            <div className="h-1.5 bg-orange-100 rounded-full overflow-hidden">
+          ) : (
+            /* 残り回数あり */
+            <div
+              className="rounded-xl border p-3"
+              style={{
+                background: remaining <= 2 ? "#FFF1F2" : "#FFF7ED",
+                borderColor: remaining <= 2 ? "#FECDD3" : "#FED7AA",
+              }}
+            >
+              {/* 上段：ラベル＋残り回数 */}
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold" style={{ color: remaining <= 2 ? "#9F1239" : "#9A3412" }}>
+                  今月の無料枠
+                </p>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[10px] font-semibold" style={{ color: remaining <= 2 ? "#dc2626" : "#EA580C" }}>
+                    残り
+                  </span>
+                  <span
+                    className="font-black leading-none"
+                    style={{
+                      fontSize: "1.5rem",
+                      color: remaining <= 2 ? "#dc2626" : "#E85D04",
+                    }}
+                  >
+                    {remaining}
+                  </span>
+                  <span className="text-[10px] font-semibold" style={{ color: remaining <= 2 ? "#dc2626" : "#EA580C" }}>
+                    回
+                  </span>
+                </div>
+              </div>
+
+              {/* プログレスバー */}
               <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${percentage}%`, background: percentage >= 80 ? "#dc2626" : "#E85D04" }}
-              />
+                className="h-2 rounded-full overflow-hidden mb-1.5"
+                style={{ background: remaining <= 2 ? "#FECDD3" : "#FED7AA" }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${percentage}%`,
+                    background: remaining <= 2 ? "#dc2626" : "#E85D04",
+                  }}
+                />
+              </div>
+
+              {/* 下段：使用数＋警告 */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px]" style={{ color: remaining <= 2 ? "#FDA4AF" : "#FDBA74" }}>
+                  {used}/{total} 回使用
+                </span>
+                {remaining <= 2 && (
+                  <span className="text-[10px] font-bold text-red-600">
+                    あと{remaining}回で上限に達します
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-[10px] text-orange-400">{used}/{total} 回使用</span>
-              {remaining <= 2 && remaining > 0 && (
-                <span className="text-[10px] text-red-500 font-semibold">⚠ 残りわずか</span>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* ── Nav (scrollable) ── */}
@@ -260,14 +311,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </p>
           </div>
 
-          {/* Stage1 nav items — 全ロック解除済み */}
-          <NavLink href="/stage1"                 icon="›" label="疾患を調べる"     sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1/literature"      icon="›" label="文献検索"         sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"                 icon="›" label="治療を考える"     sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"                 icon="›" label="相談する"         sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"                 icon="›" label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1/slides"          icon="›" label="スライド自動生成" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/learn"                  icon="›" label="学習コンテンツ"   sub pathname={pathname} onClose={onClose} />
+          {/* Stage1 nav items */}
+          <NavLink href="/stage1"            icon="›" label="メディカルサーチ"   sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/literature" icon="›" label="文献検索"           sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1"            icon="›" label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/slides"     icon="›" label="スライド自動生成"   sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/learn"             icon="›" label="学習コンテンツ"     sub pathname={pathname} onClose={onClose} />
 
           {/* Divider */}
           <div className="mx-3 my-2 border-t border-gray-100" />
