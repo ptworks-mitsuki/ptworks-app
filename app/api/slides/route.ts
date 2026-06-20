@@ -9,14 +9,15 @@ export const maxDuration = 60;
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-export type SlideType     = "case" | "research" | "study" | "discharge";
-export type TemplateType  = "title" | "case-intro" | "evaluation" | "timeline" | "summary";
+export type SlideType    = "case" | "research" | "study" | "discharge";
+export type TemplateType = "title" | "case-intro" | "evaluation" | "timeline" | "summary" | "references";
 
 export interface TitleContent      { mainTitle: string; subtitle: string; presenter: string; date: string; targetPatient: string; }
 export interface CaseIntroContent  { sectionTitle: string; tableRows: { label: string; value: string }[]; }
 export interface EvaluationContent { sectionTitle: string; evaluationTable: { item: string; before: string; after: string }[]; notes: string[]; }
 export interface TimelineContent   { sectionTitle: string; events: { period: string; content: string; outcome?: string }[]; }
 export interface SummaryContent    { sectionTitle: string; considerations: string[]; conclusionBox: string; }
+export interface ReferencesContent { sectionTitle: string; items: string[]; }
 
 export type SlideContentMap = {
   title:        TitleContent;
@@ -24,6 +25,7 @@ export type SlideContentMap = {
   evaluation:   EvaluationContent;
   timeline:     TimelineContent;
   summary:      SummaryContent;
+  references:   ReferencesContent;
 };
 
 export interface GeneratedSlide<T extends TemplateType = TemplateType> {
@@ -64,13 +66,15 @@ interface StudyForm     { theme: string; disease: string; keyPoints: string; ref
 interface DischargeForm { patientBg: string; reason: string; rehab: string; condition: string; notes: string; presenter: string; }
 type AnyForm = CaseForm | ResearchForm | StudyForm | DischargeForm;
 
-// ── Slide count from duration ─────────────────────────────────────────────
+// ── Slide count (+1 for references slide when refs provided) ──────────────
 
-export function calcSlideCount(duration: number): number {
-  if (duration <= 5)  return 5;
-  if (duration <= 10) return 10;
-  if (duration <= 15) return 15;
-  return Math.min(Math.round(duration * 1.2), 25);
+export function calcSlideCount(duration: number, hasRefs = false): number {
+  let base: number;
+  if (duration <= 5)       base = 5;
+  else if (duration <= 10) base = 10;
+  else if (duration <= 15) base = 15;
+  else                     base = Math.min(Math.round(duration * 1.2), 25);
+  return hasRefs ? base + 1 : base;
 }
 
 // ── Form → context string ─────────────────────────────────────────────────
@@ -120,13 +124,14 @@ function formToContext(type: SlideType, form: AnyForm): string {
   ].filter(Boolean).join("\n");
 }
 
-// ── STEP 1: アウトライン（構成）生成 ─────────────────────────────────────
+// ── STEP 1: アウトライン生成 ──────────────────────────────────────────────
 
-function buildOutlinePrompt(type: SlideType, form: AnyForm, targetSlides: number): string {
+function buildOutlinePrompt(type: SlideType, form: AnyForm, contentSlides: number): string {
   const ctx = formToContext(type, form);
   return `あなたは理学療法士向けの発表スライド構成を設計するプロです。
-以下の情報をもとに、${targetSlides}枚分のスライド構成をJSONで返してください。
+以下の情報をもとに、${contentSlides}枚分のスライド構成をJSONで返してください。
 説明文不要・JSONのみ出力してください。
+（参考文献スライドは含めない。コンテンツスライドのみ）
 
 【発表情報】
 ${ctx}
@@ -145,7 +150,7 @@ ${ctx}
   "outlines": [
     { "id": 1, "templateType": "title",      "heading": "発表タイトル" },
     { "id": 2, "templateType": "case-intro", "heading": "症例紹介" },
-    ...合計${targetSlides}枚...
+    ...合計${contentSlides}枚...
   ]
 }`;
 }
@@ -158,6 +163,7 @@ const TEMPLATE_SCHEMA: Record<TemplateType, string> = {
   evaluation:   `{ "sectionTitle": "...", "evaluationTable": [{ "item": "...", "before": "...", "after": "..." }, ...], "notes": ["..."] }`,
   timeline:     `{ "sectionTitle": "...", "events": [{ "period": "...", "content": "...", "outcome": "..." }, ...3〜6件] }`,
   summary:      `{ "sectionTitle": "...", "considerations": ["...", "..."], "conclusionBox": "2〜3行のまとめ文" }`,
+  references:   `{ "sectionTitle": "参考文献", "items": ["..."] }`,
 };
 
 function buildExpandPrompt(
@@ -167,16 +173,18 @@ function buildExpandPrompt(
   index: number,
   totalSlides: number,
   charPerSlide: number,
+  references?: string,
 ): string {
   const ctx    = formToContext(type, form);
   const schema = TEMPLATE_SCHEMA[outline.templateType];
+  const refNote = references ? `\n【参考文献】\n${references}` : "";
 
   return `あなたは理学療法士向けの発表スライドを作成するプロです。
 以下のスライド1枚分のコンテンツと原稿をJSONで返してください。
 説明文不要・JSONのみ出力してください。
 
 【発表情報】
-${ctx}
+${ctx}${refNote}
 
 【このスライドの情報】
 - 番号: ${index + 1} / ${totalSlides}
@@ -199,10 +207,11 @@ ${schema}
 // ── Handler ───────────────────────────────────────────────────────────────
 
 interface OutlineBody {
-  action:   "outline";
-  type:     SlideType;
-  form:     AnyForm;
-  duration: number;
+  action:      "outline";
+  type:        SlideType;
+  form:        AnyForm;
+  duration:    number;
+  references?: string;
 }
 
 interface ExpandBody {
@@ -213,6 +222,7 @@ interface ExpandBody {
   index:        number;
   totalSlides:  number;
   charPerSlide: number;
+  references?:  string;
 }
 
 type RequestBody = OutlineBody | ExpandBody;
@@ -238,9 +248,12 @@ export async function POST(req: NextRequest) {
 
     // ── STEP 1: 構成生成 ──────────────────────────────────────────────────
     if (body.action === "outline") {
-      const { type, form, duration } = body;
-      const targetSlides = calcSlideCount(duration);
-      const prompt = buildOutlinePrompt(type, form, targetSlides);
+      const { type, form, duration, references } = body;
+      const hasRefs       = Boolean(references?.trim());
+      const totalSlides   = calcSlideCount(duration, hasRefs);
+      const contentSlides = hasRefs ? totalSlides - 1 : totalSlides;
+
+      const prompt = buildOutlinePrompt(type, form, contentSlides);
 
       const msg = await withRetry(() =>
         client.messages.create({
@@ -254,6 +267,14 @@ export async function POST(req: NextRequest) {
       const cleaned = raw.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "").trim();
       const parsed  = JSON.parse(cleaned) as { title: string; presenter: string; outlines: SlideOutline[] };
 
+      if (hasRefs) {
+        parsed.outlines.push({
+          id:           parsed.outlines.length + 1,
+          templateType: "references",
+          heading:      "参考文献",
+        });
+      }
+
       const result: OutlineResult = {
         title:         parsed.title,
         presenter:     parsed.presenter,
@@ -266,8 +287,27 @@ export async function POST(req: NextRequest) {
 
     // ── STEP 2: 1枚展開 ─────────────────────────────────────────────────
     if (body.action === "expand") {
-      const { type, form, outline, index, totalSlides, charPerSlide } = body;
-      const prompt = buildExpandPrompt(type, form, outline, index, totalSlides, charPerSlide);
+      const { type, form, outline, index, totalSlides, charPerSlide, references } = body;
+
+      // 参考文献スライドはAIを使わず直接生成
+      if (outline.templateType === "references") {
+        const items = (references ?? "")
+          .split("\n")
+          .map(l => l.trim())
+          .filter(Boolean);
+        const slide: GeneratedSlide<"references"> = {
+          id:               outline.id,
+          templateType:     "references",
+          content:          { sectionTitle: "参考文献", items },
+          manuscript:       items.length > 0
+            ? `参考文献です。${items.map((r, i) => `${i + 1}番目、${r}`).join("。")}`
+            : "参考文献スライドです。",
+          estimatedSeconds: Math.max(10, items.length * 8),
+        };
+        return NextResponse.json(slide);
+      }
+
+      const prompt = buildExpandPrompt(type, form, outline, index, totalSlides, charPerSlide, references);
 
       const msg = await withRetry(() =>
         client.messages.create({

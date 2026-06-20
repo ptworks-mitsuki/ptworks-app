@@ -5,7 +5,7 @@ import Link from "next/link";
 import type {
   GeneratedSlideData, GeneratedSlide, TemplateType,
   TitleContent, CaseIntroContent, EvaluationContent,
-  TimelineContent, SummaryContent,
+  TimelineContent, SummaryContent, ReferencesContent,
   OutlineResult,
 } from "@/app/api/slides/route";
 
@@ -24,8 +24,8 @@ const THEMES: Theme[] = [
 ];
 
 const FONTS = [
-  { key: "sans",   label: "標準",   css: "'Hiragino Sans', 'Yu Gothic UI', sans-serif" },
-  { key: "mincho", label: "明朝体", css: "'Hiragino Mincho ProN', 'Yu Mincho', serif" },
+  { key: "sans",   label: "標準",      css: "'Hiragino Sans', 'Yu Gothic UI', sans-serif" },
+  { key: "mincho", label: "明朝体",    css: "'Hiragino Mincho ProN', 'Yu Mincho', serif" },
   { key: "round",  label: "丸ゴシック", css: "'Hiragino Maru Gothic ProN', 'M PLUS Rounded 1c', sans-serif" },
 ];
 
@@ -36,26 +36,26 @@ const FONT_SIZES = [
 ];
 
 const SLIDE_TYPES = [
-  { id: "case",      label: "症例発表",        desc: "症例の経過・治療・考察をまとめたスライド" },
-  { id: "research",  label: "研究発表",        desc: "研究の目的・方法・結果・考察のスライド" },
-  { id: "study",     label: "勉強会資料",      desc: "テーマに沿った教育・勉強会用スライド" },
+  { id: "case",      label: "症例発表",         desc: "症例の経過・治療・考察をまとめたスライド" },
+  { id: "research",  label: "研究発表",         desc: "研究の目的・方法・結果・考察のスライド" },
+  { id: "study",     label: "勉強会資料",       desc: "テーマに沿った教育・勉強会用スライド" },
   { id: "discharge", label: "退院サマリー発表", desc: "退院カンファレンス用のサマリースライド" },
 ];
 
-// ── 発表時間 ─────────────────────────────────────────────────────────────
-
 const DURATION_OPTS = [
-  { value: 5,   label: "5分" },
-  { value: 10,  label: "10分" },
-  { value: 15,  label: "15分" },
-  { value: -1,  label: "その他" },
+  { value: 5,  label: "5分" },
+  { value: 10, label: "10分" },
+  { value: 15, label: "15分" },
+  { value: -1, label: "その他" },
 ];
 
-function calcSlideCount(duration: number): number {
-  if (duration <= 5)  return 5;
-  if (duration <= 10) return 10;
-  if (duration <= 15) return 15;
-  return Math.min(Math.round(duration * 1.2), 25);
+function calcSlideCount(duration: number, hasRefs = false): number {
+  let base: number;
+  if (duration <= 5)       base = 5;
+  else if (duration <= 10) base = 10;
+  else if (duration <= 15) base = 15;
+  else                     base = Math.min(Math.round(duration * 1.2), 25);
+  return hasRefs ? base + 1 : base;
 }
 
 function secToDisplay(sec: number): string {
@@ -64,23 +64,51 @@ function secToDisplay(sec: number): string {
   return m > 0 ? (s > 0 ? `${m}分${s}秒` : `${m}分`) : `${s}秒`;
 }
 
+// 参考文献から「著者 他, 年」形式の簡略引用を抽出
+function extractCitation(refs: string): string | null {
+  const first = refs.split("\n").find(l => l.trim());
+  if (!first) return null;
+  const yearMatch = first.match(/\b(19|20)\d{2}\b/);
+  const year = yearMatch ? yearMatch[0] : "";
+  const raw  = first.split(/[.。,，]/)[0]?.trim() ?? "";
+  const author = raw.replace(/\s*(他|et al\.?).*$/i, "").trim();
+  const short  = author.length > 12 ? author.slice(0, 12) + "…" : author;
+  return year ? `出典：${short} 他, ${year}` : (short ? `出典：${short}` : null);
+}
+
 // ── スライドテンプレート レンダラー ───────────────────────────────────────
 
 interface TemplateProps {
-  slide:  GeneratedSlide;
-  index:  number;
-  total:  number;
-  theme:  Theme;
-  font:   string;
-  scale:  number;
+  slide:     GeneratedSlide;
+  index:     number;
+  total:     number;
+  theme:     Theme;
+  font:      string;
+  scale:     number;
+  citation?: string | null;
 }
 
-function SlideFooter({ index, total, theme }: { index: number; total: number; theme: Theme }) {
+function SlideFooter({
+  index, total, theme, citation,
+}: {
+  index: number; total: number; theme: Theme; citation?: string | null;
+}) {
   return (
-    <div className="flex items-center justify-between px-4 py-1.5 border-t border-gray-100"
-      style={{ background: theme.lightBg }}>
+    <div
+      className="flex items-center justify-between px-4 py-1.5 border-t border-gray-100"
+      style={{ background: theme.lightBg }}
+    >
       <span className="text-[9px] font-bold tracking-widest text-gray-400">PT WORKS</span>
-      <span className="text-[9px] text-gray-400">{index + 1} / {total}</span>
+      {citation && (
+        <span
+          className="text-[8px] truncate mx-2 max-w-[55%]"
+          style={{ color: "#9CA3AF" }}
+          title={citation}
+        >
+          {citation}
+        </span>
+      )}
+      <span className="text-[9px] text-gray-400 shrink-0">{index + 1} / {total}</span>
     </div>
   );
 }
@@ -103,7 +131,7 @@ function TitleTemplate({ slide, index, total, theme, font, scale }: TemplateProp
         )}
         <div className="mt-5 space-y-1">
           {c.presenter && <p style={{ color: "rgba(255,255,255,0.6)", fontSize: `${0.7 * scale}rem` }}>発表者：{c.presenter}</p>}
-          {c.date && <p style={{ color: "rgba(255,255,255,0.45)", fontSize: `${0.65 * scale}rem` }}>{c.date}</p>}
+          {c.date      && <p style={{ color: "rgba(255,255,255,0.45)", fontSize: `${0.65 * scale}rem` }}>{c.date}</p>}
         </div>
       </div>
       <div className="h-1" style={{ background: "rgba(255,255,255,0.3)" }} />
@@ -115,7 +143,7 @@ function TitleTemplate({ slide, index, total, theme, font, scale }: TemplateProp
   );
 }
 
-function CaseIntroTemplate({ slide, index, total, theme, font, scale }: TemplateProps) {
+function CaseIntroTemplate({ slide, index, total, theme, font, scale, citation }: TemplateProps) {
   const c = slide.content as CaseIntroContent;
   return (
     <div className="aspect-video rounded-xl overflow-hidden shadow-lg border border-gray-200 flex flex-col bg-white"
@@ -126,7 +154,6 @@ function CaseIntroTemplate({ slide, index, total, theme, font, scale }: Template
         <h3 className="font-black text-gray-900" style={{ fontSize: `${1 * scale}rem` }}>{c.sectionTitle}</h3>
       </div>
       <div className="flex flex-1 min-h-0">
-        {/* 表 */}
         <div className="flex-1 px-5 py-3 overflow-hidden">
           <table className="w-full text-xs border-collapse">
             <tbody>
@@ -141,7 +168,6 @@ function CaseIntroTemplate({ slide, index, total, theme, font, scale }: Template
             </tbody>
           </table>
         </div>
-        {/* 写真枠 */}
         <div className="w-28 border-l border-gray-100 flex flex-col items-center justify-center shrink-0 m-3">
           <div className="w-full h-full rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1" style={{ background: theme.lightBg }}>
             <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-gray-300">
@@ -153,12 +179,12 @@ function CaseIntroTemplate({ slide, index, total, theme, font, scale }: Template
           </div>
         </div>
       </div>
-      <SlideFooter index={index} total={total} theme={theme} />
+      <SlideFooter index={index} total={total} theme={theme} citation={citation} />
     </div>
   );
 }
 
-function EvaluationTemplate({ slide, index, total, theme, font, scale }: TemplateProps) {
+function EvaluationTemplate({ slide, index, total, theme, font, scale, citation }: TemplateProps) {
   const c = slide.content as EvaluationContent;
   return (
     <div className="aspect-video rounded-xl overflow-hidden shadow-lg border border-gray-200 flex flex-col bg-white"
@@ -197,12 +223,12 @@ function EvaluationTemplate({ slide, index, total, theme, font, scale }: Templat
           </div>
         )}
       </div>
-      <SlideFooter index={index} total={total} theme={theme} />
+      <SlideFooter index={index} total={total} theme={theme} citation={citation} />
     </div>
   );
 }
 
-function TimelineTemplate({ slide, index, total, theme, font, scale }: TemplateProps) {
+function TimelineTemplate({ slide, index, total, theme, font, scale, citation }: TemplateProps) {
   const c = slide.content as TimelineContent;
   return (
     <div className="aspect-video rounded-xl overflow-hidden shadow-lg border border-gray-200 flex flex-col bg-white"
@@ -214,12 +240,10 @@ function TimelineTemplate({ slide, index, total, theme, font, scale }: TemplateP
       </div>
       <div className="flex-1 px-6 py-3 overflow-hidden">
         <div className="relative">
-          {/* タイムライン縦線 */}
           <div className="absolute left-8 top-2 bottom-2 w-0.5 bg-gray-200" />
           <div className="space-y-2">
             {c.events.map((ev, i) => (
               <div key={i} className="flex items-start gap-3">
-                {/* ドット */}
                 <div className="shrink-0 w-4 h-4 rounded-full border-2 border-white shadow-sm mt-0.5 relative z-10 ml-6"
                   style={{ background: theme.dotColor }} />
                 <div className="flex-1 min-w-0">
@@ -237,12 +261,12 @@ function TimelineTemplate({ slide, index, total, theme, font, scale }: TemplateP
           </div>
         </div>
       </div>
-      <SlideFooter index={index} total={total} theme={theme} />
+      <SlideFooter index={index} total={total} theme={theme} citation={citation} />
     </div>
   );
 }
 
-function SummaryTemplate({ slide, index, total, theme, font, scale }: TemplateProps) {
+function SummaryTemplate({ slide, index, total, theme, font, scale, citation }: TemplateProps) {
   const c = slide.content as SummaryContent;
   return (
     <div className="aspect-video rounded-xl overflow-hidden shadow-lg border border-gray-200 flex flex-col bg-white"
@@ -253,7 +277,6 @@ function SummaryTemplate({ slide, index, total, theme, font, scale }: TemplatePr
         <h3 className="font-black text-gray-900" style={{ fontSize: `${1 * scale}rem` }}>{c.sectionTitle}</h3>
       </div>
       <div className="flex-1 px-5 py-3 flex gap-4 overflow-hidden">
-        {/* 箇条書き */}
         <div className="flex-1 space-y-1.5">
           {c.considerations.map((pt, i) => (
             <div key={i} className="flex items-start gap-2">
@@ -265,13 +288,43 @@ function SummaryTemplate({ slide, index, total, theme, font, scale }: TemplatePr
             </div>
           ))}
         </div>
-        {/* まとめ枠 */}
         {c.conclusionBox && (
           <div className="w-36 shrink-0 rounded-xl p-3 flex flex-col justify-center"
             style={{ background: theme.headerBg }}>
             <p className="text-white/60 font-bold mb-1" style={{ fontSize: `${0.55 * scale}rem` }}>まとめ</p>
             <p className="text-white font-medium leading-snug" style={{ fontSize: `${0.6 * scale}rem` }}>{c.conclusionBox}</p>
           </div>
+        )}
+      </div>
+      <SlideFooter index={index} total={total} theme={theme} citation={citation} />
+    </div>
+  );
+}
+
+function ReferencesTemplate({ slide, index, total, theme, font, scale }: TemplateProps) {
+  const c = slide.content as ReferencesContent;
+  const autoScale = c.items.length > 10 ? 0.72 : c.items.length > 7 ? 0.82 : 1;
+  return (
+    <div className="aspect-video rounded-xl overflow-hidden shadow-lg border border-gray-200 flex flex-col bg-white"
+      style={{ fontFamily: font }}>
+      <div className="h-1.5" style={{ background: theme.headerBg }} />
+      <div className="px-5 py-2.5 border-b border-gray-100 flex items-center gap-2" style={{ background: theme.lightBg }}>
+        <div className="w-1 h-5 rounded-full" style={{ background: theme.headerBg }} />
+        <h3 className="font-black text-gray-900" style={{ fontSize: `${1 * scale}rem` }}>{c.sectionTitle}</h3>
+      </div>
+      <div className="flex-1 px-5 py-3 overflow-hidden">
+        {c.items.length === 0 ? (
+          <p className="text-gray-400 text-sm">参考文献はありません</p>
+        ) : (
+          <ol className="space-y-1.5">
+            {c.items.map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-gray-700 leading-snug"
+                style={{ fontSize: `${0.63 * scale * autoScale}rem` }}>
+                <span className="shrink-0 font-bold" style={{ color: theme.accentColor }}>{i + 1}.</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ol>
         )}
       </div>
       <SlideFooter index={index} total={total} theme={theme} />
@@ -286,6 +339,7 @@ function SlideRenderer(props: TemplateProps) {
     case "evaluation": return <EvaluationTemplate {...props} />;
     case "timeline":   return <TimelineTemplate {...props} />;
     case "summary":    return <SummaryTemplate {...props} />;
+    case "references": return <ReferencesTemplate {...props} />;
     default:           return <div className="aspect-video bg-gray-100 rounded-xl" />;
   }
 }
@@ -315,25 +369,27 @@ export default function SlidesPage() {
   const [step, setStep] = useState<"form" | "preview">("form");
 
   // ── フォーム
-  const [slideType,    setSlideType]    = useState("case");
-  const [durationOpt,  setDurationOpt]  = useState(10);
-  const [customMin,    setCustomMin]    = useState("");
+  const [slideType,   setSlideType]   = useState("case");
+  const [durationOpt, setDurationOpt] = useState(10);
+  const [customMin,   setCustomMin]   = useState("");
 
   const [caseForm,  setCaseForm]  = useState({ disease: "", patient: "", evaluation: "", treatment: "", outcome: "", presenter: "" });
   const [resForm,   setResForm]   = useState({ title: "", background: "", purpose: "", method: "", result: "", discussion: "", presenter: "" });
   const [studyForm, setStudyForm] = useState({ theme: "", disease: "", keyPoints: "", references: "", presenter: "" });
   const [disForm,   setDisForm]   = useState({ patientBg: "", reason: "", rehab: "", condition: "", notes: "", presenter: "" });
 
+  // ── 参考文献（全スライドタイプ共通）
+  const [references,    setReferences]    = useState("");
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestions,   setSuggestions]   = useState<string[]>([]);
+  const [selectedSugs,  setSelectedSugs]  = useState<Set<number>>(new Set());
+  const [suggestError,  setSuggestError]  = useState("");
+
   // ── 生成結果
   const [slideData,    setSlideData]    = useState<GeneratedSlideData | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
-
-  // ── 編集パネル
-  const [themeKey,  setThemeKey]  = useState("orange");
-  const [fontKey,   setFontKey]   = useState("sans");
-  const [sizeKey,   setSizeKey]   = useState("md");
 
   // ── 生成進捗
   const [genProgress, setGenProgress] = useState<{
@@ -342,25 +398,83 @@ export default function SlidesPage() {
     total: number;
   } | null>(null);
 
+  // ── 編集パネル
+  const [themeKey, setThemeKey] = useState("orange");
+  const [fontKey,  setFontKey]  = useState("sans");
+  const [sizeKey,  setSizeKey]  = useState("md");
+
   // ── チャット編集
-  const [chatInput,    setChatInput]    = useState("");
-  const [chatLoading,  setChatLoading]  = useState(false);
-  const [chatStatus,   setChatStatus]   = useState<string | null>(null);  // "変更しました" など
+  const [chatInput,       setChatInput]       = useState("");
+  const [chatLoading,     setChatLoading]     = useState(false);
+  const [chatStatus,      setChatStatus]      = useState<string | null>(null);
   const [chatUnsupported, setChatUnsupported] = useState<string | null>(null);
-  const [slideHistory, setSlideHistory] = useState<GeneratedSlide[][]>([]); // undo用
+  const [slideHistory,    setSlideHistory]    = useState<GeneratedSlide[][]>([]);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const theme    = THEMES.find(t => t.key === themeKey)!;
-  const fontCss  = FONTS.find(f => f.key === fontKey)!.css;
-  const scale    = FONT_SIZES.find(s => s.key === sizeKey)!.scale;
+  const theme   = THEMES.find(t => t.key === themeKey)!;
+  const fontCss = FONTS.find(f => f.key === fontKey)!.css;
+  const scale   = FONT_SIZES.find(s => s.key === sizeKey)!.scale;
 
   const effectiveDuration = durationOpt === -1
     ? Math.max(1, parseInt(customMin) || 10)
     : durationOpt;
 
-  const expectedSlides = calcSlideCount(effectiveDuration);
+  const hasRefs      = references.trim().length > 0;
+  const expectedSlides = calcSlideCount(effectiveDuration, hasRefs);
 
-  // ── 生成（2ステップ分割：タイムアウト対策）
+  // 引用テキスト（フッターに表示）
+  const citationNote = hasRefs ? extractCitation(references) : null;
+
+  // ── 文献AI提案 ────────────────────────────────────────────────────────
+
+  async function suggestRefs() {
+    setSuggestLoading(true);
+    setSuggestError("");
+    setSuggestions([]);
+    setSelectedSugs(new Set());
+
+    const form =
+      slideType === "case"      ? caseForm  :
+      slideType === "research"  ? resForm   :
+      slideType === "study"     ? studyForm :
+      disForm;
+
+    try {
+      const res = await fetch("/api/suggest-refs", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ type: slideType, form }),
+      });
+      const data = await res.json() as { suggestions?: string[]; error?: string };
+      if (data.error) throw new Error(data.error);
+      setSuggestions(data.suggestions ?? []);
+      if ((data.suggestions ?? []).length === 0) setSuggestError("提案できる文献が見つかりませんでした");
+    } catch (e) {
+      setSuggestError(e instanceof Error ? e.message : "提案の取得に失敗しました");
+    } finally {
+      setSuggestLoading(false);
+    }
+  }
+
+  function toggleSug(i: number) {
+    setSelectedSugs(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+
+  function addSelectedSugs() {
+    const toAdd = suggestions.filter((_, i) => selectedSugs.has(i));
+    if (toAdd.length === 0) return;
+    const current = references.trim();
+    setReferences(current ? `${current}\n${toAdd.join("\n")}` : toAdd.join("\n"));
+    setSuggestions([]);
+    setSelectedSugs(new Set());
+  }
+
+  // ── 生成（2ステップ分割） ─────────────────────────────────────────────
+
   async function generate() {
     setLoading(true);
     setError("");
@@ -372,12 +486,20 @@ export default function SlidesPage() {
       slideType === "study"     ? studyForm :
       disForm;
 
+    const refsValue = references.trim() || undefined;
+
     try {
-      // Step 1: スライド構成のみ生成（高速）
+      // Step 1: 構成生成
       const outlineRes = await fetch("/api/slides", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ action: "outline", type: slideType, form, duration: effectiveDuration }),
+        body:    JSON.stringify({
+          action:     "outline",
+          type:       slideType,
+          form,
+          duration:   effectiveDuration,
+          references: refsValue,
+        }),
       });
       if (!outlineRes.ok) {
         const err = await outlineRes.json() as { error: string };
@@ -389,7 +511,7 @@ export default function SlidesPage() {
 
       setGenProgress({ phase: "expand", current: 0, total: totalSlides });
 
-      // Step 2: 1枚ずつ本文・原稿を生成
+      // Step 2: 1枚ずつ展開
       const slides: GeneratedSlide[] = [];
       for (let i = 0; i < outline.outlines.length; i++) {
         setGenProgress({ phase: "expand", current: i + 1, total: totalSlides });
@@ -398,13 +520,14 @@ export default function SlidesPage() {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({
-            action:      "expand",
-            type:        slideType,
+            action:       "expand",
+            type:         slideType,
             form,
-            outline:     outline.outlines[i],
-            index:       i,
+            outline:      outline.outlines[i],
+            index:        i,
             totalSlides,
             charPerSlide,
+            references:   refsValue,
           }),
         });
         if (!expandRes.ok) {
@@ -436,7 +559,8 @@ export default function SlidesPage() {
     }
   }
 
-  // ── 原稿ダウンロード（.txt）
+  // ── 原稿ダウンロード ─────────────────────────────────────────────────────
+
   function downloadManuscript() {
     if (!slideData) return;
     const lines = slideData.slides.map((s, i) => {
@@ -457,7 +581,7 @@ export default function SlidesPage() {
     URL.revokeObjectURL(url);
   }
 
-  // ── チャット編集送信 ─────────────────────────────────────────────────────
+  // ── チャット編集 ────────────────────────────────────────────────────────
 
   async function handleChat() {
     const instr = chatInput.trim();
@@ -485,7 +609,6 @@ export default function SlidesPage() {
       };
 
       if (data.type === "design") {
-        // undo スタック：デザイン変更は state のみなので不要だが一応記録
         if (data.themeKey) setThemeKey(data.themeKey);
         if (data.fontKey)  setFontKey(data.fontKey);
         if (data.sizeKey)  setSizeKey(data.sizeKey);
@@ -494,7 +617,6 @@ export default function SlidesPage() {
       }
 
       if (data.type === "content" && data.slides) {
-        // undo のためにスタックに現在のスライドを保存
         setSlideHistory(prev => [...prev.slice(-9), slideData.slides]);
         setSlideData(prev => prev ? { ...prev, slides: data.slides! } : prev);
         setChatStatus(data.message || "変更しました");
@@ -510,8 +632,6 @@ export default function SlidesPage() {
       setChatLoading(false);
     }
   }
-
-  // ── 1つ前に戻す ─────────────────────────────────────────────────────────
 
   function handleUndo() {
     if (slideHistory.length === 0 || !slideData) return;
@@ -573,6 +693,7 @@ export default function SlidesPage() {
             )}
             <p className="text-xs text-gray-400 mt-2">
               目安スライド枚数：<span className="font-bold text-gray-700">{expectedSlides} 枚</span>
+              {hasRefs && <span className="text-green-600 ml-1">（参考文献スライド含む）</span>}
             </p>
           </div>
 
@@ -630,7 +751,6 @@ export default function SlidesPage() {
               <div><FLabel>勉強会テーマ</FLabel><FInput value={studyForm.theme} onChange={v => setStudyForm(p => ({...p, theme: v}))} placeholder="例：肩関節周囲炎の理学療法" /></div>
               <div><FLabel>対象疾患</FLabel><FInput value={studyForm.disease} onChange={v => setStudyForm(p => ({...p, disease: v}))} placeholder="例：肩関節周囲炎（五十肩）" /></div>
               <div><FLabel>主要ポイント・内容</FLabel><FTextarea value={studyForm.keyPoints} onChange={v => setStudyForm(p => ({...p, keyPoints: v}))} placeholder="例：解剖学的特徴、病期分類、評価方法、治療介入..." /></div>
-              <div><FLabel>参考文献</FLabel><FTextarea value={studyForm.references} onChange={v => setStudyForm(p => ({...p, references: v}))} rows={2} placeholder="例：○○ガイドライン2023..." /></div>
               <div><FLabel>発表者名</FLabel><FInput value={studyForm.presenter} onChange={v => setStudyForm(p => ({...p, presenter: v}))} placeholder="例：山田 太郎 PT" /></div>
             </>)}
 
@@ -642,6 +762,90 @@ export default function SlidesPage() {
               <div><FLabel>退院後の注意事項</FLabel><FTextarea value={disForm.notes} onChange={v => setDisForm(p => ({...p, notes: v}))} rows={2} placeholder="例：外来リハ継続、転倒予防の家族指導済み..." /></div>
               <div><FLabel>発表者名</FLabel><FInput value={disForm.presenter} onChange={v => setDisForm(p => ({...p, presenter: v}))} placeholder="例：山田 太郎 PT" /></div>
             </>)}
+          </div>
+
+          {/* ④ 参考文献 */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-black text-gray-900">参考文献</p>
+                <p className="text-xs text-gray-400 mt-0.5">入力すると最後のスライドに参考文献一覧が自動追加されます</p>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">任意</span>
+            </div>
+
+            <FTextarea
+              value={references}
+              onChange={setReferences}
+              rows={4}
+              placeholder={"例：山田太郎 他. 変形性膝関節症に対する運動療法の効果. 理学療法学雑誌. 2023;38(2):123-130.\n（1文献1行で入力してください）"}
+            />
+
+            {/* AI提案ボタン */}
+            <button
+              type="button"
+              onClick={suggestRefs}
+              disabled={suggestLoading}
+              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl border-2 transition disabled:opacity-50"
+              style={{ borderColor: "#1B4332", color: "#1B4332" }}
+            >
+              {suggestLoading ? (
+                <><span className="inline-block w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />提案を取得中...</>
+              ) : (
+                <>AIにおすすめの文献を提案してもらう</>
+              )}
+            </button>
+
+            {suggestError && (
+              <p className="text-xs text-red-500 px-1">{suggestError}</p>
+            )}
+
+            {/* 提案リスト */}
+            {suggestions.length > 0 && (
+              <div className="border border-green-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-2.5 flex items-center justify-between"
+                  style={{ background: "#F0FDF4" }}>
+                  <p className="text-xs font-bold text-green-800">AI提案文献（使いたいものを選んで追加）</p>
+                  <p className="text-[10px] text-green-600">
+                    ※AIによる提案のため、実在の確認をお願いします
+                  </p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {suggestions.map((sug, i) => (
+                    <label
+                      key={i}
+                      className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSugs.has(i)}
+                        onChange={() => toggleSug(i)}
+                        className="mt-0.5 accent-green-700 shrink-0"
+                      />
+                      <span className="text-xs text-gray-700 leading-relaxed">{sug}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => { setSuggestions([]); setSelectedSugs(new Set()); }}
+                    className="text-xs text-gray-400 hover:text-gray-600 transition"
+                  >
+                    閉じる
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addSelectedSugs}
+                    disabled={selectedSugs.size === 0}
+                    className="text-xs font-bold text-white px-4 py-2 rounded-xl disabled:opacity-40 transition"
+                    style={{ background: "#1B4332" }}
+                  >
+                    選択した文献を追加（{selectedSugs.size}件）
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -672,17 +876,16 @@ export default function SlidesPage() {
       {step === "preview" && slideData && (
         <div className="space-y-4">
 
-          {/* ── 上部：編集パネル ── */}
+          {/* ── デザイン編集パネル ── */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
             <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-3">デザイン編集</p>
             <div className="flex flex-wrap gap-6">
-              {/* 配色 */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 mb-1.5">配色テーマ</p>
                 <div className="flex gap-2">
                   {THEMES.map(t => (
                     <button key={t.key} type="button" onClick={() => setThemeKey(t.key)}
-                      className={`flex flex-col items-center gap-1 transition`}>
+                      className="flex flex-col items-center gap-1 transition">
                       <div className={`w-7 h-7 rounded-full border-2 ${themeKey === t.key ? "ring-2 ring-offset-1 ring-gray-400" : ""}`}
                         style={{ background: t.headerBg, borderColor: t.accentColor }} />
                       <span className={`text-[9px] font-medium ${themeKey === t.key ? "text-gray-900" : "text-gray-400"}`}>
@@ -692,7 +895,6 @@ export default function SlidesPage() {
                   ))}
                 </div>
               </div>
-              {/* フォント */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 mb-1.5">フォント</p>
                 <div className="flex gap-1.5">
@@ -707,7 +909,6 @@ export default function SlidesPage() {
                   ))}
                 </div>
               </div>
-              {/* 文字サイズ */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 mb-1.5">文字サイズ</p>
                 <div className="flex gap-1.5">
@@ -759,11 +960,6 @@ export default function SlidesPage() {
                 rows={2}
                 placeholder={`例：「2枚目をもっとシンプルにして」「全体的に文字を大きくして」`}
                 className="w-full px-4 pt-3 pb-10 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none placeholder-gray-300 leading-relaxed transition"
-                style={{
-                  // フォーカス時オレンジ枠
-                  boxShadow: chatInput ? "0 0 0 2px #E85D04" : undefined,
-                  borderColor: chatInput ? "#E85D04" : undefined,
-                }}
                 onFocus={e => { e.currentTarget.style.boxShadow = "0 0 0 2px #E85D04"; e.currentTarget.style.borderColor = "#E85D04"; }}
                 onBlur={e  => { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.borderColor = ""; }}
               />
@@ -786,7 +982,6 @@ export default function SlidesPage() {
               </div>
             </div>
 
-            {/* ステータス表示 */}
             {chatStatus && (
               <div className="mt-2 flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-lg"
                 style={{ background: "#F0FDF4", color: "#15803d" }}>
@@ -858,6 +1053,12 @@ export default function SlidesPage() {
                 theme={theme}
                 font={fontCss}
                 scale={scale}
+                citation={
+                  slideData.slides[currentSlide].templateType !== "title" &&
+                  slideData.slides[currentSlide].templateType !== "references"
+                    ? citationNote
+                    : null
+                }
               />
 
               {/* ナビゲーション */}
@@ -896,7 +1097,19 @@ export default function SlidesPage() {
                       className="relative rounded-lg overflow-hidden transition"
                       style={{ outline: i === currentSlide ? `2px solid ${theme.headerBg}` : "2px solid transparent" }}>
                       <div style={{ transform: "scale(0.38)", transformOrigin: "top left", width: "263%", height: "263%", pointerEvents: "none" }}>
-                        <SlideRenderer slide={s} index={i} total={slideData.slides.length} theme={theme} font={fontCss} scale={scale} />
+                        <SlideRenderer
+                          slide={s}
+                          index={i}
+                          total={slideData.slides.length}
+                          theme={theme}
+                          font={fontCss}
+                          scale={scale}
+                          citation={
+                            s.templateType !== "title" && s.templateType !== "references"
+                              ? citationNote
+                              : null
+                          }
+                        />
                       </div>
                       <div className="absolute bottom-0.5 right-0.5 text-[8px] font-bold text-white px-1 rounded"
                         style={{ background: "rgba(0,0,0,0.45)" }}>{i + 1}</div>
