@@ -6,6 +6,7 @@ import type {
   GeneratedSlideData, GeneratedSlide, TemplateType,
   TitleContent, CaseIntroContent, EvaluationContent,
   TimelineContent, SummaryContent,
+  OutlineResult,
 } from "@/app/api/slides/route";
 
 // ── テーマ・フォント・サイズ定義 ────────────────────────────────────────
@@ -334,6 +335,13 @@ export default function SlidesPage() {
   const [fontKey,   setFontKey]   = useState("sans");
   const [sizeKey,   setSizeKey]   = useState("md");
 
+  // ── 生成進捗
+  const [genProgress, setGenProgress] = useState<{
+    phase: "outline" | "expand";
+    current: number;
+    total: number;
+  } | null>(null);
+
   // ── チャット編集
   const [chatInput,    setChatInput]    = useState("");
   const [chatLoading,  setChatLoading]  = useState(false);
@@ -352,10 +360,12 @@ export default function SlidesPage() {
 
   const expectedSlides = calcSlideCount(effectiveDuration);
 
-  // ── 生成
+  // ── 生成（2ステップ分割：タイムアウト対策）
   async function generate() {
     setLoading(true);
     setError("");
+    setGenProgress({ phase: "outline", current: 0, total: 0 });
+
     const form =
       slideType === "case"      ? caseForm  :
       slideType === "research"  ? resForm   :
@@ -363,20 +373,66 @@ export default function SlidesPage() {
       disForm;
 
     try {
-      const res = await fetch("/api/slides", {
+      // Step 1: スライド構成のみ生成（高速）
+      const outlineRes = await fetch("/api/slides", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ type: slideType, form, duration: effectiveDuration }),
+        body:    JSON.stringify({ action: "outline", type: slideType, form, duration: effectiveDuration }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json() as GeneratedSlideData;
-      setSlideData(data);
+      if (!outlineRes.ok) {
+        const err = await outlineRes.json() as { error: string };
+        throw new Error(err.error || "構成の生成に失敗しました");
+      }
+      const outline = await outlineRes.json() as OutlineResult;
+      const totalSlides  = outline.outlines.length;
+      const charPerSlide = Math.round((effectiveDuration * 300) / totalSlides);
+
+      setGenProgress({ phase: "expand", current: 0, total: totalSlides });
+
+      // Step 2: 1枚ずつ本文・原稿を生成
+      const slides: GeneratedSlide[] = [];
+      for (let i = 0; i < outline.outlines.length; i++) {
+        setGenProgress({ phase: "expand", current: i + 1, total: totalSlides });
+
+        const expandRes = await fetch("/api/slides", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({
+            action:      "expand",
+            type:        slideType,
+            form,
+            outline:     outline.outlines[i],
+            index:       i,
+            totalSlides,
+            charPerSlide,
+          }),
+        });
+        if (!expandRes.ok) {
+          const err = await expandRes.json() as { error: string };
+          throw new Error(err.error || `スライド ${i + 1} の生成に失敗しました`);
+        }
+        const slide = await expandRes.json() as GeneratedSlide;
+        slides.push(slide);
+      }
+
+      const generated: GeneratedSlideData = {
+        title:         outline.title,
+        presenter:     outline.presenter,
+        slideType:     outline.slideType,
+        totalDuration: outline.totalDuration,
+        slides,
+      };
+
+      setSlideData(generated);
       setCurrentSlide(0);
       setStep("preview");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "生成に失敗しました");
+      const msg = e instanceof Error ? e.message : "生成に失敗しました";
+      const isTimeout = msg.toLowerCase().includes("timeout") || msg.includes("時間がかかっています");
+      setError(isTimeout ? "生成に時間がかかっています。もう一度お試しください。" : msg);
     } finally {
       setLoading(false);
+      setGenProgress(null);
     }
   }
 
@@ -599,7 +655,12 @@ export default function SlidesPage() {
             style={{ background: "#E85D04" }}
           >
             {loading ? (
-              <><span className="inline-block w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />AIがスライドと原稿を生成中…（少々お待ちください）</>
+              <>
+                <span className="inline-block w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0" />
+                {genProgress?.phase === "expand"
+                  ? `${genProgress.current} / ${genProgress.total} 枚を生成中...`
+                  : "スライド構成を生成中..."}
+              </>
             ) : (
               `スライドを生成する → （${expectedSlides}枚・${effectiveDuration}分）`
             )}
@@ -776,7 +837,11 @@ export default function SlidesPage() {
               <button onClick={generate} disabled={loading}
                 className="px-3 py-1.5 text-xs text-white rounded-lg transition hover:opacity-90 disabled:opacity-60"
                 style={{ background: "#E85D04" }}>
-                {loading ? "再生成中…" : "再生成"}
+                {loading
+                  ? (genProgress?.phase === "expand"
+                      ? `${genProgress.current}/${genProgress.total}枚目`
+                      : "構成生成中…")
+                  : "再生成"}
               </button>
             </div>
           </div>
