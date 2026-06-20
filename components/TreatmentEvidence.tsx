@@ -6,6 +6,11 @@ import type { PatientExplanationResult } from "@/app/api/patient-explanation/rou
 import { PatientInfoForm, INITIAL_PATIENT_INFO } from "./PatientInfoForm";
 import type { PatientInfo, HighlightConfig } from "./PatientInfoForm";
 
+interface TreatmentEvidenceProps {
+  onSharedDiseaseChange?:     (disease: string) => void;
+  onSharedPatientInfoChange?: (info: PatientInfo) => void;
+}
+
 // ── Error helpers ─────────────────────────────────────────────────────────
 
 const MAX_RETRIES = 3;
@@ -129,11 +134,24 @@ function ExplanationDisplay({
 
 // ── Main component ────────────────────────────────────────────────────────
 
-export function TreatmentEvidence() {
+export function TreatmentEvidence({
+  onSharedDiseaseChange,
+  onSharedPatientInfoChange,
+}: TreatmentEvidenceProps = {}) {
   const [showResults, setShowResults]   = useState(false);
   const [query,       setQuery]         = useState("");
   const [disease,     setDisease]       = useState("");
   const [patientInfo, setPatientInfo]   = useState<PatientInfo>(INITIAL_PATIENT_INFO);
+
+  // 親コンポーネントへの同期（「相談する」タブで患者情報を引き継ぐため）
+  const handleQueryChange = (v: string) => {
+    setQuery(v);
+    onSharedDiseaseChange?.(v);
+  };
+  const handlePatientInfoChange = (info: PatientInfo) => {
+    setPatientInfo(info);
+    onSharedPatientInfoChange?.(info);
+  };
   const [result,      setResult]        = useState<TreatmentEvidenceResult | null>(null);
   const [loading,     setLoading]       = useState(false);
   const [error,       setError]         = useState<string | null>(null);
@@ -382,7 +400,7 @@ export function TreatmentEvidence() {
         <input
           type="text"
           value={query}
-          onChange={e => setQuery(e.target.value)}
+          onChange={e => handleQueryChange(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleSubmit()}
           placeholder="例：変形性膝関節症、脳梗塞、腰部脊柱管狭窄症"
           className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-100 focus:outline-none text-gray-900 placeholder-gray-400 text-base transition"
@@ -415,7 +433,7 @@ export function TreatmentEvidence() {
         </div>
         <PatientInfoForm
           info={patientInfo}
-          onChange={setPatientInfo}
+          onChange={handlePatientInfoChange}
           highlights={highlights}
         />
       </div>

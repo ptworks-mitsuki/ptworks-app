@@ -2,6 +2,8 @@
 
 import { useState, useRef } from "react";
 import dynamic from "next/dynamic";
+import type { PatientInfo } from "@/components/PatientInfoForm";
+import { INITIAL_PATIENT_INFO } from "@/components/PatientInfoForm";
 
 // コンポーネントを遅延読み込み（ただし全タブ同時にマウント → 状態保持）
 const MedicalSearch         = dynamic(() => import("@/components/MedicalSearch").then(m => ({ default: m.MedicalSearch })), { ssr: false });
@@ -25,6 +27,10 @@ const SWIPE_THRESHOLD = 50; // px
 
 export default function Stage1Page() {
   const [activeTab, setActiveTab] = useState<TabId>("search");
+
+  // 「治療を考える」で入力した内容を「相談する」に引き継ぐための共有state
+  const [sharedDisease,     setSharedDisease]     = useState("");
+  const [sharedPatientInfo, setSharedPatientInfo] = useState<PatientInfo>(INITIAL_PATIENT_INFO);
 
   // スワイプ検出用
   const touchStartX = useRef<number | null>(null);
@@ -113,10 +119,16 @@ export default function Stage1Page() {
             <MedicalSearch />
           </div>
           <div className={activeTab === "evidence" ? "" : "hidden"}>
-            <TreatmentEvidence />
+            <TreatmentEvidence
+              onSharedDiseaseChange={setSharedDisease}
+              onSharedPatientInfoChange={setSharedPatientInfo}
+            />
           </div>
           <div className={activeTab === "case" ? "" : "hidden"}>
-            <CaseConsultation />
+            <CaseConsultation
+              sharedDisease={sharedDisease}
+              sharedPatientInfo={sharedPatientInfo}
+            />
           </div>
 
         </div>
