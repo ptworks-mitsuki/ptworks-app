@@ -117,6 +117,22 @@ export default function Stage3Page() {
           </div>
         </div>
 
+        {/* 保険診療との補完関係 */}
+        <div className="mt-8 rounded-2xl border border-purple-200 bg-purple-50 px-6 py-5">
+          <h2 className="text-base font-black text-purple-900 mb-3">保険診療と組み合わせた、健全な開業を</h2>
+          <div className="text-sm text-purple-800 leading-relaxed space-y-3">
+            <p>
+              PT Worksが目指す開業支援は、保険診療や地域医療と対立するものではなく、補完し合う関係を大切にしています。
+            </p>
+            <p>
+              理学療法士としての専門性・国家資格を明確に伝えることは、無資格の施術と差別化し、利用者に安心して選んでもらうための重要な要素です。
+            </p>
+            <p>
+              PT Worksは、PTという資格の価値を正しく伝えながら開業をサポートしていきます。
+            </p>
+          </div>
+        </div>
+
         <div className="mt-8 flex items-center justify-between">
           <Link href="/pricing" className="text-sm text-gray-400 hover:text-gray-600 transition">← 全プラン比較を見る</Link>
           <Link href="/pricing"

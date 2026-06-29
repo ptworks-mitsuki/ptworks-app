@@ -299,6 +299,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           {/* PT Worksとは — 最上部 */}
           <NavLink href="/about" icon="›" label="PT Worksとは" pathname={pathname} onClose={onClose} />
+          <NavLink href="/guide" icon="›" label="PT Worksの使い方について" pathname={pathname} onClose={onClose} />
 
           {/* Home */}
           <NavLink href="/" icon="›" label="ホーム" pathname={pathname} onClose={onClose} />

@@ -718,7 +718,29 @@ export function MedicalSearch() {
             </div>
           )}
 
-          <p className="text-xs text-gray-400 text-center mt-5 pb-2 print:hidden">
+          {/* ── 免責・出典注記 ── */}
+          {done && (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 print:border print:border-gray-300 print:bg-white">
+              <p className="text-xs font-bold text-amber-800 mb-1">この情報について</p>
+              <p className="text-xs text-amber-700 leading-relaxed">
+                この内容は文献・教科書をもとに整理されています。
+                最終的な臨床判断は、原典の確認とPT自身の判断のもとで行ってください。
+              </p>
+              {partial?.disease && (
+                <div className="mt-3 pt-3 border-t border-amber-200">
+                  <p className="text-[10px] font-bold text-amber-700 mb-1.5">参照文献を確認する</p>
+                  <a
+                    href={`/stage1/literature?q=${encodeURIComponent(partial.disease)}`}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 transition"
+                  >
+                    「{partial.disease}」の文献検索で原典を確認する →
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-gray-400 text-center mt-4 pb-2 print:hidden">
             ※ 文献・論文をもとに整理した情報です。臨床判断には必ず一次文献・専門家への確認をお取りください。
           </p>
         </div>
