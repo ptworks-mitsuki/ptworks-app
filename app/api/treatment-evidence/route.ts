@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-error";
 
 export const maxDuration = 60;
+export const runtime = "edge";
 
 // ── PatientInfo type (shared with form component) ─────────────────────────
 
@@ -215,20 +216,20 @@ export async function POST(req: NextRequest) {
 
     const raw = message.content[0];
     if (raw.type !== "text") {
-      return NextResponse.json({ error: "現在メンテナンス中です。しばらくお待ちください。" }, { status: 500 });
+      return NextResponse.json({ error: "AIの応答形式が予期しないものでした。もう一度お試しください。" }, { status: 500 });
     }
 
     const jsonMatch = raw.text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error("[treatment-evidence] No JSON:", raw.text.slice(0, 200));
-      return NextResponse.json({ error: "現在メンテナンス中です。しばらくお待ちください。" }, { status: 500 });
+      return NextResponse.json({ error: "AI応答の解析に失敗しました。もう一度お試しください。" }, { status: 500 });
     }
 
     let parsed: TreatmentEvidenceResult;
     try { parsed = JSON.parse(jsonMatch[0]) as TreatmentEvidenceResult; }
     catch (e) {
       console.error("[treatment-evidence] JSON parse error:", e);
-      return NextResponse.json({ error: "現在メンテナンス中です。しばらくお待ちください。" }, { status: 500 });
+      return NextResponse.json({ error: "AI応答の解析に失敗しました。もう一度お試しください。" }, { status: 500 });
     }
 
     return NextResponse.json(parsed);
