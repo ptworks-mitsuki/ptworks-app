@@ -6,7 +6,6 @@ import {
 } from "@/lib/api-error";
 
 export const maxDuration = 60;
-export const runtime = "edge";
 
 // ── PatientInfo type (shared with form component) ─────────────────────────
 
