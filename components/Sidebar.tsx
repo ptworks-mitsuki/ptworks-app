@@ -318,6 +318,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <NavLink href="/stage1"            icon="›" label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
           <NavLink href="/stage1/slides"     icon="›" label="スライド自動生成"   sub pathname={pathname} onClose={onClose} />
           <NavLink href="/learn"             icon="›" label="学習コンテンツ"     sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/learn/reimbursement" icon="›" label="診療報酬・算定ガイド" sub pathname={pathname} onClose={onClose} />
 
           {/* Divider */}
           <div className="mx-3 my-2 border-t border-gray-100" />
