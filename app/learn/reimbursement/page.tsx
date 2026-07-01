@@ -80,13 +80,14 @@ const START_DATE_TYPES = [
 ] as const;
 
 const REVISION_INFO = {
-  latest: "2024年（令和6年）改定",
+  latest: "令和8年度（2026年）診療報酬改訂",
+  施行日: "2026年6月1日",
   points: [
-    "リハビリテーション料の評価見直し：施設基準・届出要件の変更",
-    "運動器リハビリテーション料：疾患別リハビリの対象疾患範囲が整理された",
-    "脳血管疾患等リハビリ：標準的算定日数の延長申請に係る要件が明確化",
-    "廃用症候群リハビリ：算定日数カウント方法の一部見直し",
-    "リハビリテーション計画書：様式の更新および記載要件の整理",
+    "早期リハ加算の算定期間が「発症から30日以内」から「入院から14日以内」に短縮",
+    "入院1〜3日目の早期リハ加算点数が25点から60点に引き上げ（入院4〜14日目は25点を維持）",
+    "休日リハビリテーション加算（25点/単位）が新設（発症・手術・急性増悪から30日以内の土日祝）",
+    "離床を伴わないリハビリへの10%減算が新設（所定点数の90%算定・1日2単位まで）",
+    "リハビリ総合実施計画料が「初回」と「2回目以降」に区分化",
   ],
 };
 
@@ -126,13 +127,24 @@ const QA_LIST = [
 ];
 
 // 減算チェック項目
-const DEDUCTION_ITEMS = [
+interface DeductionItem {
+  id: string;
+  label: string;
+  note?: string;
+}
+
+const DEDUCTION_ITEMS: DeductionItem[] = [
   { id: "d1", label: "標準算定日数を超えている" },
   { id: "d2", label: "リハビリ実施計画書が期限内に作成されていない" },
   { id: "d3", label: "1日の単位数が上限を超えている（運動器・脳血管・廃用・呼吸器：上限9単位）" },
   { id: "d4", label: "専従の療法士要件を満たしていない" },
   { id: "d5", label: "医師の指示書がない" },
   { id: "d6", label: "患者への説明と同意が得られていない" },
+  {
+    id: "d7",
+    label: "離床を伴わずにリハビリを実施した（2026年6月〜新設）",
+    note: "所定点数の90%で算定・1日2単位まで（離床なしリハビリ減算）",
+  },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -463,33 +475,97 @@ function CalcTool() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// ツール②：初期・早期加算計算
+// ツール②：初期・早期加算 / 休日リハ加算計算（2026年改訂対応）
 // ══════════════════════════════════════════════════════════════════════════
 
+// 日本の祝日判定（2026年の主要祝日を含む固定日）
+function isHoliday(dateStr: string): boolean {
+  // 年単位で判定する固定祝日（振替は近似）
+  const d = new Date(dateStr + "T00:00:00");
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  // 固定祝日
+  const fixed: [number, number][] = [
+    [1,1],[1,2],[1,3],  // 元日・正月
+    [2,11],[2,23],       // 建国記念日・天皇誕生日
+    [3,20],[4,29],       // 春分（近似）・昭和の日
+    [5,3],[5,4],[5,5],   // 憲法記念日・みどりの日・こどもの日
+    [7,21],              // 海の日（第3月曜 近似）
+    [8,11],              // 山の日
+    [9,15],[9,23],       // 敬老の日（第3月曜 近似）・秋分（近似）
+    [10,13],             // スポーツの日（第2月曜 近似）
+    [11,3],[11,23],      // 文化の日・勤労感謝の日
+  ];
+  return fixed.some(([fm, fd]) => m === fm && day === fd);
+}
+
+function isWeekendOrHoliday(dateStr: string): boolean {
+  const d = new Date(dateStr + "T00:00:00");
+  const dow = d.getDay(); // 0=日 6=土
+  return dow === 0 || dow === 6 || isHoliday(dateStr);
+}
+
+function dayOfWeekLabel(dateStr: string): string {
+  const labels = ["日", "月", "火", "水", "木", "金", "土"];
+  const d = new Date(dateStr + "T00:00:00");
+  return labels[d.getDay()];
+}
+
 function AdditionTool() {
-  const [onsetDate,  setOnsetDate]  = useState("");
-  const [admitDate,  setAdmitDate]  = useState("");
-  const [rehaDate,   setRehaDate]   = useState("");
-  const [catKey,     setCatKey]     = useState("musculo");
-  const [result,     setResult]     = useState<null | {
-    earlyDays: number; earlyOk: boolean;
-    initDays:  number; initOk:  boolean;
+  const [onsetDate,   setOnsetDate]   = useState("");   // 発症日・手術日・急性増悪日（休日加算の起算日）
+  const [admitDate,   setAdmitDate]   = useState("");   // 入院日（早期リハ加算の起算日）
+  const [rehaDate,    setRehaDate]    = useState("");   // リハビリ実施日
+  const [catKey,      setCatKey]      = useState("musculo");
+  const [result,      setResult]      = useState<null | {
+    // 早期リハ加算（2026年〜）
+    earlyAdmitDays:   number;   // 入院からの日数
+    earlyOk:          boolean;  // 14日以内
+    earlyPoints:      number;   // 60点 or 25点
+    // 初期加算（入院14日以内）
+    initDays:         number;
+    initOk:           boolean;
+    // 休日リハ加算（2026年新設）
+    onsetDays:        number;   // 発症からの日数
+    holidayRehab:     boolean;  // 土日祝
+    holidayOk:        boolean;  // 30日以内 かつ 土日祝
   }>(null);
 
   const calc = () => {
-    if (!onsetDate || !rehaDate) return;
-    const earlyDays = diffDays(onsetDate, rehaDate);
-    const earlyOk   = earlyDays <= 30;
-    const initDays  = admitDate ? diffDays(admitDate, rehaDate) : -1;
-    const initOk    = admitDate ? initDays <= 14 : false;
-    setResult({ earlyDays, earlyOk, initDays, initOk });
+    if (!admitDate || !rehaDate) return;
+
+    // 早期リハ加算：入院日からの日数で判定（2026年新基準）
+    const earlyAdmitDays = diffDays(admitDate, rehaDate);
+    const earlyOk        = earlyAdmitDays <= 14;
+    const earlyPoints    = earlyAdmitDays <= 3 ? 60 : 25;
+
+    // 初期加算：入院から14日以内（早期リハ加算と同じ起算日）
+    const initDays = earlyAdmitDays;
+    const initOk   = earlyOk;
+
+    // 休日リハ加算：発症日からの日数 & 土日祝判定
+    const onsetDays  = onsetDate ? diffDays(onsetDate, rehaDate) : -1;
+    const holidayRehab = isWeekendOrHoliday(rehaDate);
+    const holidayOk  = onsetDate ? (onsetDays <= 30 && holidayRehab) : false;
+
+    setResult({ earlyAdmitDays, earlyOk, earlyPoints, initDays, initOk, onsetDays, holidayRehab, holidayOk });
   };
 
   const catLabel = REHAB_CATEGORIES.find(c => c.key === catKey)?.name ?? "";
   const catColor = REHAB_CATEGORIES.find(c => c.key === catKey)?.color ?? "#6B7280";
+  const dow      = rehaDate ? `（${dayOfWeekLabel(rehaDate)}）` : "";
 
   return (
     <div className="space-y-5">
+
+      {/* 2026年改訂バッジ */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+        <p className="text-xs font-bold text-blue-800 mb-0.5">2026年6月1日施行 改訂対応版</p>
+        <p className="text-xs text-blue-700 leading-relaxed">
+          早期リハ加算の起算日が「発症日」から「入院日」に変更されました。
+          入院1〜3日目は60点、4〜14日目は25点です。
+        </p>
+      </div>
+
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5">
 
         {/* 算定区分 */}
@@ -503,28 +579,53 @@ function AdditionTool() {
           </select>
         </div>
 
-        {/* 日付 */}
+        {/* 日付入力 */}
         <div className="space-y-4">
           <div>
-            <label className={labelCls}>発症日または手術日 <span className="text-red-500">*</span></label>
-            <input type="date" value={onsetDate} onChange={e => { setOnsetDate(e.target.value); setResult(null); }}
+            <label className={labelCls}>
+              入院日 <span className="text-red-500">*</span>
+              <span className="ml-1 text-[10px] font-normal text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                早期リハ加算の起算日（2026年〜）
+              </span>
+            </label>
+            <input type="date" value={admitDate}
+              onChange={e => { setAdmitDate(e.target.value); setResult(null); }}
               className={inputCls} />
-            <p className="text-[10px] text-gray-400 mt-1">早期加算の起算日として使用します</p>
+            <p className="text-[10px] text-amber-700 mt-1 leading-relaxed">
+              転院患者の場合は、前医の医療機関に入院した日を起算日としてください。
+            </p>
           </div>
           <div>
-            <label className={labelCls}>入院日（初期加算の判定に使用）</label>
-            <input type="date" value={admitDate} onChange={e => { setAdmitDate(e.target.value); setResult(null); }}
+            <label className={labelCls}>
+              発症日・手術日・急性増悪日
+              <span className="ml-1 text-[10px] font-normal text-green-700 bg-green-50 px-1.5 py-0.5 rounded-full">
+                休日リハ加算の起算日
+              </span>
+            </label>
+            <input type="date" value={onsetDate}
+              onChange={e => { setOnsetDate(e.target.value); setResult(null); }}
               className={inputCls} />
-            <p className="text-[10px] text-gray-400 mt-1">入力がない場合は初期加算の判定を省略します</p>
+            <p className="text-[10px] text-gray-400 mt-1">
+              入力すると休日リハビリテーション加算の判定を行います（早期リハ加算とは起算日が異なります）
+            </p>
           </div>
           <div>
-            <label className={labelCls}>リハビリ開始日 <span className="text-red-500">*</span></label>
-            <input type="date" value={rehaDate} onChange={e => { setRehaDate(e.target.value); setResult(null); }}
+            <label className={labelCls}>リハビリ実施日 <span className="text-red-500">*</span></label>
+            <input type="date" value={rehaDate}
+              onChange={e => { setRehaDate(e.target.value); setResult(null); }}
               className={inputCls} />
+            {rehaDate && (
+              <p className="text-[10px] mt-1" style={{
+                color: isWeekendOrHoliday(rehaDate) ? "#1B4332" : "#6B7280",
+              }}>
+                {rehaDate}{dow}
+                {isWeekendOrHoliday(rehaDate) ? "　— 土日祝日です" : "　— 平日です"}
+              </p>
+            )}
           </div>
         </div>
 
-        <button onClick={calc} disabled={!onsetDate || !rehaDate}
+        <button onClick={calc} disabled={!admitDate || !rehaDate}
           className="w-full py-3.5 rounded-xl font-black text-white text-sm transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}>
           加算を確認する
@@ -533,44 +634,115 @@ function AdditionTool() {
 
       {result && (
         <div className="space-y-3">
-          {/* 区分ラベル */}
+          {/* 算定区分バッジ */}
           <div className="px-4 py-2 rounded-xl text-white text-xs font-bold"
             style={{ background: catColor }}>
             {catLabel}
           </div>
 
-          {/* 早期加算 */}
+          {/* 早期リハ加算（2026年新基準） */}
+          <div className={`rounded-xl border p-4 space-y-2 ${
+            result.earlyOk ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+          }`}>
+            <div className="flex items-start gap-3">
+              <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white mt-0.5 ${
+                result.earlyOk ? "bg-green-600" : "bg-red-500"
+              }`}>
+                {result.earlyOk ? "○" : "×"}
+              </span>
+              <div className="flex-1">
+                <p className={`text-sm font-bold ${result.earlyOk ? "text-green-800" : "text-red-700"}`}>
+                  早期リハビリテーション加算：{result.earlyOk ? "取得可能" : "取得不可"}
+                </p>
+                <p className={`text-xs mt-0.5 ${result.earlyOk ? "text-green-700" : "text-red-600"}`}>
+                  入院 {result.earlyAdmitDays} 日目にリハ実施
+                  {result.earlyOk
+                    ? `（基準：入院14日以内）`
+                    : `（14日超過）`}
+                </p>
+                {result.earlyOk && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black text-white"
+                    style={{ background: "#E85D04" }}>
+                    加算点数：{result.earlyPoints}点 / 単位
+                    <span className="font-normal opacity-90">
+                      {result.earlyAdmitDays <= 3 ? "（入院1〜3日目）" : "（入院4〜14日目）"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 初期加算（早期リハと同じ起算日・14日以内） */}
           <ResultRow
-            label={result.earlyOk ? "早期加算：取得可能" : "早期加算：取得不可"}
-            ok={result.earlyOk}
+            label={result.initOk ? "初期加算：取得可能" : "初期加算：取得不可"}
+            ok={result.initOk}
             detail={
-              result.earlyOk
-                ? `発症・手術から ${result.earlyDays} 日目（基準：30日以内）`
-                : `発症・手術から ${result.earlyDays} 日目（30日超過）`
+              result.initOk
+                ? `入院 ${result.initDays} 日目にリハ開始（基準：入院14日以内）`
+                : `入院 ${result.initDays} 日目にリハ開始（14日超過）`
             }
           />
 
-          {/* 初期加算 */}
-          {admitDate ? (
-            <ResultRow
-              label={result.initOk ? "初期加算：取得可能" : "初期加算：取得不可"}
-              ok={result.initOk}
-              detail={
-                result.initOk
-                  ? `入院 ${result.initDays} 日目にリハ開始（基準：14日以内）`
-                  : `入院 ${result.initDays} 日目にリハ開始（14日超過）`
-              }
-            />
+          {/* 休日リハ加算（2026年新設） */}
+          {onsetDate ? (
+            <div className={`rounded-xl border p-4 space-y-2 ${
+              result.holidayOk ? "bg-green-50 border-green-200" :
+              result.holidayRehab && result.onsetDays > 30 ? "bg-gray-50 border-gray-200" :
+              "bg-gray-50 border-gray-200"
+            }`}>
+              <div className="flex items-start gap-3">
+                <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white mt-0.5 ${
+                  result.holidayOk ? "bg-green-600" : "bg-gray-400"
+                }`}>
+                  {result.holidayOk ? "○" : "×"}
+                </span>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`text-sm font-bold ${result.holidayOk ? "text-green-800" : "text-gray-600"}`}>
+                      休日リハビリテーション加算（新設）：{result.holidayOk ? "取得可能" : "取得不可"}
+                    </p>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white bg-blue-500">
+                      2026年6月〜
+                    </span>
+                  </div>
+                  <p className={`text-xs mt-1 ${result.holidayOk ? "text-green-700" : "text-gray-500"}`}>
+                    {result.holidayRehab ? "土日祝日に実施" : "平日のため対象外"}
+                    {" / "}
+                    発症・手術から {result.onsetDays} 日目
+                    {result.onsetDays <= 30 ? "（30日以内）" : "（30日超過）"}
+                  </p>
+                  {result.holidayOk && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black text-white"
+                      style={{ background: "#1B4332" }}>
+                      加算点数：25点 / 単位（早期加算・初期加算との併算定可）
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-              <p className="text-xs text-gray-500">初期加算：入院日を入力すると判定できます</p>
+              <p className="text-xs text-gray-500">
+                休日リハ加算（2026年新設）：発症日・手術日・急性増悪日を入力すると判定します
+              </p>
             </div>
           )}
+
+          {/* 起算日の違いに関する注意書き */}
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+            <p className="text-xs font-bold text-amber-800">起算日についての注意</p>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              早期リハ加算の起算日は「入院日」、休日リハ加算の起算日は「発症日・手術日・急性増悪日」です。
+              転院患者の場合、早期リハ加算の起算日は前医の入院日としてください。
+            </p>
+          </div>
 
           <p className="text-xs text-gray-400 leading-relaxed">
             ※ 加算の取得可否は施設基準・届出内容によっても異なります。医事課・保険担当者にご確認ください。
           </p>
-          <button onClick={() => { setResult(null); setOnsetDate(""); setAdmitDate(""); setRehaDate(""); }}
+          <button
+            onClick={() => { setResult(null); setOnsetDate(""); setAdmitDate(""); setRehaDate(""); }}
             className="text-xs text-gray-400 hover:text-gray-600 underline transition">
             リセットする
           </button>
@@ -621,10 +793,17 @@ function DeductionCheck() {
                 onChange={() => toggle(item.id)}
                 className="mt-0.5 accent-red-500 shrink-0 w-4 h-4"
               />
-              <span className={`text-sm leading-relaxed ${
-                checked.has(item.id) ? "font-semibold text-red-800" : "text-gray-700"
-              }`}>
-                {item.label}
+              <span className="flex-1">
+                <span className={`text-sm leading-relaxed block ${
+                  checked.has(item.id) ? "font-semibold text-red-800" : "text-gray-700"
+                }`}>
+                  {item.label}
+                </span>
+                {item.note && (
+                  <span className="text-[11px] leading-relaxed mt-0.5 block text-amber-700 bg-amber-50 rounded px-2 py-1">
+                    {item.note}
+                  </span>
+                )}
               </span>
             </label>
           ))}
@@ -893,12 +1072,13 @@ export default function ReimbursementPage() {
       <section className="mb-8">
         <SectionHeader color="#1B4332" title="診療報酬改訂情報" />
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white" style={{ background: "#1B4332" }}>
               最新改定
             </span>
             <span className="text-sm font-semibold text-gray-800">{REVISION_INFO.latest}</span>
           </div>
+          <p className="text-xs text-gray-500 mb-4">施行日：{REVISION_INFO.施行日}</p>
           <ul className="space-y-2 mb-5">
             {REVISION_INFO.points.map((point, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
@@ -908,12 +1088,20 @@ export default function ReimbursementPage() {
               </li>
             ))}
           </ul>
-          <a href="https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000188411.html"
-            target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition hover:opacity-80"
-            style={{ borderColor: "#1B4332", color: "#1B4332" }}>
-            厚生労働省 最新情報を確認する <span className="text-xs">→</span>
-          </a>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <a href="https://www.mhlw.go.jp/stf/newpage_71068.html"
+              target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition hover:opacity-80"
+              style={{ borderColor: "#1B4332", color: "#1B4332" }}>
+              厚生労働省 改訂情報を確認する <span className="text-xs">→</span>
+            </a>
+            <a href="https://www.japanpt.or.jp/pt/function/insurance/medical_2026/"
+              target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 font-bold text-sm transition hover:opacity-80"
+              style={{ borderColor: "#E85D04", color: "#E85D04" }}>
+              日本理学療法士協会 2026年改訂情報 <span className="text-xs">→</span>
+            </a>
+          </div>
         </div>
       </section>
 
