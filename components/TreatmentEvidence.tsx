@@ -500,10 +500,12 @@ export function TreatmentEvidence({
         {query && (
           <a
             href={`/stage1/literature?q=${encodeURIComponent(query)}`}
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-bold text-sm transition hover:opacity-90"
             style={{ borderColor: "#1B4332", color: "#1B4332" }}
           >
-            「{query}」の文献検索で探す →
+            この治療に関連する文献を検索する →
           </a>
         )}
 

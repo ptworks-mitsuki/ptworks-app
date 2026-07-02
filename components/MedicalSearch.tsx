@@ -736,10 +736,12 @@ export function MedicalSearch() {
             <div className="mt-4 print:hidden">
               <a
                 href={`/stage1/literature?q=${encodeURIComponent(partial.disease)}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-bold text-sm transition hover:opacity-90"
                 style={{ borderColor: "#1B4332", color: "#1B4332" }}
               >
-                「{partial.disease}」の文献検索で探す →
+                この疾患の関連文献を検索する →
               </a>
             </div>
           )}
@@ -757,6 +759,8 @@ export function MedicalSearch() {
                   <p className="text-[10px] font-bold text-amber-700 mb-1.5">参照文献を確認する</p>
                   <a
                     href={`/stage1/literature?q=${encodeURIComponent(partial.disease)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 transition"
                   >
                     「{partial.disease}」の文献検索で原典を確認する →
