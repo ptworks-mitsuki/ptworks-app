@@ -27,7 +27,7 @@ const PLANS = [
       { label: "メディカルサーチ（月5回）",    ok: true  },
       { label: "副業診断 1回無料体験",         ok: true  },
       { label: "メディカルサーチ無制限",       ok: false },
-      { label: "治療を考える・相談する",        ok: false },
+      { label: "治療を考える・何でも相談する",        ok: false },
       { label: "スライド自動生成",             ok: false },
     ],
   },
@@ -49,7 +49,7 @@ const PLANS = [
     target:       "臨床力を高めたい現役PT",
     features:     [
       { label: "メディカルサーチ無制限",        ok: true },
-      { label: "疾患を調べる・治療を考える・相談する", ok: true },
+      { label: "疾患を調べる・治療を考える・何でも相談する", ok: true },
       { label: "患者説明文の自動生成",          ok: true },
       { label: "スライド自動生成",              ok: true },
       { label: "副業診断 1回無料体験付き",      ok: true },

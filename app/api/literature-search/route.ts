@@ -16,28 +16,33 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as { query?: string };
     const query = (body.query ?? "").trim();
     if (!query) {
-      return NextResponse.json({ keywordsJa: [query], keywordsEn: [], all: [query] });
+      return NextResponse.json({ keywordsJa: [], keywordsEn: [], all: [query] });
     }
 
     const message = await client.messages.create({
       model:      "claude-haiku-4-5-20251001",
-      max_tokens: 400,
+      max_tokens: 600,
       messages: [{
         role: "user",
-        content: `理学療法・リハビリテーション分野の文献検索において、ユーザーの入力キーワードを拡張してください。
+        content: `理学療法・リハビリテーション分野の文献検索専門AIです。
+ユーザー入力キーワードを医学的・理学療法的観点から大幅に拡張してください。
 
 入力：「${query}」
 
-以下のJSON形式のみで回答してください：
-{
-  "keywordsJa": ["日本語キーワード1", "日本語キーワード2", "日本語キーワード3", "日本語キーワード4", "日本語キーワード5"],
-  "keywordsEn": ["english keyword1", "english keyword2", "english keyword3", "english keyword4"]
-}
+拡張ルール：
+1. 疾患名は同義語・略語・英語名・病態名を含める
+   例）糖尿病 → 糖尿病性神経障害, 糖尿病性足病変, HbA1c, 2型糖尿病, diabetes mellitus, diabetic neuropathy
+2. 部位名は関連疾患・障害・手技名を含める
+   例）肩 野球 → 野球肩, 投球障害肩, 肩インピンジメント症候群, 腱板損傷, baseball shoulder, rotator cuff, pitching injury
+3. 症状名は評価スケール・介入法を含める
+   例）疼痛 → NRS, VAS, 慢性疼痛, 神経障害性疼痛, pain assessment, chronic pain
+4. 日本語7〜9個、英語5〜7個を生成すること
 
-・日本語キーワードは5〜7個、英語キーワードは4〜6個
-・同義語・関連語・上位概念・下位概念を含める
-・略語・一般名・学術名の両方を含める
-・理学療法・リハビリテーション文脈に特化すること`,
+以下のJSON形式のみで回答（余分なテキスト不要）：
+{
+  "keywordsJa": ["日本語1", "日本語2", "日本語3", "日本語4", "日本語5", "日本語6", "日本語7"],
+  "keywordsEn": ["english1", "english2", "english3", "english4", "english5"]
+}`,
       }],
     });
 
@@ -52,8 +57,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ keywordsJa: parsed.keywordsJa, keywordsEn: parsed.keywordsEn, all });
   } catch {
-    // fallback: return the original query as-is
-    const query = "";
-    return NextResponse.json({ keywordsJa: [], keywordsEn: [], all: [query] });
+    return NextResponse.json({ keywordsJa: [], keywordsEn: [], all: [] });
   }
 }

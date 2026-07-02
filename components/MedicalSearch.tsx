@@ -123,6 +123,14 @@ export function MedicalSearch() {
   const [stalled,      setStalled]      = useState(false);
   const [fromCache,    setFromCache]    = useState(false);
 
+  // Multi-disease / keyword flow
+  const [originalQuery,        setOriginalQuery]        = useState("");
+  const [selectedDiseases,     setSelectedDiseases]     = useState<string[]>([]);
+  const [tabDiseases,          setTabDiseases]          = useState<string[]>([]);
+  const [activeDiseaseIdx,     setActiveDiseaseIdx]     = useState(0);
+  const [keywordAnswer,        setKeywordAnswer]        = useState<string | null>(null);
+  const [keywordAnswerLoading, setKeywordAnswerLoading] = useState(false);
+
   const { history, addHistory, removeHistory, clearHistory } = useSearchHistory();
   const cache = useSearchCache();
   const { level: expLevel, meta: expMeta } = useExperienceLevel();
@@ -132,7 +140,8 @@ export function MedicalSearch() {
   const lastChunkRef   = useRef<number>(0);
   const slowTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stallTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const partialRef     = useRef<PartialResult | null>(null); // mirror for use in closures
+  const partialRef         = useRef<PartialResult | null>(null); // mirror for use in closures
+  const diseaseResultsRef  = useRef<Record<string, { sections: Partial<Record<SectionKey, MedicalSection>>; done: boolean; keywordAnswer: string | null }>>({});
 
   // Keep partialRef in sync
   useEffect(() => { partialRef.current = partial; }, [partial]);
@@ -364,6 +373,7 @@ export function MedicalSearch() {
       if (data.direct) {
         startFullSearch(data.disease ?? q);
       } else {
+        setSelectedDiseases([]);
         setCandidates(data.candidates);
         setPhase("candidates");
       }
@@ -383,6 +393,13 @@ export function MedicalSearch() {
     setCandidates([]);
     setRetrying(false);
     setRetryCount(0);
+    setOriginalQuery("");
+    setSelectedDiseases([]);
+    setTabDiseases([]);
+    setActiveDiseaseIdx(0);
+    setKeywordAnswer(null);
+    setKeywordAnswerLoading(false);
+    diseaseResultsRef.current = {};
     inputRef.current?.focus();
   };
 
@@ -392,6 +409,73 @@ export function MedicalSearch() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
+
+  // ── Multi-disease / keyword helpers ──────────────────────────────────────
+
+  const toggleCandidateSelection = useCallback((name: string) => {
+    setSelectedDiseases(prev =>
+      prev.includes(name) ? prev.filter(d => d !== name) : [...prev, name]
+    );
+  }, []);
+
+  const startFullSearchWithKeyword = useCallback((disease: string, keyword: string) => {
+    if (keyword) {
+      setKeywordAnswer(null);
+      setKeywordAnswerLoading(true);
+      fetch("/api/keyword-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: keyword, disease }),
+      })
+        .then(r => r.json())
+        .then((data: { answer: string }) => setKeywordAnswer(data.answer ?? null))
+        .catch(() => setKeywordAnswer(null))
+        .finally(() => setKeywordAnswerLoading(false));
+    }
+    startFullSearch(disease);
+  }, [startFullSearch]);
+
+  const handleMultiSearch = useCallback((diseases: string[]) => {
+    if (diseases.length === 0) return;
+    diseaseResultsRef.current = {};
+    setTabDiseases(diseases);
+    setActiveDiseaseIdx(0);
+    setOriginalQuery(searchQuery);
+    setKeywordAnswer(null);
+    setKeywordAnswerLoading(false);
+    startFullSearchWithKeyword(diseases[0], searchQuery);
+  }, [searchQuery, startFullSearchWithKeyword]);
+
+  const handleTabSwitch = useCallback((idx: number) => {
+    const nextDisease = tabDiseases[idx];
+    if (!nextDisease) return;
+
+    // Save current to cache before switching
+    if (partial && tabDiseases[activeDiseaseIdx]) {
+      diseaseResultsRef.current[tabDiseases[activeDiseaseIdx]] = {
+        sections: partial.sections,
+        done,
+        keywordAnswer,
+      };
+    }
+
+    setActiveDiseaseIdx(idx);
+
+    const cached = diseaseResultsRef.current[nextDisease];
+    if (cached) {
+      setPartial({ disease: nextDisease, sections: cached.sections });
+      setDone(cached.done);
+      setStreaming(!cached.done);
+      setKeywordAnswer(cached.keywordAnswer);
+      setKeywordAnswerLoading(false);
+      setPhase("results");
+      return;
+    }
+
+    startFullSearchWithKeyword(nextDisease, originalQuery);
+  }, [tabDiseases, activeDiseaseIdx, partial, done, keywordAnswer, originalQuery, startFullSearchWithKeyword]);
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   const loadedCount   = partial ? Object.keys(partial.sections).length : 0;
   const totalSections = SECTIONS.length;
@@ -472,35 +556,79 @@ export function MedicalSearch() {
         </div>
       )}
 
-      {/* ══ Candidate list ══ */}
+      {/* ══ Candidate list (multi-select) ══ */}
       {phase === "candidates" && (
         <div className="animate-fadeIn">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">「{searchQuery}」の関連疾患</p>
-              <h2 className="text-lg font-bold text-gray-900">疾患を選択してください</h2>
-            </div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-gray-500">「{searchQuery}」の関連疾患</p>
             <button onClick={handleClear} className="text-sm text-gray-400 hover:text-gray-600 transition">← 戻る</button>
           </div>
+          <h2 className="text-base font-bold text-gray-900 mb-0.5">
+            以下の中から当てはまるものを選んでください
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">複数選択できます</p>
 
           <div className="space-y-2 mb-4">
-            {candidates.map(c => (
-              <button
-                key={c.name}
-                onClick={() => startFullSearch(c.name)}
-                className="w-full text-left bg-white border border-gray-200 rounded-xl px-5 py-4 hover:border-blue-400 hover:shadow-sm transition group flex items-center justify-between"
-              >
-                <div>
-                  <p className="font-semibold text-gray-900 group-hover:text-blue-700 transition text-base">{c.name}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">{c.description}</p>
-                </div>
-                <span className="text-gray-300 group-hover:text-blue-400 text-lg ml-4 transition">→</span>
-              </button>
-            ))}
+            {candidates.map(c => {
+              const isSelected = selectedDiseases.includes(c.name);
+              return (
+                <button
+                  key={c.name}
+                  onClick={() => toggleCandidateSelection(c.name)}
+                  className="w-full text-left rounded-xl border px-4 py-4 transition-all"
+                  style={{
+                    background:   isSelected ? "#FFF7ED" : "white",
+                    borderColor:  isSelected ? "#E85D04" : "#e5e7eb",
+                    boxShadow:    isSelected ? "0 0 0 1px #E85D04" : undefined,
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-5 h-5 rounded flex items-center justify-center mt-0.5 shrink-0 border-2 transition-all"
+                      style={{
+                        borderColor: isSelected ? "#E85D04" : "#d1d5db",
+                        background:  isSelected ? "#E85D04" : "white",
+                      }}
+                    >
+                      {isSelected && (
+                        <svg viewBox="0 0 12 10" fill="none" className="w-3 h-3">
+                          <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm leading-snug">{c.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{c.description}</p>
+                      {c.annotation && (
+                        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "#E85D04" }}>
+                          {c.annotation}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           <button
-            onClick={() => startFullSearch(searchQuery)}
+            onClick={() => handleMultiSearch(selectedDiseases)}
+            disabled={selectedDiseases.length === 0}
+            className="w-full py-3.5 rounded-xl font-bold text-base text-white transition mb-2"
+            style={{
+              background: selectedDiseases.length > 0 ? "#1B4332" : "#9ca3af",
+              cursor:     selectedDiseases.length > 0 ? "pointer" : "not-allowed",
+            }}
+          >
+            この疾患で調べる
+            {selectedDiseases.length > 0 && `（${selectedDiseases.length}件選択中）`}
+          </button>
+
+          <button
+            onClick={() => {
+              setOriginalQuery("");
+              startFullSearch(searchQuery);
+            }}
             className="w-full py-3 text-sm text-gray-500 border border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:text-gray-700 transition"
           >
             「{searchQuery}」でそのまま検索する
@@ -525,6 +653,71 @@ export function MedicalSearch() {
       {/* ══ Results ══ */}
       {phase === "results" && partial && (
         <div>
+
+          {/* ── Disease tabs (multi-disease mode) ── */}
+          {tabDiseases.length > 1 && (
+            <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 print:hidden">
+              {tabDiseases.map((d, i) => (
+                <button
+                  key={d}
+                  onClick={() => handleTabSwitch(i)}
+                  className="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap"
+                  style={{
+                    background:  i === activeDiseaseIdx ? "#1B4332" : "#f3f4f6",
+                    color:       i === activeDiseaseIdx ? "white"    : "#374151",
+                  }}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Keyword answer box ── */}
+          {originalQuery && (keywordAnswer !== null || keywordAnswerLoading) && (
+            <div
+              className="mb-5 rounded-2xl overflow-hidden print:hidden"
+              style={{
+                background:  "#FFF3E0",
+                borderLeft:  "4px solid #E85D04",
+                border:      "1px solid #FFCC80",
+                borderLeftWidth: "4px",
+              }}
+            >
+              <div className="px-5 py-4">
+                <p
+                  className="font-bold text-base mb-2"
+                  style={{ color: "#E85D04" }}
+                >
+                  あなたの質問への回答
+                </p>
+                {keywordAnswerLoading ? (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-orange-300 border-t-orange-500 rounded-full animate-spin shrink-0" />
+                    <p className="text-sm text-orange-600">準備中...</p>
+                  </div>
+                ) : (
+                  <p
+                    className="text-sm leading-relaxed whitespace-pre-wrap"
+                    style={{ color: "#1B4332" }}
+                  >
+                    {keywordAnswer}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-3">
+                  「{originalQuery}」への回答として生成しました
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Section title when in keyword mode ── */}
+          {originalQuery && (
+            <div className="mb-4">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">疾患の基本情報</p>
+            </div>
+          )}
+
           {/* Result header */}
           <div className="flex items-start justify-between mb-4 print:mb-6">
             <div>

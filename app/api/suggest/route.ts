@@ -15,15 +15,15 @@ export interface ResolveResult {
 }
 
 const PROMPT = `あなたは理学療法士向け疾患検索システムのAIです。
-入力が「特定の疾患・障害名（正式名称）」か「症状・部位・あいまいな表現」かを判断してください。
+入力が「特定の疾患・障害名（正式名称）」か「症状・部位・曖昧な表現・複合的なキーワード」かを判断してください。
 
 判断基準：
 - 疾患名の場合（例：脳梗塞、変形性膝関節症、パーキンソン病、COPD）→ direct: true
-- 症状・部位・あいまい表現（例：膝が痛い、肩が上がらない、歩けない、肩、腰）→ direct: false
+- 症状・部位・曖昧表現・複合キーワード（例：膝が痛い、人工股関節の禁忌、脳卒中後の歩行、肩が上がらない）→ direct: false
 
 必ず以下のJSON形式のみで回答してください：
 - 疾患名の場合: {"direct":true,"disease":"正式疾患名","candidates":[]}
-- 症状等の場合: {"direct":false,"disease":null,"candidates":[{"name":"疾患名","description":"15字以内の説明"},...]} ※4〜5件`;
+- 症状等の場合: {"direct":false,"disease":null,"candidates":[{"name":"疾患名","description":"15字以内の説明","annotation":"※ユーザーの質問に関連する具体的な内容（例：人工股関節術後の禁忌肢位）についての回答を含みます"},...]} ※3〜5件・関連度が高い順`;
 
 export async function POST(req: NextRequest) {
   const body = await req.json() as { query?: unknown };

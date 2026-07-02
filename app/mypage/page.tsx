@@ -59,7 +59,7 @@ const QUICK_ACTIONS = [
   },
   {
     id:    "consult",
-    label: "相談する",
+    label: "何でも相談する",
     desc:  "症例の悩みを24時間相談",
     href:  "/stage1",
     color: "#ea580c",

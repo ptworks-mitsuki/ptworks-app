@@ -209,7 +209,7 @@ export function TreatmentEvidence({
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [savedMsg,      setSavedMsg]      = useState(false);
 
-  // 親コンポーネントへの同期（「相談する」タブで患者情報を引き継ぐため）
+  // 親コンポーネントへの同期（「何でも相談する」タブで患者情報を引き継ぐため）
   const handleQueryChange = (v: string) => {
     setQuery(v);
     onSharedDiseaseChange?.(v);

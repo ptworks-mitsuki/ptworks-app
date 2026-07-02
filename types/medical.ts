@@ -59,4 +59,5 @@ export const SECTIONS: SectionMeta[] = [
 export interface Suggestion {
   name:        string;
   description: string;
+  annotation?: string;
 }

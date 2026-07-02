@@ -16,9 +16,9 @@ const ExperienceLevelWidget = dynamic(() => import("@/components/ExperienceLevel
 type TabId = "search" | "evidence" | "case";
 
 const TABS: { id: TabId; label: string; sublabel: string }[] = [
-  { id: "search",   label: "調べる",       sublabel: "疾患・ガイドライン"   },
-  { id: "evidence", label: "治療を考える",  sublabel: "エビデンス＋個別提案" },
-  { id: "case",     label: "相談する",      sublabel: "患者状態を入力"       },
+  { id: "search",   label: "疾患を調べる",    sublabel: "疾患・ガイドライン"   },
+  { id: "evidence", label: "治療を考える",   sublabel: "エビデンス＋個別提案" },
+  { id: "case",     label: "何でも相談する", sublabel: "患者状態を入力"       },
 ];
 
 const SWIPE_THRESHOLD = 50; // px
@@ -28,7 +28,7 @@ const SWIPE_THRESHOLD = 50; // px
 export default function Stage1Page() {
   const [activeTab, setActiveTab] = useState<TabId>("search");
 
-  // 「治療を考える」で入力した内容を「相談する」に引き継ぐための共有state
+  // 「治療を考える」で入力した内容を「何でも相談する」に引き継ぐための共有state
   const [sharedDisease,     setSharedDisease]     = useState("");
   const [sharedPatientInfo, setSharedPatientInfo] = useState<PatientInfo>(INITIAL_PATIENT_INFO);
 
