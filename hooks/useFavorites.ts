@@ -21,6 +21,7 @@ export interface FavTreatment {
 export interface FavLiterature {
   id:            string;
   title:         string;
+  titleJa?:      string;
   authors:       string;
   journal:       string;
   year:          number;
