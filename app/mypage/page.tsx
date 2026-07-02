@@ -8,7 +8,8 @@ import { useFreeQuota } from "@/hooks/useFreeQuota";
 import { useSavedPlans } from "@/hooks/useSavedPlans";
 import type { SavedPlan } from "@/hooks/useSavedPlans";
 import { useFavorites } from "@/hooks/useFavorites";
-import type { FavoriteType } from "@/hooks/useFavorites";
+import type { FavoriteItem, FavoriteType } from "@/hooks/useFavorites";
+import { SECTIONS } from "@/types/medical";
 
 // モック：実認証が実装されたら差し替える
 const MOCK_USER = { name: "田中 優子" };
@@ -136,6 +137,212 @@ function PlanDetailModal({ plan, onClose }: { plan: SavedPlan; onClose: () => vo
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Favorite accordion item ───────────────────────────────────────────────
+
+const SECTION_COLOR_MAP: Record<string, string> = {
+  blue:   "#1d4ed8",
+  purple: "#7c3aed",
+  red:    "#dc2626",
+  orange: "#ea580c",
+  green:  "#15803d",
+  teal:   "#0f766e",
+  yellow: "#b45309",
+};
+
+function FavoriteAccordionItem({ item, onRemove }: { item: FavoriteItem; onRemove: () => void }) {
+  const [open, setOpen] = useState(false);
+
+  const reSearchHref =
+    item.type === "disease"
+      ? `/stage1?q=${encodeURIComponent(item.diseaseData?.disease ?? item.title)}`
+      : item.type === "treatment"
+        ? `/stage1?tab=treatment&q=${encodeURIComponent(item.treatmentData?.disease ?? item.title)}`
+        : item.literatureData?.url ?? "#";
+
+  return (
+    <div>
+      {/* ヘッダー行 */}
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button
+          className="flex-1 flex items-center gap-3 text-left min-w-0"
+          onClick={() => setOpen(v => !v)}
+        >
+          <span className={`shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-800 truncate">{item.title}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {new Date(item.savedAt).toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" })}
+              {item.subtitle && `　·　${item.subtitle}`}
+            </p>
+          </div>
+        </button>
+        <button
+          onClick={onRemove}
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition"
+          aria-label="削除"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* 展開コンテンツ */}
+      {open && (
+        <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
+
+          {/* ── 疾患を調べる ── */}
+          {item.type === "disease" && item.diseaseData && (
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                「{item.diseaseData.disease}」の調査結果
+              </p>
+              {SECTIONS.map(s => {
+                const sec = item.diseaseData!.sections[s.key];
+                if (!sec) return null;
+                const color = SECTION_COLOR_MAP[s.color] ?? "#6B7280";
+                return (
+                  <details key={s.key} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none hover:bg-gray-50 transition">
+                      <span className="text-base">{s.icon}</span>
+                      <span className="text-sm font-semibold flex-1" style={{ color }}>{sec.title}</span>
+                    </summary>
+                    <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+                      <p className="text-sm text-gray-800 leading-relaxed">{sec.summary}</p>
+                      {sec.detail && (
+                        <p className="text-sm text-gray-700 leading-relaxed mt-1">{sec.detail}</p>
+                      )}
+                      {sec.references.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-100">
+                          {sec.references.map((r, i) => (
+                            <p key={i} className="text-[11px] text-gray-400">{i + 1}. {r}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── 治療を考える ── */}
+          {item.type === "treatment" && item.treatmentData && (
+            <div className="space-y-3">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                「{item.treatmentData.disease}」の治療提案
+              </p>
+              {item.treatmentData.patientInfo.age && (
+                <div className="rounded-xl bg-white border border-gray-200 px-3 py-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">患者情報</p>
+                  <p className="text-xs text-gray-700">
+                    {[
+                      item.treatmentData.patientInfo.age && `${item.treatmentData.patientInfo.age}歳`,
+                      item.treatmentData.patientInfo.gender,
+                      item.treatmentData.patientInfo.goal && `「${item.treatmentData.patientInfo.goal}」`,
+                    ].filter(Boolean).join("　·　")}
+                  </p>
+                </div>
+              )}
+              {/* 日本標準 */}
+              <details className="rounded-xl border border-green-200 bg-white overflow-hidden" open>
+                <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none bg-green-50 hover:bg-green-100 transition">
+                  <span className="text-sm font-bold text-green-700 flex-1">日本の標準的アプローチ</span>
+                </summary>
+                <div className="px-4 py-3 space-y-1 border-t border-green-100">
+                  {item.treatmentData.result.standard.points.map((p, i) => (
+                    <p key={i} className="text-sm text-gray-800 leading-relaxed">{p}</p>
+                  ))}
+                </div>
+              </details>
+              {/* 海外エビデンス */}
+              <details className="rounded-xl border border-blue-200 bg-white overflow-hidden">
+                <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none bg-blue-50 hover:bg-blue-100 transition">
+                  <span className="text-sm font-bold text-blue-700 flex-1">
+                    海外エビデンス（{item.treatmentData.result.evidence.length}件）
+                  </span>
+                </summary>
+                <div className="px-4 py-3 space-y-2 border-t border-blue-100">
+                  {item.treatmentData.result.evidence.map((e, i) => (
+                    <div key={i} className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                      <p className="text-xs font-semibold text-blue-900">{e.approach}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{e.detail}</p>
+                      <p className="text-[11px] text-gray-400 mt-1">{e.source}</p>
+                    </div>
+                  ))}
+                </div>
+              </details>
+              {/* 個別提案 */}
+              <details className="rounded-xl border border-orange-200 bg-white overflow-hidden">
+                <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none bg-orange-50 hover:bg-orange-100 transition">
+                  <span className="text-sm font-bold text-orange-700 flex-1">個別提案</span>
+                </summary>
+                <div className="px-4 py-3 space-y-1 border-t border-orange-100">
+                  {item.treatmentData.result.personalized.split("\n").filter(Boolean).map((line, i) => (
+                    <p key={i} className="text-sm text-gray-800 leading-relaxed">{line}</p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+
+          {/* ── 文献 ── */}
+          {item.type === "literature" && item.literatureData && (
+            <div className="space-y-3">
+              <div className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white"
+                    style={{ background: "#1B4332" }}>
+                    {item.literatureData.evidenceLevel}
+                  </span>
+                  <span className="text-xs text-gray-400">{item.literatureData.year}年</span>
+                </div>
+                <p className="text-sm font-bold text-gray-900 leading-snug">{item.literatureData.title}</p>
+                <p className="text-xs text-gray-500">
+                  {item.literatureData.authors}　—　<span className="italic">{item.literatureData.journal}</span>
+                </p>
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">AI要約</p>
+                  <p className="text-xs text-gray-700 leading-relaxed">{item.literatureData.summary}</p>
+                </div>
+                <a
+                  href={item.literatureData.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold py-2 px-4 rounded-xl border-2 transition hover:opacity-80"
+                  style={{ borderColor: "#1B4332", color: "#1B4332" }}
+                >
+                  原文を見る →
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* 再調べ直すリンク */}
+          <div className="pt-1">
+            <a
+              href={reSearchHref}
+              target={item.type === "literature" ? "_blank" : undefined}
+              rel={item.type === "literature" ? "noopener noreferrer" : undefined}
+              className="text-xs font-bold underline underline-offset-2 transition hover:opacity-70"
+              style={{ color: "#E85D04" }}
+            >
+              {item.type === "literature" ? "原文を開く" : "最新の情報で調べ直す →"}
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -440,9 +647,7 @@ export default function MyPage() {
                   key={tab}
                   onClick={() => setFavTab(tab)}
                   className={`flex-1 py-3 text-xs font-bold transition ${
-                    favTab === tab
-                      ? "border-b-2 text-[#E85D04]"
-                      : "text-gray-400 hover:text-gray-600"
+                    favTab === tab ? "border-b-2 text-[#E85D04]" : "text-gray-400 hover:text-gray-600"
                   }`}
                   style={favTab === tab ? { borderBottomColor: "#E85D04" } : {}}
                 >
@@ -459,42 +664,21 @@ export default function MyPage() {
           </div>
 
           {/* リスト */}
-          <div className="p-4">
+          <div className="divide-y divide-gray-100">
             {favorites.filter(f => f.type === favTab).length === 0 ? (
-              <p className="text-xs text-gray-400 py-4 text-center">
+              <p className="text-xs text-gray-400 py-6 text-center px-4">
                 {favTab === "disease" && "疾患の検索結果画面でハートアイコンをタップすると保存されます"}
                 {favTab === "treatment" && "治療を考えるの結果画面でハートアイコンをタップすると保存されます"}
                 {favTab === "literature" && "文献検索の各文献でハートアイコンをタップすると保存されます"}
               </p>
             ) : (
-              <ul className="space-y-2">
-                {favorites.filter(f => f.type === favTab).map(item => (
-                  <li key={item.id} className="flex items-center gap-2">
-                    <a
-                      href={item.href}
-                      target={item.type === "literature" ? "_blank" : undefined}
-                      rel={item.type === "literature" ? "noopener noreferrer" : undefined}
-                      className="flex-1 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-100 hover:border-orange-200 hover:bg-orange-50 transition min-w-0 block"
-                    >
-                      <p className="text-sm font-semibold text-gray-800 hover:text-[#E85D04] truncate">{item.title}</p>
-                      {item.subtitle && (
-                        <p className="text-[11px] text-gray-400 mt-0.5 truncate">{item.subtitle}</p>
-                      )}
-                    </a>
-                    <button
-                      onClick={() => removeFavorite(item.id)}
-                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition"
-                      aria-label="削除"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                        strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              favorites.filter(f => f.type === favTab).map(item => (
+                <FavoriteAccordionItem
+                  key={item.id}
+                  item={item}
+                  onRemove={() => removeFavorite(item.id)}
+                />
+              ))
             )}
           </div>
         </div>

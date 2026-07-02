@@ -565,10 +565,10 @@ export function MedicalSearch() {
               {done && partial?.disease && (
                 <button
                   onClick={() => toggleFavorite({
-                    id:    `disease-${partial.disease}`,
-                    type:  "disease",
-                    title: partial.disease,
-                    href:  `/stage1?q=${encodeURIComponent(partial.disease)}`,
+                    id:          `disease-${partial.disease}`,
+                    type:        "disease",
+                    title:       partial.disease,
+                    diseaseData: { disease: partial.disease, sections: partial.sections },
                   })}
                   className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:border-orange-300 transition"
                   aria-label={isFavorited(`disease-${partial.disease}`) ? "お気に入り解除" : "お気に入りに追加"}

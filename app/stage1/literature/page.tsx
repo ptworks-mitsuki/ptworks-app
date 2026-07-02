@@ -238,11 +238,20 @@ function PaperCard({ paper }: { paper: Paper }) {
             <span className="text-xs text-gray-400">{paper.year}年</span>
             <button
               onClick={() => toggleFavorite({
-                id:       favId,
-                type:     "literature",
-                title:    paper.title,
-                subtitle: `${paper.authors} — ${paper.journal} ${paper.year}`,
-                href:     paper.url,
+                id:              favId,
+                type:            "literature",
+                title:           paper.title,
+                subtitle:        `${paper.authors} — ${paper.journal} ${paper.year}`,
+                literatureData:  {
+                  id:            paper.id,
+                  title:         paper.title,
+                  authors:       paper.authors,
+                  journal:       paper.journal,
+                  year:          paper.year,
+                  evidenceLevel: paper.evidenceLevel,
+                  url:           paper.url,
+                  summary:       paper.summary,
+                },
               })}
               className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 hover:border-orange-300 transition"
               aria-label={isFavorited(favId) ? "お気に入り解除" : "お気に入りに追加"}

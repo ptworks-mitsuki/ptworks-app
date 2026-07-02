@@ -1,16 +1,44 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { MedicalSection, SectionKey } from "@/types/medical";
+import type { TreatmentEvidenceResult } from "@/app/api/treatment-evidence/route";
+import type { PatientInfo } from "@/components/PatientInfoForm";
 
 export type FavoriteType = "disease" | "treatment" | "literature";
 
+export interface FavDisease {
+  disease:  string;
+  sections: Partial<Record<SectionKey, MedicalSection>>;
+}
+
+export interface FavTreatment {
+  disease:     string;
+  patientInfo: PatientInfo;
+  result:      TreatmentEvidenceResult;
+}
+
+export interface FavLiterature {
+  id:            string;
+  title:         string;
+  authors:       string;
+  journal:       string;
+  year:          number;
+  evidenceLevel: string;
+  url:           string;
+  summary:       string;
+}
+
 export interface FavoriteItem {
-  id:        string;
-  type:      FavoriteType;
-  title:     string;
-  subtitle?: string;
-  href:      string;
-  savedAt:   number;
+  id:               string;
+  type:             FavoriteType;
+  title:            string;
+  subtitle?:        string;
+  savedAt:          number;
+  // one of these is set based on type
+  diseaseData?:     FavDisease;
+  treatmentData?:   FavTreatment;
+  literatureData?:  FavLiterature;
 }
 
 const STORAGE_KEY = "pt-favorites";
@@ -24,11 +52,6 @@ export function useFavorites() {
       if (raw) setFavorites(JSON.parse(raw) as FavoriteItem[]);
     } catch { /* ignore */ }
   }, []);
-
-  const persist = (items: FavoriteItem[]) => {
-    setFavorites(items);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch { /* ignore */ }
-  };
 
   const isFavorited = useCallback((id: string) => {
     return favorites.some(f => f.id === id);
@@ -53,5 +76,5 @@ export function useFavorites() {
     });
   }, []);
 
-  return { favorites, isFavorited, toggleFavorite, removeFavorite, persist };
+  return { favorites, isFavorited, toggleFavorite, removeFavorite };
 }

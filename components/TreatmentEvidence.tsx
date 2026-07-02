@@ -352,11 +352,11 @@ export function TreatmentEvidence({
             {/* ハートボタン */}
             <button
               onClick={() => toggleFavorite({
-                id:       favId,
-                type:     "treatment",
-                title:    disease,
-                subtitle: patientInfo.age ? `${patientInfo.age}歳 ${patientInfo.gender}` : undefined,
-                href:     `/stage1?tab=treatment&q=${encodeURIComponent(disease)}`,
+                id:            favId,
+                type:          "treatment",
+                title:         disease,
+                subtitle:      patientInfo.age ? `${patientInfo.age}歳 ${patientInfo.gender}` : undefined,
+                treatmentData: { disease, patientInfo, result },
               })}
               className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:border-orange-300 transition"
               aria-label={isFavorited(favId) ? "お気に入り解除" : "お気に入りに追加"}
