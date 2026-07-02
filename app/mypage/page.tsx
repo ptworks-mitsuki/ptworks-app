@@ -161,7 +161,9 @@ function FavoriteAccordionItem({ item, onRemove }: { item: FavoriteItem; onRemov
       ? `/stage1?q=${encodeURIComponent(item.diseaseData?.disease ?? item.title)}`
       : item.type === "treatment"
         ? `/stage1?tab=treatment&q=${encodeURIComponent(item.treatmentData?.disease ?? item.title)}`
-        : item.literatureData?.url ?? "#";
+        : item.type === "book"
+          ? item.bookData?.rakutenUrl ?? "#"
+          : item.literatureData?.url ?? "#";
 
   return (
     <div>
@@ -329,18 +331,45 @@ function FavoriteAccordionItem({ item, onRemove }: { item: FavoriteItem; onRemov
             </div>
           )}
 
+          {/* ── 参考書 ── */}
+          {item.type === "book" && item.bookData && (
+            <div className="space-y-3">
+              <div className="rounded-xl bg-white border border-gray-200 p-4 flex gap-4">
+                {item.bookData.coverUrl && (
+                  <img src={item.bookData.coverUrl} alt={item.bookData.title}
+                    className="w-16 h-24 object-cover rounded-lg shrink-0 border border-gray-100" />
+                )}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <p className="text-sm font-bold text-gray-900 leading-snug">{item.bookData.title}</p>
+                  <p className="text-xs text-gray-500">{item.bookData.authors}　/　{item.bookData.publisher}</p>
+                  <p className="text-xs font-bold" style={{ color: "#E85D04" }}>{item.bookData.price}</p>
+                  <div className="bg-gray-50 rounded-lg px-3 py-2">
+                    <p className="text-xs text-gray-700 leading-relaxed">{item.bookData.summary}</p>
+                  </div>
+                  <a href={item.bookData.rakutenUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold py-1.5 px-3 rounded-lg text-white transition hover:opacity-90"
+                    style={{ background: "#BF0000" }}>
+                    楽天で購入する →
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 再調べ直すリンク */}
-          <div className="pt-1">
-            <a
-              href={reSearchHref}
-              target={item.type === "literature" ? "_blank" : undefined}
-              rel={item.type === "literature" ? "noopener noreferrer" : undefined}
-              className="text-xs font-bold underline underline-offset-2 transition hover:opacity-70"
-              style={{ color: "#E85D04" }}
-            >
-              {item.type === "literature" ? "原文を開く" : "最新の情報で調べ直す →"}
-            </a>
-          </div>
+          {item.type !== "book" && (
+            <div className="pt-1">
+              <a
+                href={reSearchHref}
+                target={item.type === "literature" ? "_blank" : undefined}
+                rel={item.type === "literature" ? "noopener noreferrer" : undefined}
+                className="text-xs font-bold underline underline-offset-2 transition hover:opacity-70"
+                style={{ color: "#E85D04" }}
+              >
+                {item.type === "literature" ? "原文を開く" : "最新の情報で調べ直す →"}
+              </a>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -639,8 +668,8 @@ export default function MyPage() {
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           {/* タブ */}
           <div className="flex border-b border-gray-100">
-            {(["disease", "treatment", "literature"] as const).map(tab => {
-              const labels: Record<string, string> = { disease: "疾患", treatment: "治療提案", literature: "文献" };
+            {(["disease", "treatment", "literature", "book"] as const).map(tab => {
+              const labels: Record<string, string> = { disease: "疾患", treatment: "治療提案", literature: "文献", book: "参考書" };
               const count = favorites.filter(f => f.type === tab).length;
               return (
                 <button
@@ -670,6 +699,7 @@ export default function MyPage() {
                 {favTab === "disease" && "疾患の検索結果画面でハートアイコンをタップすると保存されます"}
                 {favTab === "treatment" && "治療を考えるの結果画面でハートアイコンをタップすると保存されます"}
                 {favTab === "literature" && "文献検索の各文献でハートアイコンをタップすると保存されます"}
+                {favTab === "book" && "参考書検索の各書籍でハートアイコンをタップすると保存されます"}
               </p>
             ) : (
               favorites.filter(f => f.type === favTab).map(item => (

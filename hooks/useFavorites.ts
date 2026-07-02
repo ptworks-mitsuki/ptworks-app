@@ -5,7 +5,7 @@ import type { MedicalSection, SectionKey } from "@/types/medical";
 import type { TreatmentEvidenceResult } from "@/app/api/treatment-evidence/route";
 import type { PatientInfo } from "@/components/PatientInfoForm";
 
-export type FavoriteType = "disease" | "treatment" | "literature";
+export type FavoriteType = "disease" | "treatment" | "literature" | "book";
 
 export interface FavDisease {
   disease:  string;
@@ -29,6 +29,19 @@ export interface FavLiterature {
   summary:       string;
 }
 
+export interface FavBook {
+  id:          string;
+  title:       string;
+  authors:     string;
+  publisher:   string;
+  year:        number;
+  price:       string;
+  coverUrl:    string;
+  summary:     string;
+  rakutenUrl:  string;
+  category:    string;
+}
+
 export interface FavoriteItem {
   id:               string;
   type:             FavoriteType;
@@ -39,6 +52,7 @@ export interface FavoriteItem {
   diseaseData?:     FavDisease;
   treatmentData?:   FavTreatment;
   literatureData?:  FavLiterature;
+  bookData?:        FavBook;
 }
 
 const STORAGE_KEY = "pt-favorites";
