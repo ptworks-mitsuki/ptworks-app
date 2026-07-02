@@ -147,6 +147,101 @@ const DEDUCTION_ITEMS: DeductionItem[] = [
   },
 ];
 
+// ── 算定日数計算ツール用の結果型 ──────────────────────────────────────────
+
+interface ResultItem {
+  cat:           RehabCategory;
+  startDate:     string;
+  elapsed:       number;
+  remaining:     number;
+  deadlineDate:  string;
+}
+
+// ── 区分別入力設定 ─────────────────────────────────────────────────────────
+
+interface ExampleLine {
+  text:   string;
+  color?: "red" | "green";
+}
+
+interface CatInputConfig {
+  inputLabel: string;
+  warnLines:  string[];
+  examples:   ExampleLine[];
+  extra?:     ExampleLine[];
+}
+
+const CAT_INPUT_CONFIG: Record<string, CatInputConfig> = {
+  musculo: {
+    inputLabel: "発症日・手術日・急性増悪日（いずれか該当する日を入力）",
+    warnLines: [
+      "診断日ではなく発症日・手術日・急性増悪日を入力してください。",
+      "入力日がずれると算定日数が正しく計算されません。",
+    ],
+    examples: [
+      { text: "骨折手術 → 手術日を入力" },
+      { text: "捻挫・靭帯損傷 → 受傷日を入力" },
+      { text: "変形性関節症の急性増悪 → 増悪日を入力" },
+    ],
+  },
+  cerebro: {
+    inputLabel: "発症日・手術日・急性増悪日（いずれか該当する日を入力）",
+    warnLines: [
+      "診断日ではなく発症日を入力してください。",
+      "入力日がずれると算定日数が正しく計算されません。",
+    ],
+    examples: [
+      { text: "脳梗塞 → 発症日を入力" },
+      { text: "脳出血 → 出血確認日を入力" },
+      { text: "脳腫瘍術後 → 手術日を入力" },
+      { text: "脊髄損傷 → 受傷日を入力" },
+    ],
+  },
+  disuse: {
+    inputLabel: "廃用症候群の診断日",
+    warnLines: [
+      "発症日・入院日ではなく、医師が廃用症候群と診断した日を入力してください。",
+      "入力日がずれると算定日数が正しく計算されません。",
+    ],
+    examples: [
+      { text: "× 7/1 肺炎発症日 → 入力しない", color: "red" },
+      { text: "× 7/3 入院日　　 → 入力しない", color: "red" },
+      { text: "○ 7/8 廃用症候群診断日 → この日を入力する", color: "green" },
+    ],
+  },
+  respiratory: {
+    inputLabel: "呼吸器疾患の発症日・手術日・急性増悪日（いずれか該当する日を入力）",
+    warnLines: [
+      "廃用症候群と同一患者の場合、起算日が異なります。",
+      "呼吸器リハは原疾患の発症日が起算日です。廃用リハの起算日（診断日）と混同しないようにご注意ください。",
+      "入力日がずれると算定日数が正しく計算されません。",
+    ],
+    examples: [
+      { text: "肺炎 → 肺炎の発症日を入力" },
+      { text: "COPD急性増悪 → 増悪日を入力" },
+      { text: "肺がん術後 → 手術日を入力" },
+    ],
+    extra: [
+      { text: "廃用と同時算定の場合の例" },
+      { text: "7/1 肺炎発症 → 呼吸器リハの起算日", color: "green" },
+      { text: "7/8 廃用診断 → 廃用リハの起算日", color: "green" },
+      { text: "→ 同じ患者でも起算日が異なります" },
+    ],
+  },
+  cardiac: {
+    inputLabel: "発症日・手術日・急性増悪日（いずれか該当する日を入力）",
+    warnLines: [
+      "診断日ではなく発症日・手術日・急性増悪日を入力してください。",
+      "入力日がずれると算定日数が正しく計算されません。",
+    ],
+    examples: [
+      { text: "心筋梗塞 → 発症日を入力" },
+      { text: "心臓手術後 → 手術日を入力" },
+      { text: "心不全急性増悪 → 増悪日を入力" },
+    ],
+  },
+};
+
 // ══════════════════════════════════════════════════════════════════════════
 // ユーティリティ関数
 // ══════════════════════════════════════════════════════════════════════════
@@ -307,167 +402,441 @@ function PlanDeadlineRow({
 // ツール①：算定日数計算
 // ══════════════════════════════════════════════════════════════════════════
 
+// ── 加算サブコンポーネント ─────────────────────────────────────────────────
+
+function EarlyRehabResult({ admitDate, today }: { admitDate: string; today: string }) {
+  const days   = diffDays(admitDate, today);
+  const dayNum = days + 1;
+  const eligible = dayNum >= 1 && dayNum <= 14;
+  const points    = dayNum <= 3 ? 60 : eligible ? 25 : 0;
+  const remaining = eligible ? 14 - dayNum : 0;
+  const rangeLabel = dayNum <= 3 ? "（入院1〜3日目）" : "（入院4〜14日目）";
+
+  return (
+    <div className={`rounded-xl p-4 border ${eligible ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+      <p className={`text-sm font-bold ${eligible ? "text-green-800" : "text-red-700"}`}>
+        早期リハビリテーション加算：{eligible ? "取得可能" : "取得不可"}
+      </p>
+      <p className={`text-xs mt-1 ${eligible ? "text-green-700" : "text-red-600"}`}>
+        今日は入院{dayNum}日目
+        {eligible
+          ? `（14日以内）　残り${remaining}日取得可能`
+          : "（14日超過・加算対象外）"}
+      </p>
+      {eligible && (
+        <div className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black text-white"
+          style={{ background: "#E85D04" }}>
+          {points}点 / 単位
+          <span className="font-normal opacity-90">{rangeLabel}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HolidayRehabResult({ onsetDate, today }: { onsetDate: string; today: string }) {
+  const days         = diffDays(onsetDate, today);
+  const dayNum       = days + 1;
+  const withinPeriod = dayNum >= 1 && dayNum <= 30;
+  const remaining    = Math.max(0, 30 - dayNum);
+  const todayIsHoliday = isWeekendOrHoliday(today);
+
+  return (
+    <div className={`rounded-xl p-4 border ${withinPeriod ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"}`}>
+      <p className={`text-sm font-bold ${withinPeriod ? "text-green-800" : "text-gray-600"}`}>
+        発症から{dayNum}日目
+        {withinPeriod ? `（30日以内）　残り${remaining}日取得可能` : "（30日超過・取得期間終了）"}
+      </p>
+      {withinPeriod && (
+        <div className="mt-2 space-y-1">
+          <p className={`text-xs font-semibold ${todayIsHoliday ? "text-green-700" : "text-gray-500"}`}>
+            今日（{dayOfWeekLabel(today)}）は
+            {todayIsHoliday ? "土日祝日です。加算取得の対象日です。" : "平日です。休日リハ加算の対象外です。"}
+          </p>
+          <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black text-white"
+            style={{ background: "#1B4332" }}>
+            25点 / 単位（土日祝日のみ）
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CalcTool 本体 ─────────────────────────────────────────────────────────
+
 function CalcTool() {
-  const [disease,       setDisease]       = useState("");
-  const [startDateType, setStartDateType] = useState<"onset" | "surgery" | "exacerbation">("onset");
-  const [startDate,     setStartDate]     = useState("");
+  const [step,          setStep]          = useState<1 | 2 | 3>(1);
+  const [selectedCats,  setSelectedCats]  = useState<string[]>([]);
+  const [startDates,    setStartDates]    = useState<Record<string, string>>({});
   const [today,         setToday]         = useState(todayStr());
-  const [result,        setResult]        = useState<null | {
-    category: RehabCategory | null;
-    elapsed: number; remaining: number;
-    deadlineDate: string; warning: "over" | "near" | null;
-  }>(null);
+  const [results,       setResults]       = useState<ResultItem[]>([]);
+  const [showAddition,  setShowAddition]  = useState(false);
+  const [admitDate,     setAdmitDate]     = useState("");
+  const [addOnsetDate,  setAddOnsetDate]  = useState("");
+
+  const toggleCat = (key: string) =>
+    setSelectedCats(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+
+  const canCalc = selectedCats.every(k => !!startDates[k]) && !!today;
 
   const calc = () => {
-    if (!disease.trim() || !startDate || !today) return;
-    const start = new Date(startDate + "T00:00:00");
-    const now   = new Date(today     + "T00:00:00");
-    if (isNaN(start.getTime()) || isNaN(now.getTime())) return;
-    const elapsed  = Math.floor((now.getTime() - start.getTime()) / 86400000);
-    const category = detectCategory(disease);
-    const stdDays  = category?.days ?? 150;
-    const remaining = stdDays - elapsed;
-    const dl = new Date(start.getTime() + stdDays * 86400000);
-    const warning: "over" | "near" | null =
-      remaining <= 0 ? "over" : remaining <= 60 ? "near" : null;
-    setResult({ category, elapsed, remaining, deadlineDate: dl.toISOString().slice(0, 10), warning });
+    if (!canCalc) return;
+    const items: ResultItem[] = selectedCats.map(key => {
+      const cat     = REHAB_CATEGORIES.find(c => c.key === key)!;
+      const sd      = startDates[key];
+      const elapsed = Math.max(0, diffDays(sd, today));
+      const remaining = cat.days - elapsed;
+      const dl = new Date(new Date(sd + "T00:00:00").getTime() + cat.days * 86400000);
+      return { cat, startDate: sd, elapsed, remaining, deadlineDate: dl.toISOString().slice(0, 10) };
+    });
+    setResults(items);
+    setStep(3);
   };
 
   const reset = () => {
-    setResult(null); setDisease(""); setStartDate(""); setToday(todayStr());
+    setStep(1); setSelectedCats([]); setStartDates({}); setToday(todayStr());
+    setResults([]); setShowAddition(false); setAdmitDate(""); setAddOnsetDate("");
+  };
+
+  const barColor = (remaining: number) => {
+    if (remaining >= 60) return "#16a34a";
+    if (remaining >= 30) return "#E85D04";
+    return "#DC2626";
+  };
+
+  const warnStyle: React.CSSProperties = {
+    background: "#FFF3E0",
+    border: "1px solid #FFCC80",
+    borderLeftWidth: "4px",
+    borderLeftColor: "#E85D04",
   };
 
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-5">
 
-        {/* 疾患名 */}
-        <div>
-          <label className={labelCls}>疾患名 <span className="text-red-500">*</span></label>
-          <input type="text" value={disease} onChange={e => setDisease(e.target.value)}
-            placeholder="例：脳梗塞、骨折、廃用症候群" className={inputCls} />
-          <div className="mt-3 space-y-2">
-            {QUICK_DISEASES.map(g => (
-              <div key={g.category} className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] font-bold text-gray-400 w-14 shrink-0">{g.category}</span>
-                {g.diseases.map(d => (
-                  <button key={d} onClick={() => setDisease(d)}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition font-medium ${
-                      disease === d
-                        ? "bg-[#E85D04] border-[#E85D04] text-white"
-                        : "bg-gray-50 border-gray-200 text-gray-600 hover:border-[#E85D04] hover:text-[#E85D04]"
-                    }`}>{d}</button>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 起算日の種類 */}
-        <div>
-          <label className={labelCls}>起算日の種類</label>
-          <div className="flex flex-wrap gap-4">
-            {START_DATE_TYPES.map(t => (
-              <label key={t.value} className="flex items-center gap-1.5 cursor-pointer">
-                <input type="radio" name="sdt" value={t.value}
-                  checked={startDateType === t.value}
-                  onChange={() => setStartDateType(t.value)}
-                  className="accent-[#E85D04]" />
-                <span className="text-sm text-gray-700">{t.label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* 日付 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* ── ステップ1：区分選択 ─────────────────────────────────────── */}
+      {step === 1 && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
           <div>
-            <label className={labelCls}>
-              起算日（{START_DATE_TYPES.find(t => t.value === startDateType)?.label}）
-              <span className="text-red-500">*</span>
-            </label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">ステップ 1</p>
+            <h3 className="text-base font-black text-gray-900">算定するリハビリの種類を選択</h3>
+            <p className="text-xs text-gray-400 mt-0.5">複数選択できます</p>
           </div>
-          <div>
-            <label className={labelCls}>今日の日付</label>
+
+          <div className="space-y-2">
+            {REHAB_CATEGORIES.map(cat => {
+              const sel = selectedCats.includes(cat.key);
+              return (
+                <button key={cat.key} onClick={() => toggleCat(cat.key)}
+                  className="w-full text-left rounded-xl border px-4 py-3.5 transition-all"
+                  style={{
+                    background:   sel ? "#FFF7ED" : "white",
+                    borderColor:  sel ? "#E85D04" : "#e5e7eb",
+                    boxShadow:    sel ? "0 0 0 1px #E85D04" : undefined,
+                  }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all"
+                      style={{ borderColor: sel ? "#E85D04" : "#d1d5db", background: sel ? "#E85D04" : "white" }}>
+                      {sel && (
+                        <svg viewBox="0 0 12 10" fill="none" className="w-3 h-3">
+                          <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2"
+                            strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{cat.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">標準算定日数：{cat.days}日</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <button onClick={() => selectedCats.length > 0 && setStep(2)}
+            disabled={selectedCats.length === 0}
+            className="w-full py-3.5 rounded-xl font-black text-white text-sm transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}>
+            次へ（起算日を入力する）
+            {selectedCats.length > 0 && `　（${selectedCats.length}件選択中）`}
+          </button>
+        </div>
+      )}
+
+      {/* ── ステップ2：日付入力 ─────────────────────────────────────── */}
+      {step === 2 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-0.5">ステップ 2</p>
+              <h3 className="text-base font-black text-gray-900">起算日を入力してください</h3>
+            </div>
+            <button onClick={() => setStep(1)} className="text-sm text-gray-400 hover:text-gray-600 transition">
+              ← 戻る
+            </button>
+          </div>
+
+          {/* 基準日 */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4">
+            <label className={labelCls}>今日の日付（基準日）<span className="text-red-500 ml-0.5">*</span></label>
             <input type="date" value={today} onChange={e => setToday(e.target.value)} className={inputCls} />
           </div>
-        </div>
 
-        <button onClick={calc} disabled={!disease.trim() || !startDate || !today}
-          className="w-full py-3.5 rounded-xl font-black text-white text-sm transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}>
-          算定日数を計算する
-        </button>
-      </div>
-
-      {result && (
-        <div className="space-y-3">
-          {result.warning === "over" && (
-            <div className="rounded-xl border-2 border-red-400 bg-red-50 px-5 py-4">
-              <p className="text-sm font-bold text-red-700 leading-relaxed">
-                標準算定日数を超えています。<br />延長申請または特別な指示書が必要です。
-              </p>
-            </div>
-          )}
-          {result.warning === "near" && (
-            <div className="rounded-xl border-2 border-orange-400 bg-orange-50 px-5 py-4">
-              <p className="text-sm font-bold leading-relaxed" style={{ color: "#E85D04" }}>
-                算定期限まで60日以内です。<br />延長が必要な場合は医師への確認を行ってください。
-              </p>
-            </div>
-          )}
-
-          <div className="rounded-2xl border-2 bg-white overflow-hidden shadow-sm"
-            style={{ borderColor: result.category?.color ?? "#6B7280" }}>
-            <div className="px-5 py-3 text-white text-sm font-bold"
-              style={{ background: result.category?.color ?? "#6B7280" }}>
-              {result.category?.name ?? "算定区分：不明（疾患名をご確認ください）"}
-            </div>
-            <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {[
-                { label: "標準算定日数", value: result.category?.days ?? "—", unit: "日", color: "text-gray-900" },
-                { label: "経過日数",     value: result.elapsed,               unit: "日", color: "text-gray-900" },
-              ].map(({ label, value, unit, color }) => (
-                <div key={label} className="text-center">
-                  <p className="text-[10px] font-bold text-gray-400 mb-1">{label}</p>
-                  <p className={`text-2xl font-black ${color}`}>
-                    {value}<span className="text-sm font-semibold text-gray-500 ml-0.5">{unit}</span>
-                  </p>
+          {/* 区分別入力 */}
+          {selectedCats.map(key => {
+            const cat    = REHAB_CATEGORIES.find(c => c.key === key)!;
+            const config = CAT_INPUT_CONFIG[key];
+            return (
+              <div key={key} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+                {/* ヘッダー */}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-white text-sm font-bold"
+                  style={{ background: cat.color }}>
+                  {cat.name}
+                  <span className="text-white/70 text-xs font-normal">
+                    （標準算定日数：{cat.days}日）
+                  </span>
                 </div>
-              ))}
-              <div className="text-center col-span-2 sm:col-span-1">
-                <p className="text-[10px] font-bold text-gray-400 mb-1">残り算定可能日数</p>
-                <p className="text-2xl font-black" style={{
-                  color: result.remaining <= 0 ? "#DC2626" : result.remaining <= 60 ? "#E85D04" : "#1B4332",
-                }}>
-                  {result.remaining}<span className="text-sm font-semibold ml-0.5">日</span>
-                </p>
+
+                {/* 注意ボックス */}
+                <div className="rounded-xl px-4 py-3 space-y-1" style={warnStyle}>
+                  <p className="text-xs font-bold" style={{ color: "#E85D04" }}>注意</p>
+                  {config.warnLines.map((line, i) => (
+                    <p key={i} className="text-xs text-gray-700 leading-relaxed">{line}</p>
+                  ))}
+                </div>
+
+                {/* 日付入力 */}
+                <div>
+                  <label className={labelCls}>
+                    {config.inputLabel}<span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <input type="date"
+                    value={startDates[key] ?? ""}
+                    onChange={e => setStartDates(prev => ({ ...prev, [key]: e.target.value }))}
+                    className={inputCls} />
+                </div>
+
+                {/* 入力例 */}
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-gray-500 mb-1">入力例</p>
+                  {config.examples.map((ex, i) => (
+                    <p key={i} className="text-xs leading-relaxed"
+                      style={{
+                        color:      ex.color === "red" ? "#DC2626" : ex.color === "green" ? "#16a34a" : "#374151",
+                        fontWeight: ex.color ? 600 : 400,
+                      }}>
+                      {ex.text}
+                    </p>
+                  ))}
+                  {config.extra && (
+                    <div className="mt-2 pl-2 border-l-2 border-gray-200 space-y-0.5">
+                      {config.extra.map((ex, i) => (
+                        <p key={i} className="text-xs leading-relaxed"
+                          style={{
+                            color:      ex.color === "red" ? "#DC2626" : ex.color === "green" ? "#16a34a" : "#374151",
+                            fontWeight: ex.color ? 600 : 400,
+                          }}>
+                          {ex.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+            );
+          })}
+
+          <button onClick={calc} disabled={!canCalc}
+            className="w-full py-3.5 rounded-xl font-black text-white text-sm transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}>
+            算定日数を計算する
+          </button>
+        </div>
+      )}
+
+      {/* ── ステップ3：結果 ─────────────────────────────────────────── */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-0.5">計算結果</p>
+              <h3 className="text-base font-black text-gray-900">算定日数の一覧</h3>
             </div>
-            <div className="mx-5 border-t border-gray-100 pt-3 pb-4 space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">算定期限日</span>
-                <span className="font-bold text-gray-900">{formatJapanese(result.deadlineDate)}</span>
+            <button onClick={reset} className="text-sm text-gray-400 hover:text-gray-600 transition">
+              最初からやり直す
+            </button>
+          </div>
+
+          {results.map(item => {
+            const pct       = Math.max(0, Math.min(100, (item.elapsed / item.cat.days) * 100));
+            const color     = barColor(item.remaining);
+            const isOver    = item.remaining < 0;
+            const isRed     = !isOver && item.remaining < 30;
+            const isOrange  = item.remaining >= 30 && item.remaining < 60;
+
+            return (
+              <div key={item.cat.key}
+                className="bg-white rounded-2xl border-2 overflow-hidden shadow-sm"
+                style={{ borderColor: item.cat.color }}>
+                {/* カードヘッダー */}
+                <div className="px-5 py-3 text-white text-sm font-bold"
+                  style={{ background: item.cat.color }}>
+                  {item.cat.name}
+                </div>
+
+                <div className="px-5 py-4 space-y-4">
+                  {/* アラート */}
+                  {isOver && (
+                    <div className="rounded-xl border-2 border-red-400 bg-red-50 px-4 py-3">
+                      <p className="text-sm font-bold text-red-700">
+                        標準算定日数を超えています。延長申請または特別な指示書が必要です。
+                      </p>
+                    </div>
+                  )}
+                  {isRed && (
+                    <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3">
+                      <p className="text-sm font-bold text-red-700">
+                        算定期限まで30日以内です。至急対応が必要です。
+                      </p>
+                    </div>
+                  )}
+                  {isOrange && (
+                    <div className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-3">
+                      <p className="text-sm font-bold" style={{ color: "#E85D04" }}>
+                        算定期限まで60日以内です。延長が必要な場合は医師への確認を行ってください。
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 起算日 */}
+                  <div>
+                    <p className="text-xs text-gray-400">起算日</p>
+                    <p className="font-bold text-gray-900 text-sm">{formatJapanese(item.startDate)}</p>
+                  </div>
+
+                  {/* 3列数値 */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "標準算定日数", val: item.cat.days, unit: "日",   col: "#111827" },
+                      { label: "経過日数",     val: item.elapsed,  unit: "日目", col: "#111827" },
+                      { label: "残り日数",     val: Math.abs(item.remaining),
+                        unit: isOver ? "日超過" : "日", col: color },
+                    ].map(({ label, val, unit, col }) => (
+                      <div key={label}
+                        className="text-center p-3 rounded-xl"
+                        style={{ background: label === "残り日数" && isOver ? "#FEF2F2" : "#F9FAFB" }}>
+                        <p className="text-[10px] font-bold text-gray-400 mb-1">{label}</p>
+                        <p className="text-xl font-black" style={{ color: col }}>
+                          {val}<span className="text-[10px] font-semibold text-gray-500 ml-0.5">{unit}</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* プログレスバー */}
+                  <div>
+                    <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                      <span>起算日</span><span>算定期限</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, pct)}%`, background: color }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                      <span>{formatJapanese(item.startDate)}</span>
+                      <span>{formatJapanese(item.deadlineDate)}</span>
+                    </div>
+                  </div>
+
+                  {/* 算定期限 */}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <span className="text-sm text-gray-500">算定期限</span>
+                    <span className="font-bold text-gray-900 text-sm">{formatJapanese(item.deadlineDate)}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">延長申請の必要性</span>
-                <span className="font-bold" style={{
-                  color: result.warning === "over" ? "#DC2626" : result.warning === "near" ? "#E85D04" : "#15803D",
-                }}>
-                  {result.warning === "over" ? "要・延長申請または指示書確認" :
-                   result.warning === "near" ? "要確認（60日以内）" : "現時点では不要"}
-                </span>
+            );
+          })}
+
+          {/* 加算計算（任意） */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <button onClick={() => setShowAddition(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition">
+              <div>
+                <p className="text-sm font-black text-gray-900 text-left">加算の計算（任意）</p>
+                <p className="text-xs text-gray-400 mt-0.5 text-left">早期リハ加算・休日リハ加算の確認</p>
               </div>
-            </div>
+              <span className="text-gray-400 text-sm"
+                style={{ display: "inline-block", transform: showAddition ? "rotate(180deg)" : "" }}>
+                ▾
+              </span>
+            </button>
+
+            {showAddition && (
+              <div className="px-5 pb-5 space-y-6 border-t border-gray-100">
+
+                {/* 早期リハビリテーション加算 */}
+                <div className="pt-5 space-y-3">
+                  <div>
+                    <p className="text-sm font-black text-gray-900">早期リハビリテーション加算</p>
+                    <p className="text-xs text-gray-400 mt-0.5">入院1〜3日目：60点/単位　入院4〜14日目：25点/単位</p>
+                  </div>
+                  <div className="rounded-xl px-4 py-3 space-y-1" style={warnStyle}>
+                    <p className="text-xs font-bold" style={{ color: "#E85D04" }}>注意</p>
+                    <p className="text-xs text-gray-700 leading-relaxed">
+                      算定日数の起算日とは別管理です。早期リハ加算は発症日ではなく入院日から14日以内が対象です。発症日を入力すると正しく計算されません。
+                    </p>
+                  </div>
+                  <div>
+                    <label className={labelCls}>入院日 <span className="text-red-500">*</span></label>
+                    <input type="date" value={admitDate} onChange={e => setAdmitDate(e.target.value)}
+                      className={inputCls} />
+                  </div>
+                  {admitDate && today && (
+                    <EarlyRehabResult admitDate={admitDate} today={today} />
+                  )}
+                </div>
+
+                {/* 休日リハビリテーション加算 */}
+                <div className="pt-4 border-t border-gray-100 space-y-3">
+                  <div>
+                    <p className="text-sm font-black text-gray-900">休日リハビリテーション加算</p>
+                    <p className="text-xs text-gray-400 mt-0.5">25点/単位　発症日から30日以内の土日祝日が対象</p>
+                  </div>
+                  <div className="rounded-xl px-4 py-3 space-y-1" style={warnStyle}>
+                    <p className="text-xs font-bold" style={{ color: "#E85D04" }}>注意</p>
+                    <p className="text-xs text-gray-700 leading-relaxed">
+                      早期リハ加算（入院日基準）と起算日が異なります。休日リハ加算は発症日から30日以内が対象です。早期リハ加算の起算日（入院日）と混同しないようにご注意ください。
+                    </p>
+                  </div>
+                  <div>
+                    <label className={labelCls}>発症日・手術日・急性増悪日</label>
+                    <input type="date"
+                      value={addOnsetDate || (results.length === 1 ? results[0].startDate : "")}
+                      onChange={e => setAddOnsetDate(e.target.value)}
+                      className={inputCls} />
+                    {results.length === 1 && !addOnsetDate && (
+                      <button onClick={() => setAddOnsetDate(results[0].startDate)}
+                        className="mt-1 text-xs underline hover:no-underline" style={{ color: "#E85D04" }}>
+                        算定日数の起算日（{formatJapanese(results[0].startDate)}）を使用する
+                      </button>
+                    )}
+                  </div>
+                  {(addOnsetDate || (results.length === 1 && results[0].startDate)) && today && (
+                    <HolidayRehabResult
+                      onsetDate={addOnsetDate || results[0].startDate}
+                      today={today} />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <p className="text-xs text-gray-400 leading-relaxed">
             ※ 本ツールの計算結果は目安です。実際の算定可否・延長申請の要否は主治医・保険担当者にご確認ください。
           </p>
-          <button onClick={reset} className="text-xs text-gray-400 hover:text-gray-600 underline transition">
-            条件をリセットする
-          </button>
         </div>
       )}
     </div>
