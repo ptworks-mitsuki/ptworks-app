@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
+import { useSavedPlans } from "@/hooks/useSavedPlans";
+import type { SavedPlan } from "@/hooks/useSavedPlans";
+import { useFavorites } from "@/hooks/useFavorites";
+import type { FavoriteType } from "@/hooks/useFavorites";
 
 // モック：実認証が実装されたら差し替える
 const MOCK_USER = { name: "田中 優子" };
@@ -73,10 +78,78 @@ const QUICK_ACTIONS = [
 
 // ─────────────────────────────────────────────────────────────────
 
+// ── 保存プラン詳細モーダル ──────────────────────────────────────────────────
+
+function PlanDetailModal({ plan, onClose }: { plan: SavedPlan; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 bg-black/50 overflow-y-auto">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="px-5 py-4 flex items-start justify-between gap-3 border-b border-gray-100"
+          style={{ background: "linear-gradient(135deg, #1B4332, #2D6A4F)" }}>
+          <div>
+            <p className="text-white font-black text-base leading-tight">{plan.name}</p>
+            <p className="text-green-200 text-xs mt-0.5">
+              {plan.disease}　·　{new Date(plan.savedAt).toLocaleDateString("ja-JP")}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white text-sm mt-0.5">✕</button>
+        </div>
+        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          {plan.patientInfo.age && (
+            <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">患者情報</p>
+              <p className="text-xs text-gray-700">
+                {[
+                  plan.patientInfo.age && `${plan.patientInfo.age}歳`,
+                  plan.patientInfo.gender,
+                  plan.patientInfo.goal && `「${plan.patientInfo.goal}」`,
+                ].filter(Boolean).join("　·　")}
+              </p>
+            </div>
+          )}
+          <div>
+            <p className="text-xs font-bold text-green-700 mb-2">日本の標準的アプローチ</p>
+            <div className="space-y-1">
+              {plan.result.standard.points.map((p, i) => (
+                <p key={i} className="text-xs text-gray-700 leading-relaxed">{p}</p>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-blue-700 mb-2">海外エビデンス（{plan.result.evidence.length}件）</p>
+            <div className="space-y-2">
+              {plan.result.evidence.map((e, i) => (
+                <div key={i} className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                  <p className="text-xs font-semibold text-blue-900">{e.approach}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{e.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-orange-700 mb-2">個別提案</p>
+            <div className="space-y-1">
+              {plan.result.personalized.split("\n").filter(Boolean).map((line, i) => (
+                <p key={i} className="text-xs text-gray-700 leading-relaxed">{line}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────
+
 export default function MyPage() {
   const router = useRouter();
   const { history } = useSearchHistory();
   const { used, total, remaining, isExhausted, percentage } = useFreeQuota();
+  const { plans, removePlan }               = useSavedPlans();
+  const { favorites, removeFavorite }       = useFavorites();
+  const [detailPlan, setDetailPlan]         = useState<SavedPlan | null>(null);
+  const [favTab, setFavTab]                 = useState<FavoriteType>("disease");
 
   const isLow     = remaining <= 2 && !isExhausted;
   const isFree    = CURRENT_PLAN === "free";
@@ -93,6 +166,7 @@ export default function MyPage() {
   const recentHistory = history.slice(0, 3);
 
   return (
+    <>
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
       {/* ══════════════════════════════════════════════════════════
@@ -309,6 +383,129 @@ export default function MyPage() {
         )}
       </div>
 
+      {/* ══════════════════════════════════════════════════════════
+          ZONE 4：保存した治療プラン
+      ══════════════════════════════════════════════════════════ */}
+      <div>
+        <h2 className="text-base font-black text-gray-900 mb-3">保存した治療プラン</h2>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          {plans.length === 0 ? (
+            <p className="text-xs text-gray-400 py-4 text-center">
+              治療プランを保存するには、「治療を考える」タブで提案後に「この内容を保存する」を押してください
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {plans.map(plan => (
+                <li key={plan.id} className="flex items-center gap-2 px-3 py-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-orange-200 hover:bg-orange-50 transition group">
+                  <button
+                    className="flex-1 text-left min-w-0"
+                    onClick={() => setDetailPlan(plan)}
+                  >
+                    <p className="text-sm font-bold text-gray-800 group-hover:text-[#E85D04] transition truncate">{plan.name}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {plan.disease}　·　{new Date(plan.savedAt).toLocaleDateString("ja-JP")}
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => removePlan(plan.id)}
+                    className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition"
+                    aria-label="削除"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                      <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          ZONE 5：お気に入り
+      ══════════════════════════════════════════════════════════ */}
+      <div>
+        <h2 className="text-base font-black text-gray-900 mb-3">お気に入り</h2>
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          {/* タブ */}
+          <div className="flex border-b border-gray-100">
+            {(["disease", "treatment", "literature"] as const).map(tab => {
+              const labels: Record<string, string> = { disease: "疾患", treatment: "治療提案", literature: "文献" };
+              const count = favorites.filter(f => f.type === tab).length;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setFavTab(tab)}
+                  className={`flex-1 py-3 text-xs font-bold transition ${
+                    favTab === tab
+                      ? "border-b-2 text-[#E85D04]"
+                      : "text-gray-400 hover:text-gray-600"
+                  }`}
+                  style={favTab === tab ? { borderBottomColor: "#E85D04" } : {}}
+                >
+                  {labels[tab]}
+                  {count > 0 && (
+                    <span className="ml-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                      style={{ background: favTab === tab ? "#E85D04" : "#E5E7EB", color: favTab === tab ? "white" : "#6B7280" }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* リスト */}
+          <div className="p-4">
+            {favorites.filter(f => f.type === favTab).length === 0 ? (
+              <p className="text-xs text-gray-400 py-4 text-center">
+                {favTab === "disease" && "疾患の検索結果画面でハートアイコンをタップすると保存されます"}
+                {favTab === "treatment" && "治療を考えるの結果画面でハートアイコンをタップすると保存されます"}
+                {favTab === "literature" && "文献検索の各文献でハートアイコンをタップすると保存されます"}
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {favorites.filter(f => f.type === favTab).map(item => (
+                  <li key={item.id} className="flex items-center gap-2">
+                    <a
+                      href={item.href}
+                      target={item.type === "literature" ? "_blank" : undefined}
+                      rel={item.type === "literature" ? "noopener noreferrer" : undefined}
+                      className="flex-1 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-100 hover:border-orange-200 hover:bg-orange-50 transition min-w-0 block"
+                    >
+                      <p className="text-sm font-semibold text-gray-800 hover:text-[#E85D04] truncate">{item.title}</p>
+                      {item.subtitle && (
+                        <p className="text-[11px] text-gray-400 mt-0.5 truncate">{item.subtitle}</p>
+                      )}
+                    </a>
+                    <button
+                      onClick={() => removeFavorite(item.id)}
+                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition"
+                      aria-label="削除"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                        <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
     </div>
+
+    {/* プラン詳細モーダル */}
+    {detailPlan && (
+      <PlanDetailModal plan={detailPlan} onClose={() => setDetailPlan(null)} />
+    )}
+    </>
   );
 }

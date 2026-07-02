@@ -7,6 +7,7 @@ import { ComedicalSection } from "./ComedicalSection";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useSearchCache } from "@/hooks/useSearchCache";
 import { useExperienceLevel, TIER_BADGE } from "@/hooks/useExperienceLevel";
+import { useFavorites } from "@/hooks/useFavorites";
 import type { ResolveResult } from "@/app/api/suggest/route";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -94,6 +95,16 @@ function formatAsText(disease: string, sections: Partial<Record<SectionKey, Medi
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"} stroke={filled ? "#E85D04" : "#9CA3AF"}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="w-5 h-5 transition-all duration-150" aria-hidden="true">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
 export function MedicalSearch() {
   const [query,        setQuery]        = useState("");
   const [phase,        setPhase]        = useState<Phase>("idle");
@@ -115,6 +126,7 @@ export function MedicalSearch() {
   const { history, addHistory, removeHistory, clearHistory } = useSearchHistory();
   const cache = useSearchCache();
   const { level: expLevel, meta: expMeta } = useExperienceLevel();
+  const { isFavorited, toggleFavorite } = useFavorites();
   const inputRef       = useRef<HTMLInputElement>(null);
   const abortRef       = useRef<AbortController | null>(null);
   const lastChunkRef   = useRef<number>(0);
@@ -550,6 +562,20 @@ export function MedicalSearch() {
             </div>
 
             <div className="flex items-center gap-2 print:hidden">
+              {done && partial?.disease && (
+                <button
+                  onClick={() => toggleFavorite({
+                    id:    `disease-${partial.disease}`,
+                    type:  "disease",
+                    title: partial.disease,
+                    href:  `/stage1?q=${encodeURIComponent(partial.disease)}`,
+                  })}
+                  className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:border-orange-300 transition"
+                  aria-label={isFavorited(`disease-${partial.disease}`) ? "お気に入り解除" : "お気に入りに追加"}
+                >
+                  <HeartIcon filled={isFavorited(`disease-${partial.disease}`)} />
+                </button>
+              )}
               {done && (
                 <>
                   <button

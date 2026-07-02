@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useFavorites } from "@/hooks/useFavorites";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -202,10 +203,24 @@ function addToSlidePendingRefs(paper: Paper): void {
   }
 }
 
+// ── Heart icon ────────────────────────────────────────────────────────────
+
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"} stroke={filled ? "#E85D04" : "#9CA3AF"}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="w-4.5 h-4.5 transition-all duration-150" aria-hidden="true">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
 // ── Paper card ────────────────────────────────────────────────────────────
 
 function PaperCard({ paper }: { paper: Paper }) {
   const [added, setAdded] = useState(false);
+  const { isFavorited, toggleFavorite } = useFavorites();
+  const favId = `literature-${paper.id}`;
 
   function handleAddToSlides() {
     addToSlidePendingRefs(paper);
@@ -219,7 +234,22 @@ function PaperCard({ paper }: { paper: Paper }) {
         {/* ヘッダー行 */}
         <div className="flex items-start justify-between gap-3 mb-2">
           <EvidenceBadge level={paper.evidenceLevel} />
-          <span className="text-xs text-gray-400 shrink-0">{paper.year}年</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-gray-400">{paper.year}年</span>
+            <button
+              onClick={() => toggleFavorite({
+                id:       favId,
+                type:     "literature",
+                title:    paper.title,
+                subtitle: `${paper.authors} — ${paper.journal} ${paper.year}`,
+                href:     paper.url,
+              })}
+              className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 hover:border-orange-300 transition"
+              aria-label={isFavorited(favId) ? "お気に入り解除" : "お気に入りに追加"}
+            >
+              <HeartIcon filled={isFavorited(favId)} />
+            </button>
+          </div>
         </div>
 
         {/* タイトル */}

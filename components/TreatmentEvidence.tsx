@@ -5,6 +5,8 @@ import type { TreatmentEvidenceResult, EvidenceItem } from "@/app/api/treatment-
 import type { PatientExplanationResult } from "@/app/api/patient-explanation/route";
 import { PatientInfoForm, INITIAL_PATIENT_INFO } from "./PatientInfoForm";
 import type { PatientInfo, HighlightConfig } from "./PatientInfoForm";
+import { useSavedPlans } from "@/hooks/useSavedPlans";
+import { useFavorites } from "@/hooks/useFavorites";
 
 interface TreatmentEvidenceProps {
   onSharedDiseaseChange?:     (disease: string) => void;
@@ -134,6 +136,65 @@ function ExplanationDisplay({
 
 // ── Main component ────────────────────────────────────────────────────────
 
+// ── Heart Icon ────────────────────────────────────────────────────────────
+
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"} stroke={filled ? "#E85D04" : "#9CA3AF"}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="w-5 h-5 transition-all duration-150"
+      aria-hidden="true">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
+// ── Save Plan Modal ───────────────────────────────────────────────────────
+
+function SavePlanModal({
+  disease,
+  onSave,
+  onClose,
+}: {
+  disease: string;
+  onSave: (name: string) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState("");
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4">
+        <p className="text-base font-black text-gray-900">治療プランに名前をつけて保存</p>
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && name.trim()) onSave(name.trim()); }}
+          placeholder={`例：○○病棟の○○さんのリハ`}
+          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 focus:outline-none text-gray-900 placeholder-gray-400 text-sm"
+          autoFocus
+        />
+        <p className="text-[11px] text-gray-400">疾患「{disease}」の治療提案を保存します</p>
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition">
+            キャンセル
+          </button>
+          <button
+            onClick={() => { if (name.trim()) onSave(name.trim()); }}
+            disabled={!name.trim()}
+            className="flex-1 py-2.5 rounded-xl text-white text-sm font-black disabled:opacity-40 transition hover:opacity-90"
+            style={{ background: "#E85D04" }}>
+            保存する
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────
+
 export function TreatmentEvidence({
   onSharedDiseaseChange,
   onSharedPatientInfoChange,
@@ -142,6 +203,11 @@ export function TreatmentEvidence({
   const [query,       setQuery]         = useState("");
   const [disease,     setDisease]       = useState("");
   const [patientInfo, setPatientInfo]   = useState<PatientInfo>(INITIAL_PATIENT_INFO);
+
+  const { savePlan }           = useSavedPlans();
+  const { isFavorited, toggleFavorite } = useFavorites();
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [savedMsg,      setSavedMsg]      = useState(false);
 
   // 親コンポーネントへの同期（「相談する」タブで患者情報を引き継ぐため）
   const handleQueryChange = (v: string) => {
@@ -252,11 +318,27 @@ export function TreatmentEvidence({
 
   // ── 結果表示 ──────────────────────────────────────────────────────────────
 
+  // ハートID
+  const favId = disease ? `treatment-${disease}` : "";
+
   if (showResults && result) {
     return (
       <div className="w-full space-y-5">
+        {showSaveModal && (
+          <SavePlanModal
+            disease={disease}
+            onSave={(name) => {
+              savePlan(name, disease, patientInfo, result);
+              setShowSaveModal(false);
+              setSavedMsg(true);
+              setTimeout(() => setSavedMsg(false), 2500);
+            }}
+            onClose={() => setShowSaveModal(false)}
+          />
+        )}
+
         {/* ヘッダー */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs text-gray-400 mb-0.5">治療アプローチ提案</p>
             <h2 className="text-xl font-black text-gray-900">「{disease}」</h2>
@@ -266,13 +348,36 @@ export function TreatmentEvidence({
               </p>
             )}
           </div>
-          <button
-            onClick={() => { setShowResults(false); setResult(null); setExpResult(null); }}
-            className="text-xs text-gray-400 hover:text-gray-600 transition"
-          >
-            ← 条件を変更
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* ハートボタン */}
+            <button
+              onClick={() => toggleFavorite({
+                id:       favId,
+                type:     "treatment",
+                title:    disease,
+                subtitle: patientInfo.age ? `${patientInfo.age}歳 ${patientInfo.gender}` : undefined,
+                href:     `/stage1?tab=treatment&q=${encodeURIComponent(disease)}`,
+              })}
+              className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:border-orange-300 transition"
+              aria-label={isFavorited(favId) ? "お気に入り解除" : "お気に入りに追加"}
+            >
+              <HeartIcon filled={isFavorited(favId)} />
+            </button>
+            <button
+              onClick={() => { setShowResults(false); setResult(null); setExpResult(null); }}
+              className="text-xs text-gray-400 hover:text-gray-600 transition"
+            >
+              ← 条件を変更
+            </button>
+          </div>
         </div>
+
+        {/* 保存成功メッセージ */}
+        {savedMsg && (
+          <div className="rounded-xl bg-orange-50 border border-orange-200 px-4 py-3 text-sm font-semibold text-orange-700">
+            治療プランを保存しました
+          </div>
+        )}
 
         {/* ① 日本の標準的アプローチ */}
         <div className="rounded-xl border-l-[5px] border-l-green-500 border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -376,6 +481,20 @@ export function TreatmentEvidence({
           </div>
         )}
         {expResult && <ExplanationDisplay result={expResult} onClose={() => setExpResult(null)} />}
+
+        {/* 保存ボタン */}
+        <button
+          onClick={() => setShowSaveModal(true)}
+          className="w-full py-3.5 rounded-2xl border-2 font-black text-sm transition hover:opacity-90 flex items-center justify-center gap-2"
+          style={{ borderColor: "#E85D04", color: "#E85D04" }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+          </svg>
+          この内容を保存する
+        </button>
 
         {/* 文献検索ショートカット */}
         {query && (
