@@ -37,6 +37,58 @@ const QUICK_SEARCHES = [
   "慢性閉塞性肺疾患", "骨粗鬆症", "肩関節周囲炎", "糖尿病性神経障害",
 ];
 
+// ─── Term popup ───────────────────────────────────────────────────────────
+
+interface TermPopupState {
+  term:        string;
+  disease:     string;
+  explanation: string | null;
+  loading:     boolean;
+}
+
+function TermPopup({ state, onClose }: { state: TermPopupState; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-5"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 z-10"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <h3 className="text-base font-black text-gray-900 leading-tight pr-2">{state.term}</h3>
+          <button
+            onClick={onClose}
+            className="shrink-0 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </div>
+
+        {state.loading ? (
+          <div className="flex items-center gap-2 py-2">
+            <span className="inline-block w-4 h-4 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin shrink-0" />
+            <span className="text-sm text-gray-500">説明を取得中...</span>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+            {state.explanation}
+          </p>
+        )}
+
+        <p className="text-[10px] text-gray-400 mt-4">
+          タップした単語：{state.term}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sub-components ────────────────────────────────────────────────────────
 
 function HeartIcon({ filled }: { filled: boolean }) {
@@ -67,27 +119,34 @@ function LoadingMessages({ disease }: { disease: string }) {
 }
 
 function SectionStreamCard({
-  title, text, isActive, isDone, showSkeleton, color,
+  title, text, isActive, isDone, showSkeleton, color, onTermClick,
 }: {
-  title:       string;
-  text:        string;
-  isActive:    boolean;
-  isDone:      boolean;
+  title:        string;
+  text:         string;
+  isActive:     boolean;
+  isDone:       boolean;
   showSkeleton: boolean;
-  color:       string;
+  color:        string;
+  onTermClick:  (term: string) => void;
 }) {
-  // Parse [[term]] markup to styled spans
+  // Parse [[term]] markup → tappable buttons
   const renderText = (raw: string) => {
     const parts: React.ReactNode[] = [];
     const re = /\[\[([^\]]+)\]\]/g;
     let last = 0, m: RegExpExecArray | null, i = 0;
     while ((m = re.exec(raw)) !== null) {
       if (m.index > last) parts.push(<span key={i++}>{raw.slice(last, m.index)}</span>);
+      const term = m[1];
       parts.push(
-        <span key={i++} className="font-semibold underline decoration-dotted underline-offset-2"
-          style={{ color }}>
-          {m[1]}
-        </span>,
+        <button
+          key={i++}
+          onClick={() => onTermClick(term)}
+          className="font-semibold underline decoration-dotted underline-offset-2 active:opacity-60 transition-opacity"
+          style={{ color }}
+          type="button"
+        >
+          {term}
+        </button>,
       );
       last = m.index + m[0].length;
     }
@@ -181,6 +240,9 @@ export function MedicalSearch() {
   const [searchQuery,  setSearchQuery]  = useState("");
   const [error,        setError]        = useState<string | null>(null);
   const [copied,       setCopied]       = useState(false);
+
+  // Term popup state
+  const [termPopup, setTermPopup] = useState<TermPopupState | null>(null);
 
   // Streaming state
   const [disease,           setDisease]           = useState<string | null>(null);
@@ -310,6 +372,29 @@ export function MedicalSearch() {
       }
     }
   }, []);
+
+  // ── Term tap handler ─────────────────────────────────────────────────────
+
+  const handleTermClick = useCallback((term: string) => {
+    const currentDisease = disease ?? "";
+    setTermPopup({ term, disease: currentDisease, explanation: null, loading: true });
+    fetch("/api/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ term, disease: currentDisease }),
+    })
+      .then(r => r.json())
+      .then((d: { explanation?: string }) => {
+        setTermPopup(prev =>
+          prev?.term === term ? { ...prev, explanation: d.explanation ?? "説明を取得できませんでした", loading: false } : prev,
+        );
+      })
+      .catch(() => {
+        setTermPopup(prev =>
+          prev?.term === term ? { ...prev, explanation: "説明を取得できませんでした", loading: false } : prev,
+        );
+      });
+  }, [disease]);
 
   // ── Main search with retry loop ───────────────────────────────────────────
 
@@ -538,6 +623,11 @@ export function MedicalSearch() {
 
   const loadedCount   = completedSections.size;
   const totalSections = NEW_SECTION_ORDER.length;
+
+  // Detect incomplete generation (token limit hit)
+  const LATE_SECTIONS: NewSectionKey[] = ["clinical_points", "references"];
+  const needsMore = done && !streaming &&
+    LATE_SECTIONS.some(k => !sectionTexts[k] || sectionTexts[k].trim().length < 15);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -859,19 +949,54 @@ export function MedicalSearch() {
               const hasContent  = text.length > 0;
               const showSkeleton = streaming && !hasContent && !isActive;
 
+              // Fallback for empty references after done
+              const displayText = (key === "references" && !hasContent && done && !streaming)
+                ? `関連文献については、以下のデータベースをご利用ください。\n・PubMed (pubmed.ncbi.nlm.nih.gov)\n・医中誌Web\n・J-STAGE (jstage.jst.go.jp)`
+                : text;
+
               return (
                 <SectionStreamCard
                   key={key}
                   title={NEW_SECTION_TITLES[key]}
-                  text={text}
+                  text={displayText}
                   isActive={isActive}
                   isDone={isDone}
                   showSkeleton={showSkeleton}
                   color={NEW_SECTION_COLORS[key]}
+                  onTermClick={handleTermClick}
                 />
               );
             })}
           </div>
+
+          {/* 続きを読み込む（テキスト切れ検出時）*/}
+          {needsMore && (
+            <div className="mt-3 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 print:hidden">
+              <p className="text-sm text-amber-700">
+                一部の項目が表示されていない可能性があります。
+              </p>
+              <button
+                onClick={() => disease && startFullSearch(disease)}
+                className="shrink-0 text-xs font-bold px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
+              >
+                続きを読み込む
+              </button>
+            </div>
+          )}
+
+          {/* PubMed リンク（関連文献セクションが充実している場合も表示）*/}
+          {done && sectionTexts["references"] && (
+            <div className="mt-3 px-1 print:hidden">
+              <a
+                href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(disease)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 underline underline-offset-2 hover:text-blue-800 transition"
+              >
+                PubMedで「{disease}」の文献を確認する →
+              </a>
+            </div>
+          )}
 
           {/* Comedical section */}
           {done && (
@@ -919,6 +1044,14 @@ export function MedicalSearch() {
             ※ 文献・論文をもとに整理した情報です。臨床判断には必ず一次文献・専門家への確認をお取りください。
           </p>
         </div>
+      )}
+
+      {/* ══ Term popup ══ */}
+      {termPopup && (
+        <TermPopup
+          state={termPopup}
+          onClose={() => setTermPopup(null)}
+        />
       )}
     </div>
   );
