@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   NewSectionKey, NEW_SECTION_ORDER, NEW_SECTION_TITLES, NEW_SECTION_COLORS,
   Suggestion,
@@ -50,6 +51,7 @@ const REF_DELIMITER = "|||REF|||";
 function parseRefs(raw: string): ParsedRef[] {
   return raw.trim().split("\n").filter(Boolean).map(line => {
     const parts = line.split("|").map(s => s.trim());
+    // parts[0]=書籍タイトル, parts[1]=著者・出版社, parts[2]=検索キーワード
     return { citation: parts[0] ?? line, level: parts[1] ?? "", keyword: parts[2] ?? "" };
   });
 }
@@ -61,14 +63,6 @@ function splitStep2Text(text: string): { detail: string; refs: ParsedRef[] } {
     detail: text.slice(0, idx).trim(),
     refs:   parseRefs(text.slice(idx + REF_DELIMITER.length)),
   };
-}
-
-function getLevelColor(level: string): string {
-  if (level.includes("A")) return "#1B4332";
-  if (level.includes("B")) return "#1D4ED8";
-  if (level.includes("C")) return "#D97706";
-  if (level.includes("D")) return "#6B7280";
-  return "#1B4332";
 }
 
 // ─── Term popup ───────────────────────────────────────────────────────────
@@ -127,29 +121,33 @@ function LoadingMessages({ disease }: { disease: string }) {
   );
 }
 
-function RefBlock({ refs }: { refs: ParsedRef[] }) {
+function RefBlock({ refs, isReferencesSection = false }: { refs: ParsedRef[]; isReferencesSection?: boolean }) {
   if (refs.length === 0) return null;
   return (
-    <div className="mt-3 space-y-2">
+    <div className={`mt-3 space-y-2 ${isReferencesSection ? "" : ""}`}>
+      {isReferencesSection && (
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">参考文献・教科書</p>
+      )}
       {refs.map((ref, i) => (
         <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
           <div className="flex items-start gap-2">
-            {ref.level && (
-              <span className="shrink-0 mt-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: getLevelColor(ref.level) }}>
-                {ref.level}
-              </span>
-            )}
-            <p className="text-xs text-gray-600 leading-relaxed flex-1">{ref.citation}</p>
+            <svg className="shrink-0 mt-0.5 w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-gray-800 leading-snug">{ref.citation}</p>
+              {ref.level && <p className="text-[10px] text-gray-500 mt-0.5">{ref.level}</p>}
+            </div>
           </div>
           {ref.keyword && (
             <a
-              href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(ref.keyword)}`}
+              href={`/stage1/literature?q=${encodeURIComponent(ref.keyword)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-1.5 inline-block text-[11px] font-semibold underline underline-offset-1 transition"
-              style={{ color: "#1D4ED8" }}
+              style={{ color: "#1B4332" }}
             >
-              PubMedで確認 →
+              参考書検索で詳しく見る →
             </a>
           )}
         </div>
@@ -158,10 +156,116 @@ function RefBlock({ refs }: { refs: ParsedRef[] }) {
   );
 }
 
+// [[term]] → tappable span を含むテキストを markdown 前処理する
+function preprocessTerms(raw: string, color: string, onTermClick: (t: string) => void): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const re = /\[\[([^\]]+)\]\]/g;
+  let last = 0, m: RegExpExecArray | null, i = 0;
+  while ((m = re.exec(raw)) !== null) {
+    if (m.index > last) {
+      const segment = raw.slice(last, m.index);
+      parts.push(
+        <ReactMarkdown key={i++}
+          components={{
+            p: ({ children }) => <span>{children}</span>,
+            strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+            em: ({ children }) => <em className="italic">{children}</em>,
+          }}>
+          {segment}
+        </ReactMarkdown>,
+      );
+    }
+    const term = m[1];
+    parts.push(
+      <button key={i++} onClick={() => onTermClick(term)}
+        className="font-semibold underline decoration-dotted underline-offset-2 active:opacity-60 transition-opacity"
+        style={{ color }} type="button">
+        {term}
+      </button>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < raw.length) {
+    const segment = raw.slice(last);
+    parts.push(
+      <ReactMarkdown key={i++}
+        components={{
+          p: ({ children }) => <span>{children}</span>,
+          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+        }}>
+        {segment}
+      </ReactMarkdown>,
+    );
+  }
+  return <>{parts}</>;
+}
+
+function MdContent({ text, color, onTermClick }: { text: string; color: string; onTermClick: (t: string) => void }) {
+  // [[term]] を一時プレースホルダーで置き換えてから markdown レンダリング
+  const placeholders = new Map<string, string>();
+  let pi = 0;
+  const escaped = text.replace(/\[\[([^\]]+)\]\]/g, (_, term: string) => {
+    const id = `TERMPLACEHOLDER${pi++}`;
+    placeholders.set(id, term);
+    return id;
+  });
+
+  return (
+    <ReactMarkdown
+      components={{
+        p: ({ children }) => <p className="text-sm text-gray-800 leading-relaxed mb-1.5 last:mb-0">{replaceTerms(children, placeholders, color, onTermClick)}</p>,
+        strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+        em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
+        h2: ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-3 mb-1">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mt-2 mb-0.5">{children}</h3>,
+        hr: () => <hr className="my-2 border-gray-200" />,
+        ul: ({ children }) => <ul className="space-y-1 my-1.5 pl-0">{children}</ul>,
+        ol: ({ children }) => <ol className="space-y-1 my-1.5 pl-4 list-decimal">{children}</ol>,
+        li: ({ children }) => (
+          <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed">
+            <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
+            <span>{children}</span>
+          </li>
+        ),
+      }}
+    >
+      {escaped}
+    </ReactMarkdown>
+  );
+}
+
+function replaceTerms(
+  children: React.ReactNode,
+  placeholders: Map<string, string>,
+  color: string,
+  onTermClick: (t: string) => void,
+): React.ReactNode {
+  if (typeof children !== "string") return children;
+  const parts: React.ReactNode[] = [];
+  let remaining = children;
+  let i = 0;
+  for (const [id, term] of placeholders) {
+    const idx = remaining.indexOf(id);
+    if (idx === -1) continue;
+    if (idx > 0) parts.push(<span key={i++}>{remaining.slice(0, idx)}</span>);
+    parts.push(
+      <button key={i++} onClick={() => onTermClick(term)}
+        className="font-semibold underline decoration-dotted underline-offset-2 active:opacity-60 transition-opacity"
+        style={{ color }} type="button">
+        {term}
+      </button>,
+    );
+    remaining = remaining.slice(idx + id.length);
+  }
+  if (remaining) parts.push(<span key={i++}>{remaining}</span>);
+  return parts.length > 0 ? <>{parts}</> : children;
+}
+
 function SectionCard({
-  title, summary, detail, refs, color,
+  title, summary, detail, refs, color, sectionKey,
   isStep1Active, isStep1Done, showSkeleton,
-  step2Loading, step2Active, step2Done,
+  step2Loading, step2Done,
   onTermClick,
 }: {
   title:         string;
@@ -169,35 +273,16 @@ function SectionCard({
   detail:        string;
   refs:          ParsedRef[];
   color:         string;
+  sectionKey:    NewSectionKey;
   isStep1Active: boolean;
   isStep1Done:   boolean;
   showSkeleton:  boolean;
   step2Loading:  boolean;
-  step2Active:   boolean;
   step2Done:     boolean;
   onTermClick:   (term: string) => void;
 }) {
-  const renderText = (raw: string) => {
-    const parts: React.ReactNode[] = [];
-    const re = /\[\[([^\]]+)\]\]/g;
-    let last = 0, m: RegExpExecArray | null, i = 0;
-    while ((m = re.exec(raw)) !== null) {
-      if (m.index > last) parts.push(<span key={i++}>{raw.slice(last, m.index)}</span>);
-      const term = m[1];
-      parts.push(
-        <button key={i++} onClick={() => onTermClick(term)}
-          className="font-semibold underline decoration-dotted underline-offset-2 active:opacity-60 transition-opacity"
-          style={{ color }} type="button">
-          {term}
-        </button>,
-      );
-      last = m.index + m[0].length;
-    }
-    if (last < raw.length) parts.push(<span key={i++}>{raw.slice(last)}</span>);
-    return parts;
-  };
-
-  const step1HasContent = summary.length > 0;
+  const step1HasContent   = summary.length > 0;
+  const isReferencesSection = sectionKey === "references";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -227,41 +312,30 @@ function SectionCard({
             <div className="h-3 bg-gray-100 rounded animate-pulse w-3/5" />
           </div>
         ) : (
-          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-            {renderText(summary)}
+          <div>
+            <MdContent text={summary} color={color} onTermClick={onTermClick} />
             {isStep1Active && (
               <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" aria-hidden="true" />
             )}
           </div>
         )}
 
-        {/* Step 2: Detail */}
+        {/* Step 2: Detail — shown only after fully done */}
         {step1HasContent && (
           <>
-            {(step2Loading && !step2Active && !step2Done) && (
+            {step2Loading && !step2Done && (
               <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
                 <span className="inline-block w-3 h-3 border border-gray-300 border-t-blue-400 rounded-full animate-spin shrink-0" />
                 詳細を読み込み中...
               </div>
             )}
-            {(step2Active || step2Done) && detail && (
-              <>
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {renderText(detail)}
-                    {step2Active && (
-                      <span className="inline-block w-0.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-text-bottom" aria-hidden="true" />
-                    )}
-                  </div>
-                </div>
-                {step2Done && refs.length > 0 && <RefBlock refs={refs} />}
-              </>
-            )}
-            {step2Active && !detail && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-                <span className="inline-block w-3 h-3 border border-gray-300 border-t-blue-400 rounded-full animate-spin shrink-0" />
-                詳細を読み込み中...
+            {step2Done && detail && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <MdContent text={detail} color={color} onTermClick={onTermClick} />
               </div>
+            )}
+            {step2Done && refs.length > 0 && (
+              <RefBlock refs={refs} isReferencesSection={isReferencesSection} />
             )}
           </>
         )}
@@ -950,16 +1024,15 @@ export function MedicalSearch() {
               const summary      = step1Texts[key] ?? "";
               const rawDetail    = step2RawTexts[key] ?? "";
               const { detail, refs } = splitStep2Text(rawDetail);
-              const isStep1Active = step1CurrentSec === key;
-              const isStep1Done   = step1CompletedSecs.has(key);
-              const showSkeleton  = step1Streaming && !summary && !isStep1Active;
-              const step2Active   = step2CurrentSec === key;
-              const step2DoneThis = step2CompletedSecs.has(key);
-              const step2LoadingThis = step2Streaming && !step2Active && !step2DoneThis && isStep1Done;
+              const isStep1Active    = step1CurrentSec === key;
+              const isStep1Done      = step1CompletedSecs.has(key);
+              const showSkeleton     = step1Streaming && !summary && !isStep1Active;
+              // step2 は全体 done 後のみ表示（streaming 中は loading 表示のみ）
+              const step2LoadingThis = step2Streaming && isStep1Done;
+              const step2DoneThis    = step2Done;
 
-              // Refs fallback for references section
               const displaySummary = (key === "references" && !summary && step1Done && !step1Streaming)
-                ? "関連文献については、以下のデータベースをご利用ください。\n・PubMed (pubmed.ncbi.nlm.nih.gov)\n・医中誌Web\n・J-STAGE (jstage.jst.go.jp)"
+                ? "関連書籍・ガイドラインの詳細はステップ2（詳細情報）に表示されます。"
                 : summary;
 
               return (
@@ -970,11 +1043,11 @@ export function MedicalSearch() {
                   detail={detail}
                   refs={refs}
                   color={NEW_SECTION_COLORS[key]}
+                  sectionKey={key}
                   isStep1Active={isStep1Active}
                   isStep1Done={isStep1Done}
                   showSkeleton={showSkeleton}
                   step2Loading={step2LoadingThis}
-                  step2Active={step2Active}
                   step2Done={step2DoneThis}
                   onTermClick={handleTermClick}
                 />
