@@ -6,7 +6,6 @@ import {
   NewSectionKey, NEW_SECTION_ORDER, NEW_SECTION_TITLES, NEW_SECTION_COLORS,
   Suggestion,
 } from "@/types/medical";
-import { ComedicalSection } from "./ComedicalSection";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useSearchCache } from "@/hooks/useSearchCache";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -37,6 +36,10 @@ const LOADING_MESSAGES = [
   ()          => "文献を確認しています...",
   ()          => "臨床情報を整理しています...",
   ()          => "もうすぐ表示されます...",
+];
+
+const DISPLAY_SECTIONS: NewSectionKey[] = [
+  "definition", "symptoms", "assessment", "treatment", "contraindications", "clinical_points",
 ];
 
 const QUICK_SEARCHES = [
@@ -613,7 +616,7 @@ export function MedicalSearch() {
 
     // Cache check (step1 only)
     const cached = cache.get(d);
-    if (cached && NEW_SECTION_ORDER.every(k => !!cached[k])) {
+    if (cached && DISPLAY_SECTIONS.every(k => !!cached[k])) {
       setStep1Texts(cached);
       setStep1CompletedSecs(new Set(NEW_SECTION_ORDER));
       setStep1Streaming(false);
@@ -783,7 +786,7 @@ export function MedicalSearch() {
   };
 
   const step1LoadedCount = step1CompletedSecs.size;
-  const totalSections    = NEW_SECTION_ORDER.length;
+  const totalSections    = DISPLAY_SECTIONS.length;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1015,26 +1018,21 @@ export function MedicalSearch() {
 
           {/* Section cards */}
           <div className="space-y-3">
-            {NEW_SECTION_ORDER.map(key => {
+            {DISPLAY_SECTIONS.map(key => {
               const summary      = step1Texts[key] ?? "";
               const rawDetail    = step2RawTexts[key] ?? "";
               const { detail, refs } = splitStep2Text(rawDetail);
               const isStep1Active    = step1CurrentSec === key;
               const isStep1Done      = step1CompletedSecs.has(key);
               const showSkeleton     = step1Streaming && !summary && !isStep1Active;
-              // step2 は全体 done 後のみ表示（streaming 中は loading 表示のみ）
               const step2LoadingThis = step2Streaming && isStep1Done;
               const step2DoneThis    = step2Done;
-
-              const displaySummary = (key === "references" && !summary && step1Done && !step1Streaming)
-                ? "関連書籍・ガイドラインの詳細はステップ2（詳細情報）に表示されます。"
-                : summary;
 
               return (
                 <SectionCard
                   key={key}
                   title={NEW_SECTION_TITLES[key]}
-                  summary={displaySummary}
+                  summary={summary}
                   detail={detail}
                   refs={refs}
                   color={NEW_SECTION_COLORS[key]}
@@ -1062,52 +1060,8 @@ export function MedicalSearch() {
             </div>
           )}
 
-          {/* PubMed リンク */}
-          {step1Done && step1Texts["references"] && (
-            <div className="mt-3 px-1 print:hidden">
-              <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(disease)}`}
-                target="_blank" rel="noopener noreferrer"
-                className="text-xs text-blue-600 underline underline-offset-2 hover:text-blue-800 transition">
-                PubMedで「{disease}」の文献を確認する →
-              </a>
-            </div>
-          )}
-
-          {/* Comedical section */}
-          {step1Done && (
-            <div className="mt-4"><ComedicalSection disease={disease} /></div>
-          )}
-
-          {/* 文献検索リンク */}
-          {step1Done && (
-            <div className="mt-4 print:hidden">
-              <a href={`/stage1/literature?q=${encodeURIComponent(disease)}`} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-bold text-sm transition hover:opacity-90"
-                style={{ borderColor: "#1B4332", color: "#1B4332" }}>
-                この疾患の関連文献を検索する →
-              </a>
-            </div>
-          )}
-
-          {/* 免責注記 */}
-          {step1Done && (
-            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 print:border print:border-gray-300 print:bg-white">
-              <p className="text-xs font-bold text-amber-800 mb-1">この情報について</p>
-              <p className="text-xs text-amber-700 leading-relaxed">
-                この内容は文献・教科書をもとに整理されています。最終的な臨床判断は、原典の確認とPT自身の判断のもとで行ってください。
-              </p>
-              <div className="mt-3 pt-3 border-t border-amber-200">
-                <p className="text-[10px] font-bold text-amber-700 mb-1.5">参照文献を確認する</p>
-                <a href={`/stage1/literature?q=${encodeURIComponent(disease)}`} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 transition">
-                  「{disease}」の文献検索で原典を確認する →
-                </a>
-              </div>
-            </div>
-          )}
-
           <p className="text-xs text-gray-400 text-center mt-4 pb-2 print:hidden">
-            ※ 文献・論文をもとに整理した情報です。臨床判断には必ず一次文献・専門家への確認をお取りください。
+            ※ 文献・教科書をもとに整理した情報です。臨床判断には必ず一次文献・専門家への確認をお取りください。
           </p>
         </div>
       )}

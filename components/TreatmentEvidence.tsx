@@ -7,6 +7,7 @@ import { PatientInfoForm, INITIAL_PATIENT_INFO } from "./PatientInfoForm";
 import type { PatientInfo, HighlightConfig } from "./PatientInfoForm";
 import { useSavedPlans } from "@/hooks/useSavedPlans";
 import { useFavorites } from "@/hooks/useFavorites";
+import { ComedicalSection } from "./ComedicalSection";
 
 interface TreatmentEvidenceProps {
   onSharedDiseaseChange?:     (disease: string) => void;
@@ -508,6 +509,8 @@ export function TreatmentEvidence({
             この治療に関連する文献を検索する →
           </a>
         )}
+
+        <div className="mt-4"><ComedicalSection disease={disease} /></div>
 
         <p className="text-xs text-gray-400 text-center pb-2">
           ※ 文献・論文をもとに整理した情報です。臨床判断には一次文献・専門家への確認をお取りください。
