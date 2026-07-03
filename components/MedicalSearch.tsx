@@ -121,37 +121,35 @@ function LoadingMessages({ disease }: { disease: string }) {
   );
 }
 
-function RefBlock({ refs, isReferencesSection = false }: { refs: ParsedRef[]; isReferencesSection?: boolean }) {
+function RefBlock({ refs }: { refs: ParsedRef[] }) {
   if (refs.length === 0) return null;
   return (
-    <div className={`mt-3 space-y-2 ${isReferencesSection ? "" : ""}`}>
-      {isReferencesSection && (
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">参考文献・教科書</p>
-      )}
-      {refs.map((ref, i) => (
-        <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
-          <div className="flex items-start gap-2">
-            <svg className="shrink-0 mt-0.5 w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-            </svg>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-gray-800 leading-snug">{ref.citation}</p>
-              {ref.level && <p className="text-[10px] text-gray-500 mt-0.5">{ref.level}</p>}
-            </div>
+    <div className="mt-3 rounded-xl overflow-hidden" style={{ background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
+      <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-1.5">
+        <svg className="w-3 h-3 text-gray-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">参考</span>
+      </div>
+      <div className="px-3 py-2 space-y-2">
+        {refs.map((ref, i) => (
+          <div key={i}>
+            <p className="text-[11px] font-semibold text-gray-700 leading-snug">{ref.citation}</p>
+            {ref.level && <p className="text-[10px] text-gray-400 mt-0.5">{ref.level}</p>}
+            {ref.keyword && (
+              <a
+                href={`/stage1/literature?q=${encodeURIComponent(ref.keyword)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-[11px] font-semibold transition hover:opacity-80"
+                style={{ color: "#E85D04" }}
+              >
+                参考書で詳しく見る →
+              </a>
+            )}
           </div>
-          {ref.keyword && (
-            <a
-              href={`/stage1/literature?q=${encodeURIComponent(ref.keyword)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1.5 inline-block text-[11px] font-semibold underline underline-offset-1 transition"
-              style={{ color: "#1B4332" }}
-            >
-              参考書検索で詳しく見る →
-            </a>
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -281,8 +279,7 @@ function SectionCard({
   step2Done:     boolean;
   onTermClick:   (term: string) => void;
 }) {
-  const step1HasContent   = summary.length > 0;
-  const isReferencesSection = sectionKey === "references";
+  const step1HasContent = summary.length > 0;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -334,9 +331,7 @@ function SectionCard({
                 <MdContent text={detail} color={color} onTermClick={onTermClick} />
               </div>
             )}
-            {step2Done && refs.length > 0 && (
-              <RefBlock refs={refs} isReferencesSection={isReferencesSection} />
-            )}
+            {step2Done && refs.length > 0 && <RefBlock refs={refs} />}
           </>
         )}
       </div>
