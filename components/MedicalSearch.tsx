@@ -16,13 +16,19 @@ import type { ResolveResult } from "@/app/api/suggest/route";
 type Phase = "idle" | "resolving" | "candidates" | "results";
 
 type SseEvent =
-  | { type: "section_start"; key: NewSectionKey }
-  | { type: "text";          key: NewSectionKey; text: string }
-  | { type: "section_end";   key: NewSectionKey }
-  | { type: "done" }
+  | { type: "section_start"; key: NewSectionKey; step: 1 | 2 }
+  | { type: "text";          key: NewSectionKey; text: string; step: 1 | 2 }
+  | { type: "section_end";   key: NewSectionKey; step: 1 | 2 }
+  | { type: "done";          step: 1 | 2 }
   | { type: "error"; error: string };
 
-const MAX_RETRIES = 3;
+interface ParsedRef {
+  citation: string;
+  level:    string;
+  keyword:  string;
+}
+
+const MAX_RETRIES    = 3;
 const SLOW_WARNING_MS = 30_000;
 
 const LOADING_MESSAGES = [
@@ -37,6 +43,34 @@ const QUICK_SEARCHES = [
   "慢性閉塞性肺疾患", "骨粗鬆症", "肩関節周囲炎", "糖尿病性神経障害",
 ];
 
+// ─── Ref parser ────────────────────────────────────────────────────────────
+
+const REF_DELIMITER = "|||REF|||";
+
+function parseRefs(raw: string): ParsedRef[] {
+  return raw.trim().split("\n").filter(Boolean).map(line => {
+    const parts = line.split("|").map(s => s.trim());
+    return { citation: parts[0] ?? line, level: parts[1] ?? "", keyword: parts[2] ?? "" };
+  });
+}
+
+function splitStep2Text(text: string): { detail: string; refs: ParsedRef[] } {
+  const idx = text.indexOf(REF_DELIMITER);
+  if (idx === -1) return { detail: text, refs: [] };
+  return {
+    detail: text.slice(0, idx).trim(),
+    refs:   parseRefs(text.slice(idx + REF_DELIMITER.length)),
+  };
+}
+
+function getLevelColor(level: string): string {
+  if (level.includes("A")) return "#1B4332";
+  if (level.includes("B")) return "#1D4ED8";
+  if (level.includes("C")) return "#D97706";
+  if (level.includes("D")) return "#6B7280";
+  return "#1B4332";
+}
+
 // ─── Term popup ───────────────────────────────────────────────────────────
 
 interface TermPopupState {
@@ -48,42 +82,22 @@ interface TermPopupState {
 
 function TermPopup({ state, onClose }: { state: TermPopupState; onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-5"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5" onClick={onClose} role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40" />
-      <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 z-10"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 z-10" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-3">
           <h3 className="text-base font-black text-gray-900 leading-tight pr-2">{state.term}</h3>
-          <button
-            onClick={onClose}
-            className="shrink-0 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
-            aria-label="閉じる"
-          >
-            ×
-          </button>
+          <button onClick={onClose} className="shrink-0 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition" aria-label="閉じる">×</button>
         </div>
-
         {state.loading ? (
           <div className="flex items-center gap-2 py-2">
             <span className="inline-block w-4 h-4 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin shrink-0" />
             <span className="text-sm text-gray-500">説明を取得中...</span>
           </div>
         ) : (
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-            {state.explanation}
-          </p>
+          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{state.explanation}</p>
         )}
-
-        <p className="text-[10px] text-gray-400 mt-4">
-          タップした単語：{state.term}
-        </p>
+        <p className="text-[10px] text-gray-400 mt-4">タップした単語：{state.term}</p>
       </div>
     </div>
   );
@@ -93,10 +107,7 @@ function TermPopup({ state, onClose }: { state: TermPopupState; onClose: () => v
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"}
-      stroke={filled ? "#E85D04" : "#9CA3AF"}
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      className="w-5 h-5 transition-all duration-150" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"} stroke={filled ? "#E85D04" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 transition-all duration-150" aria-hidden="true">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
     </svg>
   );
@@ -104,12 +115,10 @@ function HeartIcon({ filled }: { filled: boolean }) {
 
 function LoadingMessages({ disease }: { disease: string }) {
   const [idx, setIdx] = useState(0);
-
   useEffect(() => {
     const t = setInterval(() => setIdx(i => (i + 1) % LOADING_MESSAGES.length), 2000);
     return () => clearInterval(t);
   }, []);
-
   return (
     <div className="flex items-center gap-2 px-1 print:hidden">
       <span className="inline-block w-3.5 h-3.5 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin shrink-0" />
@@ -118,18 +127,56 @@ function LoadingMessages({ disease }: { disease: string }) {
   );
 }
 
-function SectionStreamCard({
-  title, text, isActive, isDone, showSkeleton, color, onTermClick,
+function RefBlock({ refs }: { refs: ParsedRef[] }) {
+  if (refs.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {refs.map((ref, i) => (
+        <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5">
+          <div className="flex items-start gap-2">
+            {ref.level && (
+              <span className="shrink-0 mt-0.5 text-[10px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: getLevelColor(ref.level) }}>
+                {ref.level}
+              </span>
+            )}
+            <p className="text-xs text-gray-600 leading-relaxed flex-1">{ref.citation}</p>
+          </div>
+          {ref.keyword && (
+            <a
+              href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(ref.keyword)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1.5 inline-block text-[11px] font-semibold underline underline-offset-1 transition"
+              style={{ color: "#1D4ED8" }}
+            >
+              PubMedで確認 →
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SectionCard({
+  title, summary, detail, refs, color,
+  isStep1Active, isStep1Done, showSkeleton,
+  step2Loading, step2Active, step2Done,
+  onTermClick,
 }: {
-  title:        string;
-  text:         string;
-  isActive:     boolean;
-  isDone:       boolean;
-  showSkeleton: boolean;
-  color:        string;
-  onTermClick:  (term: string) => void;
+  title:         string;
+  summary:       string;
+  detail:        string;
+  refs:          ParsedRef[];
+  color:         string;
+  isStep1Active: boolean;
+  isStep1Done:   boolean;
+  showSkeleton:  boolean;
+  step2Loading:  boolean;
+  step2Active:   boolean;
+  step2Done:     boolean;
+  onTermClick:   (term: string) => void;
 }) {
-  // Parse [[term]] markup → tappable buttons
   const renderText = (raw: string) => {
     const parts: React.ReactNode[] = [];
     const re = /\[\[([^\]]+)\]\]/g;
@@ -138,13 +185,9 @@ function SectionStreamCard({
       if (m.index > last) parts.push(<span key={i++}>{raw.slice(last, m.index)}</span>);
       const term = m[1];
       parts.push(
-        <button
-          key={i++}
-          onClick={() => onTermClick(term)}
+        <button key={i++} onClick={() => onTermClick(term)}
           className="font-semibold underline decoration-dotted underline-offset-2 active:opacity-60 transition-opacity"
-          style={{ color }}
-          type="button"
-        >
+          style={{ color }} type="button">
           {term}
         </button>,
       );
@@ -154,28 +197,29 @@ function SectionStreamCard({
     return parts;
   };
 
+  const step1HasContent = summary.length > 0;
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-100">
         <div className="w-1 h-5 rounded-full shrink-0" style={{ background: color }} />
         <span className="text-sm font-bold text-gray-900 flex-1">{title}</span>
-        {isActive && (
+        {isStep1Active && (
           <span className="flex gap-0.5 shrink-0">
             {[0, 1, 2].map(i => (
-              <span key={i}
-                className="w-1.5 h-1.5 rounded-full animate-bounce"
-                style={{ background: "#E85D04", animationDelay: `${i * 0.15}s` }} />
+              <span key={i} className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: "#E85D04", animationDelay: `${i * 0.15}s` }} />
             ))}
           </span>
         )}
-        {isDone && !isActive && (
+        {isStep1Done && !isStep1Active && (
           <span className="text-[10px] text-green-500 font-bold shrink-0">完了</span>
         )}
       </div>
 
       {/* Content */}
       <div className="px-5 py-4">
+        {/* Step 1: Summary */}
         {showSkeleton ? (
           <div className="space-y-2">
             <div className="h-3 bg-gray-100 rounded animate-pulse w-full" />
@@ -184,14 +228,42 @@ function SectionStreamCard({
           </div>
         ) : (
           <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-            {renderText(text)}
-            {isActive && (
-              <span
-                className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom"
-                aria-hidden="true"
-              />
+            {renderText(summary)}
+            {isStep1Active && (
+              <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" aria-hidden="true" />
             )}
           </div>
+        )}
+
+        {/* Step 2: Detail */}
+        {step1HasContent && (
+          <>
+            {(step2Loading && !step2Active && !step2Done) && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+                <span className="inline-block w-3 h-3 border border-gray-300 border-t-blue-400 rounded-full animate-spin shrink-0" />
+                詳細を読み込み中...
+              </div>
+            )}
+            {(step2Active || step2Done) && detail && (
+              <>
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {renderText(detail)}
+                    {step2Active && (
+                      <span className="inline-block w-0.5 h-4 bg-blue-400 animate-pulse ml-0.5 align-text-bottom" aria-hidden="true" />
+                    )}
+                  </div>
+                </div>
+                {step2Done && refs.length > 0 && <RefBlock refs={refs} />}
+              </>
+            )}
+            {step2Active && !detail && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+                <span className="inline-block w-3 h-3 border border-gray-300 border-t-blue-400 rounded-full animate-spin shrink-0" />
+                詳細を読み込み中...
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -234,54 +306,60 @@ function formatAsText(disease: string, texts: Record<string, string>): string {
 // ─── Main component ────────────────────────────────────────────────────────
 
 export function MedicalSearch() {
-  const [query,        setQuery]        = useState("");
-  const [phase,        setPhase]        = useState<Phase>("idle");
-  const [candidates,   setCandidates]   = useState<Suggestion[]>([]);
-  const [searchQuery,  setSearchQuery]  = useState("");
-  const [error,        setError]        = useState<string | null>(null);
-  const [copied,       setCopied]       = useState(false);
+  const [query,       setQuery]       = useState("");
+  const [phase,       setPhase]       = useState<Phase>("idle");
+  const [candidates,  setCandidates]  = useState<Suggestion[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [error,       setError]       = useState<string | null>(null);
+  const [copied,      setCopied]      = useState(false);
 
-  // Term popup state
   const [termPopup, setTermPopup] = useState<TermPopupState | null>(null);
 
-  // Streaming state
-  const [disease,           setDisease]           = useState<string | null>(null);
-  const [sectionTexts,      setSectionTexts]      = useState<Record<string, string>>({});
-  const [currentSection,    setCurrentSection]    = useState<NewSectionKey | null>(null);
-  const [completedSections, setCompletedSections] = useState<Set<NewSectionKey>>(new Set());
-  const [streaming,         setStreaming]         = useState(false);
-  const [done,              setDone]              = useState(false);
-  const [fromCache,         setFromCache]         = useState(false);
-  const [showComplete,      setShowComplete]      = useState(false);
-  const [slowWarning,       setSlowWarning]       = useState(false);
-  const [retrying,          setRetrying]          = useState(false);
-  const [retryCount,        setRetryCount]        = useState(0);
+  // Step 1 state
+  const [disease,            setDisease]            = useState<string | null>(null);
+  const [step1Texts,         setStep1Texts]         = useState<Record<string, string>>({});
+  const [step1CurrentSec,    setStep1CurrentSec]    = useState<NewSectionKey | null>(null);
+  const [step1CompletedSecs, setStep1CompletedSecs] = useState<Set<NewSectionKey>>(new Set());
+  const [step1Streaming,     setStep1Streaming]     = useState(false);
+  const [step1Done,          setStep1Done]          = useState(false);
+  const [fromCache,          setFromCache]          = useState(false);
+  const [showComplete,       setShowComplete]       = useState(false);
+  const [slowWarning,        setSlowWarning]        = useState(false);
+  const [retrying,           setRetrying]           = useState(false);
+  const [retryCount,         setRetryCount]         = useState(0);
 
-  // Multi-disease / keyword flow
-  const [originalQuery,        setOriginalQuery]        = useState("");
-  const [selectedDiseases,     setSelectedDiseases]     = useState<string[]>([]);
-  const [tabDiseases,          setTabDiseases]          = useState<string[]>([]);
-  const [activeDiseaseIdx,     setActiveDiseaseIdx]     = useState(0);
-  const [keywordAnswer,        setKeywordAnswer]        = useState<string | null>(null);
-  const [keywordAnswerLoading, setKeywordAnswerLoading] = useState(false);
+  // Step 2 state
+  const [step2RawTexts,      setStep2RawTexts]      = useState<Record<string, string>>({});
+  const [step2CurrentSec,    setStep2CurrentSec]    = useState<NewSectionKey | null>(null);
+  const [step2CompletedSecs, setStep2CompletedSecs] = useState<Set<NewSectionKey>>(new Set());
+  const [step2Streaming,     setStep2Streaming]     = useState(false);
+  const [step2Done,          setStep2Done]          = useState(false);
+  const [step2Error,         setStep2Error]         = useState(false);
+
+  // Multi-disease
+  const [selectedDiseases, setSelectedDiseases] = useState<string[]>([]);
+  const [tabDiseases,      setTabDiseases]      = useState<string[]>([]);
+  const [activeDiseaseIdx, setActiveDiseaseIdx] = useState(0);
 
   const { history, addHistory, removeHistory, clearHistory } = useSearchHistory();
   const cache  = useSearchCache();
   const { isFavorited, toggleFavorite } = useFavorites();
   const inputRef      = useRef<HTMLInputElement>(null);
   const abortRef      = useRef<AbortController | null>(null);
+  const abort2Ref     = useRef<AbortController | null>(null);
   const slowTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const textsRef      = useRef<Record<string, string>>({});
+  const step1TextsRef = useRef<Record<string, string>>({});
+  const step2TextsRef = useRef<Record<string, string>>({});
+
   const diseaseResultsRef = useRef<Record<string, {
-    texts:         Record<string, string>;
-    done:          boolean;
-    keywordAnswer: string | null;
+    step1Texts: Record<string, string>;
+    step2RawTexts: Record<string, string>;
+    step2Done: boolean;
   }>>({});
 
-  // Keep textsRef in sync for closures
-  useEffect(() => { textsRef.current = sectionTexts; }, [sectionTexts]);
+  useEffect(() => { step1TextsRef.current = step1Texts; }, [step1Texts]);
+  useEffect(() => { step2TextsRef.current = step2RawTexts; }, [step2RawTexts]);
 
-  // "/" shortcut focuses search
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
@@ -293,30 +371,29 @@ export function MedicalSearch() {
     return () => document.removeEventListener("keydown", h);
   }, []);
 
-  // Completion flash
   useEffect(() => {
-    if (done && streaming === false) {
+    if (step1Done && !step1Streaming) {
       setShowComplete(true);
       const t = setTimeout(() => setShowComplete(false), 600);
       return () => clearTimeout(t);
     }
-  }, [done, streaming]);
+  }, [step1Done, step1Streaming]);
 
-  // Clear slow timer on unmount
   useEffect(() => () => {
     if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
   }, []);
 
-  // ── Core SSE runner ───────────────────────────────────────────────────────
+  // ── SSE runner ─────────────────────────────────────────────────────────────
 
   const runStream = useCallback(async (
     d: string,
     signal: AbortSignal,
+    step: 1 | 2,
   ): Promise<void> => {
     const res = await fetch("/api/medical-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ disease: d }),
+      body: JSON.stringify({ disease: d, step }),
       signal,
     });
 
@@ -327,18 +404,16 @@ export function MedicalSearch() {
 
     const reader  = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer    = "";
+    let buf       = "";
 
     while (true) {
       const { done: rd, value } = await reader.read();
       if (rd) break;
+      if (step === 1) setSlowWarning(false);
 
-      // First chunk clears slow warning
-      setSlowWarning(false);
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
 
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
@@ -348,66 +423,106 @@ export function MedicalSearch() {
         let event: SseEvent;
         try { event = JSON.parse(raw) as SseEvent; } catch { continue; }
 
-        if (event.type === "error")  throw new Error(event.error);
+        if (event.type === "error") throw new Error(event.error);
+
         if (event.type === "done") {
-          setDone(true);
+          if (step === 1) setStep1Done(true);
+          else            setStep2Done(true);
           continue;
         }
+
         if (event.type === "section_start") {
-          setCurrentSection(event.key);
+          if (step === 1) setStep1CurrentSec(event.key);
+          else            setStep2CurrentSec(event.key);
           continue;
         }
+
         if (event.type === "section_end") {
-          setCompletedSections(prev => { const s = new Set(prev); s.add(event.key); return s; });
-          setCurrentSection(null);
+          if (step === 1) {
+            setStep1CompletedSecs(prev => { const s = new Set(prev); s.add(event.key); return s; });
+            setStep1CurrentSec(null);
+          } else {
+            setStep2CompletedSecs(prev => { const s = new Set(prev); s.add(event.key); return s; });
+            setStep2CurrentSec(null);
+          }
           continue;
         }
+
         if (event.type === "text") {
-          setSectionTexts(prev => {
-            const next = { ...prev, [event.key]: (prev[event.key] ?? "") + event.text };
-            textsRef.current = next;
-            return next;
-          });
+          if (step === 1) {
+            setStep1Texts(prev => {
+              const next = { ...prev, [event.key]: (prev[event.key] ?? "") + event.text };
+              step1TextsRef.current = next;
+              return next;
+            });
+          } else {
+            setStep2RawTexts(prev => {
+              const next = { ...prev, [event.key]: (prev[event.key] ?? "") + event.text };
+              step2TextsRef.current = next;
+              return next;
+            });
+          }
         }
       }
     }
   }, []);
 
-  // ── Term tap handler ─────────────────────────────────────────────────────
+  // ── Term tap ──────────────────────────────────────────────────────────────
 
   const handleTermClick = useCallback((term: string) => {
-    const currentDisease = disease ?? "";
-    setTermPopup({ term, disease: currentDisease, explanation: null, loading: true });
+    const d = disease ?? "";
+    setTermPopup({ term, disease: d, explanation: null, loading: true });
     fetch("/api/explain", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ term, disease: currentDisease }),
+      body: JSON.stringify({ term, disease: d }),
     })
       .then(r => r.json())
-      .then((d: { explanation?: string }) => {
-        setTermPopup(prev =>
-          prev?.term === term ? { ...prev, explanation: d.explanation ?? "説明を取得できませんでした", loading: false } : prev,
-        );
+      .then((data: { explanation?: string }) => {
+        setTermPopup(prev => prev?.term === term ? { ...prev, explanation: data.explanation ?? "説明を取得できませんでした", loading: false } : prev);
       })
       .catch(() => {
-        setTermPopup(prev =>
-          prev?.term === term ? { ...prev, explanation: "説明を取得できませんでした", loading: false } : prev,
-        );
+        setTermPopup(prev => prev?.term === term ? { ...prev, explanation: "説明を取得できませんでした", loading: false } : prev);
       });
   }, [disease]);
 
-  // ── Main search with retry loop ───────────────────────────────────────────
+  // ── Step 2 trigger ────────────────────────────────────────────────────────
 
-  const startFullSearch = useCallback(async (
-    d: string,
-    opts?: { keepPartial?: boolean },
-  ) => {
+  const startStep2 = useCallback(async (d: string) => {
+    abort2Ref.current?.abort();
+    const abort = new AbortController();
+    abort2Ref.current = abort;
+
+    setStep2Error(false);
+    setStep2Done(false);
+    setStep2RawTexts({});
+    setStep2CurrentSec(null);
+    setStep2CompletedSecs(new Set());
+    step2TextsRef.current = {};
+    setStep2Streaming(true);
+
+    try {
+      await runStream(d, abort.signal, 2);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      if (!abort.signal.aborted) setStep2Error(true);
+    } finally {
+      if (!abort.signal.aborted) setStep2Streaming(false);
+    }
+  }, [runStream]);
+
+  // ── Step 1 main search ────────────────────────────────────────────────────
+
+  const startFullSearch = useCallback(async (d: string) => {
     abortRef.current?.abort();
+    abort2Ref.current?.abort();
     const abort = new AbortController();
     abortRef.current = abort;
 
     setPhase("results");
-    setDone(false);
+    setStep1Done(false);
+    setStep2Done(false);
+    setStep2Error(false);
     setError(null);
     setCopied(false);
     setRetrying(false);
@@ -415,36 +530,38 @@ export function MedicalSearch() {
     setFromCache(false);
     setShowComplete(false);
     setDisease(d);
-
-    if (!opts?.keepPartial) {
-      setSectionTexts({});
-      setCurrentSection(null);
-      setCompletedSections(new Set());
-      textsRef.current = {};
-    }
+    setStep1Texts({});
+    setStep1CurrentSec(null);
+    setStep1CompletedSecs(new Set());
+    setStep2RawTexts({});
+    setStep2CurrentSec(null);
+    setStep2CompletedSecs(new Set());
+    setStep2Streaming(false);
+    step1TextsRef.current = {};
+    step2TextsRef.current = {};
 
     addHistory(d);
 
-    // Cache check
+    // Cache check (step1 only)
     const cached = cache.get(d);
     if (cached && NEW_SECTION_ORDER.every(k => !!cached[k])) {
-      setSectionTexts(cached);
-      setCompletedSections(new Set(NEW_SECTION_ORDER));
-      setStreaming(false);
-      setDone(true);
+      setStep1Texts(cached);
+      setStep1CompletedSecs(new Set(NEW_SECTION_ORDER));
+      setStep1Streaming(false);
+      setStep1Done(true);
       setFromCache(true);
+      // Still run step2
+      startStep2(d);
       return;
     }
 
-    setStreaming(true);
-
+    setStep1Streaming(true);
     if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
     setSlowWarning(false);
     slowTimerRef.current = setTimeout(() => setSlowWarning(true), SLOW_WARNING_MS);
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       if (abort.signal.aborted) break;
-
       if (attempt > 0) {
         setRetrying(true);
         setRetryCount(attempt);
@@ -452,40 +569,33 @@ export function MedicalSearch() {
         if (abort.signal.aborted) break;
         setRetrying(false);
       }
-
       try {
-        await runStream(d, abort.signal);
-
-        // Success
+        await runStream(d, abort.signal, 1);
         if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
-        setStreaming(false);
-
-        const finalTexts = textsRef.current;
-        if (Object.keys(finalTexts).length > 0) cache.set(d, finalTexts);
+        setStep1Streaming(false);
+        const final = step1TextsRef.current;
+        if (Object.keys(final).length > 0) cache.set(d, final);
+        // Auto-trigger step 2
+        if (!abort.signal.aborted) startStep2(d);
         return;
-
       } catch (err) {
         if ((err as Error).name === "AbortError") break;
         if (abort.signal.aborted) break;
-
         if (attempt < MAX_RETRIES && isRetryableClient(err)) continue;
-
         if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
-        setStreaming(false);
+        setStep1Streaming(false);
         setError(classifyError(err));
-        if (!opts?.keepPartial) {
-          setDisease(null);
-          setPhase("idle");
-        }
+        setDisease(null);
+        setPhase("idle");
         return;
       }
     }
 
     if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
-    setStreaming(false);
-  }, [addHistory, cache, runStream]);
+    setStep1Streaming(false);
+  }, [addHistory, cache, runStream, startStep2]);
 
-  // ── Main search trigger ───────────────────────────────────────────────────
+  // ── Search trigger ────────────────────────────────────────────────────────
 
   const handleSearch = useCallback(async (
     input: string = query,
@@ -494,10 +604,7 @@ export function MedicalSearch() {
     const q = input.trim();
     if (!q) return;
 
-    if (opts?.direct) {
-      startFullSearch(q);
-      return;
-    }
+    if (opts?.direct) { startFullSearch(q); return; }
 
     setPhase("resolving");
     setSearchQuery(q);
@@ -510,7 +617,6 @@ export function MedicalSearch() {
         body: JSON.stringify({ query: q }),
       });
       const data = await res.json() as ResolveResult;
-
       if (data.direct) {
         startFullSearch(data.disease ?? q);
       } else {
@@ -531,44 +637,23 @@ export function MedicalSearch() {
     );
   }, []);
 
-  const startFullSearchWithKeyword = useCallback((d: string, keyword: string) => {
-    if (keyword) {
-      setKeywordAnswer(null);
-      setKeywordAnswerLoading(true);
-      fetch("/api/keyword-answer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: keyword, disease: d }),
-      })
-        .then(r => r.json())
-        .then((data: { answer: string }) => setKeywordAnswer(data.answer ?? null))
-        .catch(() => setKeywordAnswer(null))
-        .finally(() => setKeywordAnswerLoading(false));
-    }
-    startFullSearch(d);
-  }, [startFullSearch]);
-
   const handleMultiSearch = useCallback((diseases: string[]) => {
     if (diseases.length === 0) return;
     diseaseResultsRef.current = {};
     setTabDiseases(diseases);
     setActiveDiseaseIdx(0);
-    setOriginalQuery(searchQuery);
-    setKeywordAnswer(null);
-    setKeywordAnswerLoading(false);
-    startFullSearchWithKeyword(diseases[0], searchQuery);
-  }, [searchQuery, startFullSearchWithKeyword]);
+    startFullSearch(diseases[0]);
+  }, [startFullSearch]);
 
   const handleTabSwitch = useCallback((idx: number) => {
     const nextDisease = tabDiseases[idx];
     if (!nextDisease) return;
 
-    // Save current before switching
     if (disease && tabDiseases[activeDiseaseIdx]) {
       diseaseResultsRef.current[tabDiseases[activeDiseaseIdx]] = {
-        texts: sectionTexts,
-        done,
-        keywordAnswer,
+        step1Texts:    step1Texts,
+        step2RawTexts: step2RawTexts,
+        step2Done:     step2Done,
       };
     }
 
@@ -577,57 +662,59 @@ export function MedicalSearch() {
     const cached = diseaseResultsRef.current[nextDisease];
     if (cached) {
       setDisease(nextDisease);
-      setSectionTexts(cached.texts);
-      setCompletedSections(new Set(Object.keys(cached.texts) as NewSectionKey[]));
-      setDone(cached.done);
-      setStreaming(!cached.done);
-      setKeywordAnswer(cached.keywordAnswer);
-      setKeywordAnswerLoading(false);
+      setStep1Texts(cached.step1Texts);
+      setStep1CompletedSecs(new Set(Object.keys(cached.step1Texts) as NewSectionKey[]));
+      setStep1Done(true);
+      setStep1Streaming(false);
+      setStep2RawTexts(cached.step2RawTexts);
+      setStep2CompletedSecs(new Set(Object.keys(cached.step2RawTexts) as NewSectionKey[]));
+      setStep2Done(cached.step2Done);
+      setStep2Streaming(!cached.step2Done);
       setPhase("results");
       return;
     }
 
-    startFullSearchWithKeyword(nextDisease, originalQuery);
-  }, [tabDiseases, activeDiseaseIdx, disease, sectionTexts, done, keywordAnswer, originalQuery, startFullSearchWithKeyword]);
+    startFullSearch(nextDisease);
+  }, [tabDiseases, activeDiseaseIdx, disease, step1Texts, step2RawTexts, step2Done, startFullSearch]);
 
   const handleClear = () => {
     abortRef.current?.abort();
+    abort2Ref.current?.abort();
     if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
     setPhase("idle");
     setDisease(null);
-    setSectionTexts({});
-    setCurrentSection(null);
-    setCompletedSections(new Set());
-    setDone(false);
+    setStep1Texts({});
+    setStep1CurrentSec(null);
+    setStep1CompletedSecs(new Set());
+    setStep1Done(false);
+    setStep1Streaming(false);
+    setStep2RawTexts({});
+    setStep2CurrentSec(null);
+    setStep2CompletedSecs(new Set());
+    setStep2Done(false);
+    setStep2Streaming(false);
+    setStep2Error(false);
     setError(null);
     setQuery("");
     setCandidates([]);
     setRetrying(false);
     setRetryCount(0);
-    setOriginalQuery("");
     setSelectedDiseases([]);
     setTabDiseases([]);
     setActiveDiseaseIdx(0);
-    setKeywordAnswer(null);
-    setKeywordAnswerLoading(false);
     diseaseResultsRef.current = {};
     inputRef.current?.focus();
   };
 
   const handleCopyAll = async () => {
     if (!disease) return;
-    await navigator.clipboard.writeText(formatAsText(disease, sectionTexts));
+    await navigator.clipboard.writeText(formatAsText(disease, step1Texts));
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const loadedCount   = completedSections.size;
-  const totalSections = NEW_SECTION_ORDER.length;
-
-  // Detect incomplete generation (token limit hit)
-  const LATE_SECTIONS: NewSectionKey[] = ["clinical_points", "references"];
-  const needsMore = done && !streaming &&
-    LATE_SECTIONS.some(k => !sectionTexts[k] || sectionTexts[k].trim().length < 15);
+  const step1LoadedCount = step1CompletedSecs.size;
+  const totalSections    = NEW_SECTION_ORDER.length;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -662,7 +749,6 @@ export function MedicalSearch() {
             </button>
           </div>
 
-          {/* History */}
           {history.length > 0 && phase === "idle" && (
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between mb-2">
@@ -672,10 +758,7 @@ export function MedicalSearch() {
               <div className="flex flex-wrap gap-1.5">
                 {history.slice(0, 10).map(h => (
                   <div key={h.id} className="flex items-center gap-0.5 bg-gray-50 border border-gray-200 rounded-full pl-3 pr-1 py-1 group">
-                    <button
-                      onClick={() => { setQuery(h.query); handleSearch(h.query, { direct: true }); }}
-                      className="text-xs text-gray-700 hover:text-blue-600 transition"
-                    >{h.query}</button>
+                    <button onClick={() => { setQuery(h.query); handleSearch(h.query, { direct: true }); }} className="text-xs text-gray-700 hover:text-blue-600 transition">{h.query}</button>
                     <button onClick={() => removeHistory(h.id)} className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition ml-1 text-xs px-0.5">×</button>
                   </div>
                 ))}
@@ -683,17 +766,13 @@ export function MedicalSearch() {
             </div>
           )}
 
-          {/* Quick searches */}
           <div className="mt-4 pt-4 border-t border-gray-100">
             <p className="text-xs font-medium text-gray-500 mb-2">よく検索される疾患</p>
             <div className="flex flex-wrap gap-1.5">
               {QUICK_SEARCHES.map(term => (
-                <button
-                  key={term}
-                  onClick={() => { setQuery(term); handleSearch(term, { direct: true }); }}
+                <button key={term} onClick={() => { setQuery(term); handleSearch(term, { direct: true }); }}
                   disabled={phase === "resolving"}
-                  className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-600 rounded-full transition disabled:opacity-40"
-                >
+                  className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-600 rounded-full transition disabled:opacity-40">
                   {term}
                 </button>
               ))}
@@ -702,29 +781,22 @@ export function MedicalSearch() {
         </div>
       )}
 
-      {/* ══ Candidate list (multi-select) ══ */}
+      {/* ══ Candidate list ══ */}
       {phase === "candidates" && (
         <div className="animate-fadeIn">
           <div className="flex items-center justify-between mb-1">
             <p className="text-xs text-gray-500">「{searchQuery}」の関連疾患</p>
             <button onClick={handleClear} className="text-sm text-gray-400 hover:text-gray-600 transition">← 戻る</button>
           </div>
-          <h2 className="text-base font-bold text-gray-900 mb-0.5">
-            以下の中から当てはまるものを選んでください
-          </h2>
+          <h2 className="text-base font-bold text-gray-900 mb-0.5">以下の中から当てはまるものを選んでください</h2>
           <p className="text-xs text-gray-400 mb-4">複数選択できます</p>
-
           <div className="space-y-2 mb-4">
             {candidates.map(c => {
               const isSelected = selectedDiseases.includes(c.name);
               return (
                 <button key={c.name} onClick={() => toggleCandidateSelection(c.name)}
                   className="w-full text-left rounded-xl border px-4 py-4 transition-all"
-                  style={{
-                    background:  isSelected ? "#FFF7ED" : "white",
-                    borderColor: isSelected ? "#E85D04" : "#e5e7eb",
-                    boxShadow:   isSelected ? "0 0 0 1px #E85D04" : undefined,
-                  }}>
+                  style={{ background: isSelected ? "#FFF7ED" : "white", borderColor: isSelected ? "#E85D04" : "#e5e7eb", boxShadow: isSelected ? "0 0 0 1px #E85D04" : undefined }}>
                   <div className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded flex items-center justify-center mt-0.5 shrink-0 border-2 transition-all"
                       style={{ borderColor: isSelected ? "#E85D04" : "#d1d5db", background: isSelected ? "#E85D04" : "white" }}>
@@ -737,32 +809,19 @@ export function MedicalSearch() {
                     <div className="min-w-0">
                       <p className="font-semibold text-gray-900 text-sm leading-snug">{c.name}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{c.description}</p>
-                      {c.annotation && (
-                        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "#E85D04" }}>
-                          {c.annotation}
-                        </p>
-                      )}
+                      {c.annotation && <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "#E85D04" }}>{c.annotation}</p>}
                     </div>
                   </div>
                 </button>
               );
             })}
           </div>
-
-          <button
-            onClick={() => handleMultiSearch(selectedDiseases)}
-            disabled={selectedDiseases.length === 0}
+          <button onClick={() => handleMultiSearch(selectedDiseases)} disabled={selectedDiseases.length === 0}
             className="w-full py-3.5 rounded-xl font-bold text-base text-white transition mb-2"
-            style={{
-              background: selectedDiseases.length > 0 ? "#1B4332" : "#9ca3af",
-              cursor:     selectedDiseases.length > 0 ? "pointer" : "not-allowed",
-            }}>
-            この疾患で調べる
-            {selectedDiseases.length > 0 && `（${selectedDiseases.length}件選択中）`}
+            style={{ background: selectedDiseases.length > 0 ? "#1B4332" : "#9ca3af", cursor: selectedDiseases.length > 0 ? "pointer" : "not-allowed" }}>
+            この疾患で調べる{selectedDiseases.length > 0 && `（${selectedDiseases.length}件選択中）`}
           </button>
-
-          <button
-            onClick={() => { setOriginalQuery(""); startFullSearch(searchQuery); }}
+          <button onClick={() => startFullSearch(searchQuery)}
             className="w-full py-3 text-sm text-gray-500 border border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:text-gray-700 transition">
             「{searchQuery}」でそのまま検索する
           </button>
@@ -772,8 +831,7 @@ export function MedicalSearch() {
       {/* ══ Error ══ */}
       {error && (
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center print:hidden">
-          <button
-            onClick={() => { setError(null); handleSearch(disease ?? query, { direct: true }); }}
+          <button onClick={() => { setError(null); handleSearch(disease ?? query, { direct: true }); }}
             className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition hover:opacity-90"
             style={{ background: "#E85D04" }}>
             もう一度試してください
@@ -784,57 +842,16 @@ export function MedicalSearch() {
       {/* ══ Results ══ */}
       {phase === "results" && disease && (
         <div>
-
           {/* Disease tabs */}
           {tabDiseases.length > 1 && (
             <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 print:hidden">
               {tabDiseases.map((d, i) => (
                 <button key={d} onClick={() => handleTabSwitch(i)}
                   className="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap"
-                  style={{
-                    background: i === activeDiseaseIdx ? "#1B4332" : "#f3f4f6",
-                    color:      i === activeDiseaseIdx ? "white"    : "#374151",
-                  }}>
+                  style={{ background: i === activeDiseaseIdx ? "#1B4332" : "#f3f4f6", color: i === activeDiseaseIdx ? "white" : "#374151" }}>
                   {d}
                 </button>
               ))}
-            </div>
-          )}
-
-          {/* Keyword answer box */}
-          {originalQuery && (keywordAnswer !== null || keywordAnswerLoading) && (
-            <div className="mb-5 rounded-2xl overflow-hidden print:hidden"
-              style={{
-                background:      "#FFF3E0",
-                border:          "1px solid #FFCC80",
-                borderLeftWidth: "4px",
-                borderLeftColor: "#E85D04",
-              }}>
-              <div className="px-5 py-4">
-                <p className="font-bold text-base mb-2" style={{ color: "#E85D04" }}>
-                  あなたの質問への回答
-                </p>
-                {keywordAnswerLoading ? (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block w-3.5 h-3.5 border-2 border-orange-300 border-t-orange-500 rounded-full animate-spin shrink-0" />
-                    <p className="text-sm text-orange-600">準備中...</p>
-                  </div>
-                ) : (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "#1B4332" }}>
-                    {keywordAnswer}
-                  </p>
-                )}
-                <p className="text-xs text-gray-400 mt-3">
-                  「{originalQuery}」への回答として生成しました
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Section label in keyword mode */}
-          {originalQuery && (
-            <div className="mb-3">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">疾患の基本情報</p>
             </div>
           )}
 
@@ -846,84 +863,73 @@ export function MedicalSearch() {
                 {retrying ? (
                   <div className="flex items-center gap-2">
                     <span className="inline-block w-3.5 h-3.5 border-2 border-amber-400/40 border-t-amber-400 rounded-full animate-spin" />
-                    <span className="text-xs text-amber-600 font-medium">
-                      再接続しています… ({retryCount}/{MAX_RETRIES}回目)
-                    </span>
+                    <span className="text-xs text-amber-600 font-medium">再接続しています… ({retryCount}/{MAX_RETRIES}回目)</span>
                   </div>
-                ) : streaming ? (
+                ) : step1Streaming ? (
                   <div className="flex items-center gap-2">
                     <div className="flex gap-0.5">
                       {[0, 1, 2].map(i => (
-                        <span key={i} className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"
-                          style={{ animationDelay: `${i * 0.15}s` }} />
+                        <span key={i} className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
                       ))}
                     </div>
-                    <span className="text-xs text-blue-600">{loadedCount} / {totalSections} 項目完了</span>
+                    <span className="text-xs text-blue-600">{step1LoadedCount} / {totalSections} 項目完了</span>
                   </div>
-                ) : done ? (
+                ) : step1Done && step2Streaming ? (
                   <div className="flex items-center gap-2">
-                    <p className="text-xs text-green-600">✓ {totalSections} 項目生成完了</p>
-                    {fromCache && (
-                      <span className="text-[10px] text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">キャッシュ</span>
-                    )}
+                    <span className="inline-block w-3 h-3 border border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
+                    <span className="text-xs text-blue-500">詳細情報を読み込み中...</span>
+                  </div>
+                ) : step1Done && step2Done ? (
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-green-600">完了</p>
+                    {fromCache && <span className="text-[10px] text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">キャッシュ</span>}
                   </div>
                 ) : null}
               </div>
-              <p className="hidden print:block text-sm text-gray-500 mt-1">
-                生成日時：{new Date().toLocaleString("ja-JP")}
-              </p>
+              <p className="hidden print:block text-sm text-gray-500 mt-1">生成日時：{new Date().toLocaleString("ja-JP")}</p>
             </div>
 
             <div className="flex items-center gap-2 print:hidden">
-              {done && (
+              {step1Done && (
                 <button
-                  onClick={() => toggleFavorite({
-                    id:          `disease-${disease}`,
-                    type:        "disease",
-                    title:       disease,
-                    diseaseData: { disease, sections: sectionTexts },
-                  })}
+                  onClick={() => toggleFavorite({ id: `disease-${disease}`, type: "disease", title: disease, diseaseData: { disease, sections: step1Texts } })}
                   className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:border-orange-300 transition"
                   aria-label={isFavorited(`disease-${disease}`) ? "お気に入り解除" : "お気に入りに追加"}>
                   <HeartIcon filled={isFavorited(`disease-${disease}`)} />
                 </button>
               )}
-              {done && (
+              {step1Done && (
                 <>
-                  <button onClick={handleCopyAll}
-                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition">
-                    {copied ? "✓ コピー済み" : "全文コピー"}
+                  <button onClick={handleCopyAll} className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition">
+                    {copied ? "コピー済み" : "全文コピー"}
                   </button>
-                  <button onClick={() => window.print()}
-                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition">
-                    印刷
-                  </button>
+                  <button onClick={() => window.print()} className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition">印刷</button>
                 </>
               )}
               <button onClick={handleClear} className="text-xs text-gray-400 hover:text-gray-600 transition px-2">
-                {streaming ? "✕ 停止" : "✕ クリア"}
+                {step1Streaming ? "停止" : "クリア"}
               </button>
             </div>
           </div>
 
           {/* Progress bar */}
-          {streaming && (
+          {step1Streaming && (
             <div className="w-full bg-gray-100 rounded-full h-1 mb-5 overflow-hidden print:hidden">
               <div className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${(loadedCount / totalSections) * 100}%`, background: "#E85D04" }} />
+                style={{ width: `${(step1LoadedCount / totalSections) * 100}%`, background: "#E85D04" }} />
             </div>
           )}
 
-          {/* Slow warning (30s) */}
-          {slowWarning && streaming && (
+          {/* Slow warning */}
+          {slowWarning && step1Streaming && (
             <div className="mb-4 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 print:hidden">
               <span className="inline-block w-4 h-4 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
               <p className="text-sm text-blue-700">少し時間がかかっています。このままお待ちください。</p>
             </div>
           )}
 
-          {/* Loading messages (while streaming) */}
-          {streaming && !completedSections.has("definition") && (
+          {/* Loading messages */}
+          {step1Streaming && !step1CompletedSecs.has("definition") && (
             <div className="mb-4 print:hidden">
               <LoadingMessages disease={disease} />
             </div>
@@ -932,86 +938,82 @@ export function MedicalSearch() {
           {/* Completion flash */}
           {showComplete && (
             <div className="mb-3 text-center print:hidden">
-              <span
-                className="inline-block text-xs font-bold text-green-600 px-3 py-1 rounded-full border border-green-200 bg-green-50 animate-pulse"
-              >
-                表示完了
+              <span className="inline-block text-xs font-bold text-green-600 px-3 py-1 rounded-full border border-green-200 bg-green-50 animate-pulse">
+                概要表示完了
               </span>
             </div>
           )}
 
-          {/* ── Section cards ── */}
+          {/* Section cards */}
           <div className="space-y-3">
             {NEW_SECTION_ORDER.map(key => {
-              const text        = sectionTexts[key] ?? "";
-              const isActive    = currentSection === key;
-              const isDone      = completedSections.has(key);
-              const hasContent  = text.length > 0;
-              const showSkeleton = streaming && !hasContent && !isActive;
+              const summary      = step1Texts[key] ?? "";
+              const rawDetail    = step2RawTexts[key] ?? "";
+              const { detail, refs } = splitStep2Text(rawDetail);
+              const isStep1Active = step1CurrentSec === key;
+              const isStep1Done   = step1CompletedSecs.has(key);
+              const showSkeleton  = step1Streaming && !summary && !isStep1Active;
+              const step2Active   = step2CurrentSec === key;
+              const step2DoneThis = step2CompletedSecs.has(key);
+              const step2LoadingThis = step2Streaming && !step2Active && !step2DoneThis && isStep1Done;
 
-              // Fallback for empty references after done
-              const displayText = (key === "references" && !hasContent && done && !streaming)
-                ? `関連文献については、以下のデータベースをご利用ください。\n・PubMed (pubmed.ncbi.nlm.nih.gov)\n・医中誌Web\n・J-STAGE (jstage.jst.go.jp)`
-                : text;
+              // Refs fallback for references section
+              const displaySummary = (key === "references" && !summary && step1Done && !step1Streaming)
+                ? "関連文献については、以下のデータベースをご利用ください。\n・PubMed (pubmed.ncbi.nlm.nih.gov)\n・医中誌Web\n・J-STAGE (jstage.jst.go.jp)"
+                : summary;
 
               return (
-                <SectionStreamCard
+                <SectionCard
                   key={key}
                   title={NEW_SECTION_TITLES[key]}
-                  text={displayText}
-                  isActive={isActive}
-                  isDone={isDone}
-                  showSkeleton={showSkeleton}
+                  summary={displaySummary}
+                  detail={detail}
+                  refs={refs}
                   color={NEW_SECTION_COLORS[key]}
+                  isStep1Active={isStep1Active}
+                  isStep1Done={isStep1Done}
+                  showSkeleton={showSkeleton}
+                  step2Loading={step2LoadingThis}
+                  step2Active={step2Active}
+                  step2Done={step2DoneThis}
                   onTermClick={handleTermClick}
                 />
               );
             })}
           </div>
 
-          {/* 続きを読み込む（テキスト切れ検出時）*/}
-          {needsMore && (
-            <div className="mt-3 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 print:hidden">
-              <p className="text-sm text-amber-700">
-                一部の項目が表示されていない可能性があります。
-              </p>
+          {/* Step 2 error: retry button only */}
+          {step2Error && !step2Streaming && (
+            <div className="mt-3 flex justify-center print:hidden">
               <button
-                onClick={() => disease && startFullSearch(disease)}
-                className="shrink-0 text-xs font-bold px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
+                onClick={() => disease && startStep2(disease)}
+                className="text-xs font-bold px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-800 transition"
               >
-                続きを読み込む
+                再度読み込む
               </button>
             </div>
           )}
 
-          {/* PubMed リンク（関連文献セクションが充実している場合も表示）*/}
-          {done && sectionTexts["references"] && (
+          {/* PubMed リンク */}
+          {step1Done && step1Texts["references"] && (
             <div className="mt-3 px-1 print:hidden">
-              <a
-                href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(disease)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-600 underline underline-offset-2 hover:text-blue-800 transition"
-              >
+              <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(disease)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="text-xs text-blue-600 underline underline-offset-2 hover:text-blue-800 transition">
                 PubMedで「{disease}」の文献を確認する →
               </a>
             </div>
           )}
 
           {/* Comedical section */}
-          {done && (
-            <div className="mt-4">
-              <ComedicalSection disease={disease} />
-            </div>
+          {step1Done && (
+            <div className="mt-4"><ComedicalSection disease={disease} /></div>
           )}
 
           {/* 文献検索リンク */}
-          {done && (
+          {step1Done && (
             <div className="mt-4 print:hidden">
-              <a
-                href={`/stage1/literature?q=${encodeURIComponent(disease)}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <a href={`/stage1/literature?q=${encodeURIComponent(disease)}`} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-bold text-sm transition hover:opacity-90"
                 style={{ borderColor: "#1B4332", color: "#1B4332" }}>
                 この疾患の関連文献を検索する →
@@ -1020,19 +1022,15 @@ export function MedicalSearch() {
           )}
 
           {/* 免責注記 */}
-          {done && (
+          {step1Done && (
             <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 print:border print:border-gray-300 print:bg-white">
               <p className="text-xs font-bold text-amber-800 mb-1">この情報について</p>
               <p className="text-xs text-amber-700 leading-relaxed">
-                この内容は文献・教科書をもとに整理されています。
-                最終的な臨床判断は、原典の確認とPT自身の判断のもとで行ってください。
+                この内容は文献・教科書をもとに整理されています。最終的な臨床判断は、原典の確認とPT自身の判断のもとで行ってください。
               </p>
               <div className="mt-3 pt-3 border-t border-amber-200">
                 <p className="text-[10px] font-bold text-amber-700 mb-1.5">参照文献を確認する</p>
-                <a
-                  href={`/stage1/literature?q=${encodeURIComponent(disease)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <a href={`/stage1/literature?q=${encodeURIComponent(disease)}`} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 transition">
                   「{disease}」の文献検索で原典を確認する →
                 </a>
@@ -1047,12 +1045,7 @@ export function MedicalSearch() {
       )}
 
       {/* ══ Term popup ══ */}
-      {termPopup && (
-        <TermPopup
-          state={termPopup}
-          onClose={() => setTermPopup(null)}
-        />
-      )}
+      {termPopup && <TermPopup state={termPopup} onClose={() => setTermPopup(null)} />}
     </div>
   );
 }
