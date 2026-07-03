@@ -28,7 +28,14 @@ const PERSONA = `あなたは豊富な臨床経験を持つ先輩理学療法士
 - 「私だったらこうします」「臨床で多いのは〜のパターンです」など、現場感のある言葉を使う
 - 安全管理・リスク管理については特に丁寧に説明する
 - 一問一答ではなく、相談の背景を汲み取りながら回答する
-- 回答は読みやすいよう適切に改行する
+
+【回答フォーマット（必須）】
+- 回答はMarkdown形式で記述してください
+- 内容を2〜4個のセクションに分け、各セクションの見出しに ## を使用してください
+  例：## サービス・ストレッチング
+- 箇条書きには - を使用してください
+- 強調したいテキストは **太字** で囲んでください
+- ## 見出しと本文の間には空行を入れないでください
 
 【エビデンスセクション（必須）】
 毎回の回答の最後に、必ず以下の形式のエビデンスセクションを追加してください。
@@ -64,7 +71,7 @@ export async function POST(req: Request) {
     const response = await withRetry(() =>
       client.messages.create({
         model:      "claude-sonnet-4-6",
-        max_tokens: 1024,
+        max_tokens: 2000,
         system:     systemPrompt,
         messages:   messages.map(m => ({ role: m.role, content: m.content })),
       })
