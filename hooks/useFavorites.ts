@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { MedicalSection, SectionKey } from "@/types/medical";
+// Medical types no longer needed for FavDisease (v3 format)
 import type { TreatmentEvidenceResult } from "@/app/api/treatment-evidence/route";
 import type { PatientInfo } from "@/components/PatientInfoForm";
 
@@ -9,7 +9,7 @@ export type FavoriteType = "disease" | "treatment" | "literature" | "book";
 
 export interface FavDisease {
   disease:  string;
-  sections: Partial<Record<SectionKey, MedicalSection>>;
+  sections: Record<string, string>; // NewSectionKey → text (v3 format)
 }
 
 export interface FavTreatment {

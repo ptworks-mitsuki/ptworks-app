@@ -9,7 +9,7 @@ import { useSavedPlans } from "@/hooks/useSavedPlans";
 import type { SavedPlan } from "@/hooks/useSavedPlans";
 import { useFavorites } from "@/hooks/useFavorites";
 import type { FavoriteItem, FavoriteType } from "@/hooks/useFavorites";
-import { SECTIONS } from "@/types/medical";
+import { NEW_SECTION_ORDER, NEW_SECTION_TITLES, NEW_SECTION_COLORS } from "@/types/medical";
 
 // モック：実認証が実装されたら差し替える
 const MOCK_USER = { name: "田中 優子" };
@@ -210,28 +210,20 @@ function FavoriteAccordionItem({ item, onRemove }: { item: FavoriteItem; onRemov
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                 「{item.diseaseData.disease}」の調査結果
               </p>
-              {SECTIONS.map(s => {
-                const sec = item.diseaseData!.sections[s.key];
-                if (!sec) return null;
-                const color = SECTION_COLOR_MAP[s.color] ?? "#6B7280";
+              {NEW_SECTION_ORDER.map(key => {
+                const text = (item.diseaseData!.sections as Record<string, string>)[key];
+                if (!text) return null;
+                const color = NEW_SECTION_COLORS[key] ?? "#6B7280";
                 return (
-                  <details key={s.key} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <details key={key} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                     <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none hover:bg-gray-50 transition">
-                      <span className="text-base">{s.icon}</span>
-                      <span className="text-sm font-semibold flex-1" style={{ color }}>{sec.title}</span>
+                      <div className="w-1 h-4 rounded-full shrink-0" style={{ background: color }} />
+                      <span className="text-sm font-semibold flex-1" style={{ color }}>{NEW_SECTION_TITLES[key]}</span>
                     </summary>
-                    <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
-                      <p className="text-sm text-gray-800 leading-relaxed">{sec.summary}</p>
-                      {sec.detail && (
-                        <p className="text-sm text-gray-700 leading-relaxed mt-1">{sec.detail}</p>
-                      )}
-                      {sec.references.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-gray-100">
-                          {sec.references.map((r, i) => (
-                            <p key={i} className="text-[11px] text-gray-400">{i + 1}. {r}</p>
-                          ))}
-                        </div>
-                      )}
+                    <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+                      <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                        {text.replace(/\[\[([^\]]+)\]\]/g, "$1")}
+                      </p>
                     </div>
                   </details>
                 );

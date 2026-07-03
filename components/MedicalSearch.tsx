@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MedicalSection, SectionKey, SECTIONS, PRIMARY_SECTION_KEYS, Suggestion } from "@/types/medical";
-import { SectionCard } from "./SectionCard";
+import {
+  NewSectionKey, NEW_SECTION_ORDER, NEW_SECTION_TITLES, NEW_SECTION_COLORS,
+  Suggestion,
+} from "@/types/medical";
 import { ComedicalSection } from "./ComedicalSection";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useSearchCache } from "@/hooks/useSearchCache";
-import { useExperienceLevel, TIER_BADGE } from "@/hooks/useExperienceLevel";
 import { useFavorites } from "@/hooks/useFavorites";
 import type { ResolveResult } from "@/app/api/suggest/route";
 
@@ -14,90 +15,34 @@ import type { ResolveResult } from "@/app/api/suggest/route";
 
 type Phase = "idle" | "resolving" | "candidates" | "results";
 
-type PartialResult = {
-  disease: string;
-  sections: Partial<Record<SectionKey, MedicalSection>>;
-};
-
-type SsePayload =
-  | { section: SectionKey; data: MedicalSection }
-  | { done: true }
-  | { error: string };
+type SseEvent =
+  | { type: "section_start"; key: NewSectionKey }
+  | { type: "text";          key: NewSectionKey; text: string }
+  | { type: "section_end";   key: NewSectionKey }
+  | { type: "done" }
+  | { type: "error"; error: string };
 
 const MAX_RETRIES = 3;
-const SLOW_WARNING_MS  = 20_000; // show "生成中です" banner after 20s
-const STALL_TIMEOUT_MS = 25_000; // show "続きを読み込む" if no chunks for 25s
+const SLOW_WARNING_MS = 30_000;
+
+const LOADING_MESSAGES = [
+  (d: string) => `${d}について文献・教科書をもとに整理しています...`,
+  ()          => "文献を確認しています...",
+  ()          => "臨床情報を整理しています...",
+  ()          => "もうすぐ表示されます...",
+];
 
 const QUICK_SEARCHES = [
   "脳梗塞", "変形性膝関節症", "腰部脊柱管狭窄症", "パーキンソン病",
   "慢性閉塞性肺疾患", "骨粗鬆症", "肩関節周囲炎", "糖尿病性神経障害",
 ];
 
-// ─── Error classification (client-side) ──────────────────────────────────
-
-function classifyError(err: unknown): string {
-  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
-  if (m.includes("401") || m.includes("authentication") || m.includes("maintenance")) {
-    return "現在メンテナンス中です。しばらくお待ちください。";
-  }
-  if (m.includes("402") || m.includes("billing") || m.includes("credit") ||
-      m.includes("429") || m.includes("529") || m.includes("overload") ||
-      m.includes("アクセスが集中")) {
-    return "現在アクセスが集中しています。しばらくお待ちください。";
-  }
-  if (m.includes("timeout") || m.includes("timed out") || m.includes("時間がかかって")) {
-    return "通信に時間がかかっています。しばらくお待ちください。";
-  }
-  if (m.includes("fetch") || m.includes("network") || m.includes("offline") ||
-      m.includes("econnreset") || m.includes("通信環境")) {
-    return "通信環境をご確認ください。";
-  }
-  // Already Japanese — pass through
-  if (/[ぁ-ん]/.test(m) || /[ァ-ン]/.test(m)) return err instanceof Error ? err.message : String(err);
-  return "現在メンテナンス中です。しばらくお待ちください。";
-}
-
-function isRetryableClient(err: unknown): boolean {
-  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
-  return (
-    m.includes("429") || m.includes("529") || m.includes("overload") ||
-    m.includes("timeout") || m.includes("fetch failed") || m.includes("network") ||
-    m.includes("econnreset") || m.includes("アクセスが集中") || m.includes("通信")
-  );
-}
-
-// ─── Export helpers ────────────────────────────────────────────────────────
-
-function stripMarkers(text: string) {
-  return text.replace(/\[\[([^\]]+)\]\]/g, "$1");
-}
-
-function formatAsText(disease: string, sections: Partial<Record<SectionKey, MedicalSection>>): string {
-  const lines = [`【${disease}】`, `生成日時：${new Date().toLocaleString("ja-JP")}`, ""];
-  for (const s of SECTIONS) {
-    const data = sections[s.key];
-    if (!data) continue;
-    lines.push(`■ ${data.title}`);
-    lines.push(stripMarkers(data.summary));
-    if (data.detail?.trim()) {
-      lines.push("");
-      lines.push(stripMarkers(data.detail));
-    }
-    if (data.references.length > 0) {
-      lines.push("  参考文献:");
-      data.references.forEach((r, i) => lines.push(`  ${i + 1}. ${r}`));
-    }
-    lines.push("");
-  }
-  lines.push("※ 本情報は文献・論文をもとに整理した情報です。臨床判断は専門家の責任において行ってください。");
-  return lines.join("\n");
-}
-
-// ─── Component ─────────────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"} stroke={filled ? "#E85D04" : "#9CA3AF"}
+    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"}
+      stroke={filled ? "#E85D04" : "#9CA3AF"}
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       className="w-5 h-5 transition-all duration-150" aria-hidden="true">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
@@ -105,23 +50,150 @@ function HeartIcon({ filled }: { filled: boolean }) {
   );
 }
 
+function LoadingMessages({ disease }: { disease: string }) {
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % LOADING_MESSAGES.length), 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-2 px-1 print:hidden">
+      <span className="inline-block w-3.5 h-3.5 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin shrink-0" />
+      <p className="text-xs text-gray-500">{LOADING_MESSAGES[idx](disease)}</p>
+    </div>
+  );
+}
+
+function SectionStreamCard({
+  title, text, isActive, isDone, showSkeleton, color,
+}: {
+  title:       string;
+  text:        string;
+  isActive:    boolean;
+  isDone:      boolean;
+  showSkeleton: boolean;
+  color:       string;
+}) {
+  // Parse [[term]] markup to styled spans
+  const renderText = (raw: string) => {
+    const parts: React.ReactNode[] = [];
+    const re = /\[\[([^\]]+)\]\]/g;
+    let last = 0, m: RegExpExecArray | null, i = 0;
+    while ((m = re.exec(raw)) !== null) {
+      if (m.index > last) parts.push(<span key={i++}>{raw.slice(last, m.index)}</span>);
+      parts.push(
+        <span key={i++} className="font-semibold underline decoration-dotted underline-offset-2"
+          style={{ color }}>
+          {m[1]}
+        </span>,
+      );
+      last = m.index + m[0].length;
+    }
+    if (last < raw.length) parts.push(<span key={i++}>{raw.slice(last)}</span>);
+    return parts;
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-100">
+        <div className="w-1 h-5 rounded-full shrink-0" style={{ background: color }} />
+        <span className="text-sm font-bold text-gray-900 flex-1">{title}</span>
+        {isActive && (
+          <span className="flex gap-0.5 shrink-0">
+            {[0, 1, 2].map(i => (
+              <span key={i}
+                className="w-1.5 h-1.5 rounded-full animate-bounce"
+                style={{ background: "#E85D04", animationDelay: `${i * 0.15}s` }} />
+            ))}
+          </span>
+        )}
+        {isDone && !isActive && (
+          <span className="text-[10px] text-green-500 font-bold shrink-0">完了</span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="px-5 py-4">
+        {showSkeleton ? (
+          <div className="space-y-2">
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-full" />
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-4/5" />
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-3/5" />
+          </div>
+        ) : (
+          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+            {renderText(text)}
+            {isActive && (
+              <span
+                className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom"
+                aria-hidden="true"
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Error helpers ─────────────────────────────────────────────────────────
+
+function classifyError(err: unknown): string {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  if (m.includes("401") || m.includes("maintenance")) return "現在メンテナンス中です。しばらくお待ちください。";
+  if (m.includes("402") || m.includes("429") || m.includes("529") || m.includes("overload"))
+    return "現在アクセスが集中しています。しばらくお待ちください。";
+  if (m.includes("timeout") || m.includes("timed out")) return "通信に時間がかかっています。";
+  if (/[ぁ-ん]/.test(m) || /[ァ-ン]/.test(m)) return err instanceof Error ? err.message : String(err);
+  return "現在メンテナンス中です。しばらくお待ちください。";
+}
+
+function isRetryableClient(err: unknown): boolean {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return m.includes("429") || m.includes("529") || m.includes("overload") ||
+         m.includes("timeout") || m.includes("fetch failed") || m.includes("network");
+}
+
+// ─── Export helpers ────────────────────────────────────────────────────────
+
+function formatAsText(disease: string, texts: Record<string, string>): string {
+  const lines = [`【${disease}】`, `生成日時：${new Date().toLocaleString("ja-JP")}`, ""];
+  for (const key of NEW_SECTION_ORDER) {
+    const text = texts[key];
+    if (!text) continue;
+    lines.push(`■ ${NEW_SECTION_TITLES[key]}`);
+    lines.push(text.replace(/\[\[([^\]]+)\]\]/g, "$1"));
+    lines.push("");
+  }
+  lines.push("※ 本情報は文献・論文をもとに整理した情報です。臨床判断は専門家の責任において行ってください。");
+  return lines.join("\n");
+}
+
+// ─── Main component ────────────────────────────────────────────────────────
+
 export function MedicalSearch() {
   const [query,        setQuery]        = useState("");
   const [phase,        setPhase]        = useState<Phase>("idle");
   const [candidates,   setCandidates]   = useState<Suggestion[]>([]);
   const [searchQuery,  setSearchQuery]  = useState("");
-  const [partial,      setPartial]      = useState<PartialResult | null>(null);
-  const [streaming,    setStreaming]     = useState(false);
-  const [done,         setDone]         = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [copied,       setCopied]       = useState(false);
 
-  // Retry / stability state
-  const [retrying,     setRetrying]     = useState(false);
-  const [retryCount,   setRetryCount]   = useState(0);
-  const [slowWarning,  setSlowWarning]  = useState(false);
-  const [stalled,      setStalled]      = useState(false);
-  const [fromCache,    setFromCache]    = useState(false);
+  // Streaming state
+  const [disease,           setDisease]           = useState<string | null>(null);
+  const [sectionTexts,      setSectionTexts]      = useState<Record<string, string>>({});
+  const [currentSection,    setCurrentSection]    = useState<NewSectionKey | null>(null);
+  const [completedSections, setCompletedSections] = useState<Set<NewSectionKey>>(new Set());
+  const [streaming,         setStreaming]         = useState(false);
+  const [done,              setDone]              = useState(false);
+  const [fromCache,         setFromCache]         = useState(false);
+  const [showComplete,      setShowComplete]      = useState(false);
+  const [slowWarning,       setSlowWarning]       = useState(false);
+  const [retrying,          setRetrying]          = useState(false);
+  const [retryCount,        setRetryCount]        = useState(0);
 
   // Multi-disease / keyword flow
   const [originalQuery,        setOriginalQuery]        = useState("");
@@ -132,19 +204,20 @@ export function MedicalSearch() {
   const [keywordAnswerLoading, setKeywordAnswerLoading] = useState(false);
 
   const { history, addHistory, removeHistory, clearHistory } = useSearchHistory();
-  const cache = useSearchCache();
-  const { level: expLevel, meta: expMeta } = useExperienceLevel();
+  const cache  = useSearchCache();
   const { isFavorited, toggleFavorite } = useFavorites();
-  const inputRef       = useRef<HTMLInputElement>(null);
-  const abortRef       = useRef<AbortController | null>(null);
-  const lastChunkRef   = useRef<number>(0);
-  const slowTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stallTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const partialRef         = useRef<PartialResult | null>(null); // mirror for use in closures
-  const diseaseResultsRef  = useRef<Record<string, { sections: Partial<Record<SectionKey, MedicalSection>>; done: boolean; keywordAnswer: string | null }>>({});
+  const inputRef      = useRef<HTMLInputElement>(null);
+  const abortRef      = useRef<AbortController | null>(null);
+  const slowTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textsRef      = useRef<Record<string, string>>({});
+  const diseaseResultsRef = useRef<Record<string, {
+    texts:         Record<string, string>;
+    done:          boolean;
+    keywordAnswer: string | null;
+  }>>({});
 
-  // Keep partialRef in sync
-  useEffect(() => { partialRef.current = partial; }, [partial]);
+  // Keep textsRef in sync for closures
+  useEffect(() => { textsRef.current = sectionTexts; }, [sectionTexts]);
 
   // "/" shortcut focuses search
   useEffect(() => {
@@ -158,50 +231,30 @@ export function MedicalSearch() {
     return () => document.removeEventListener("keydown", h);
   }, []);
 
-  // Clear timers on unmount
+  // Completion flash
+  useEffect(() => {
+    if (done && streaming === false) {
+      setShowComplete(true);
+      const t = setTimeout(() => setShowComplete(false), 600);
+      return () => clearTimeout(t);
+    }
+  }, [done, streaming]);
+
+  // Clear slow timer on unmount
   useEffect(() => () => {
-    if (slowTimerRef.current)  clearTimeout(slowTimerRef.current);
-    if (stallTimerRef.current) clearInterval(stallTimerRef.current);
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
   }, []);
 
-  // ── Timer helpers ──
-
-  const startTimers = useCallback(() => {
-    if (slowTimerRef.current)  clearTimeout(slowTimerRef.current);
-    if (stallTimerRef.current) clearInterval(stallTimerRef.current);
-
-    setSlowWarning(false);
-    setStalled(false);
-    lastChunkRef.current = Date.now();
-
-    slowTimerRef.current = setTimeout(() => setSlowWarning(true), SLOW_WARNING_MS);
-
-    stallTimerRef.current = setInterval(() => {
-      if (Date.now() - lastChunkRef.current > STALL_TIMEOUT_MS) {
-        setStalled(true);
-        if (stallTimerRef.current) clearInterval(stallTimerRef.current);
-      }
-    }, 2_000);
-  }, []);
-
-  const stopTimers = useCallback(() => {
-    if (slowTimerRef.current)  { clearTimeout(slowTimerRef.current);  slowTimerRef.current  = null; }
-    if (stallTimerRef.current) { clearInterval(stallTimerRef.current); stallTimerRef.current = null; }
-    setSlowWarning(false);
-    setStalled(false);
-  }, []);
-
-  // ── Core SSE runner (single attempt) ──
+  // ── Core SSE runner ───────────────────────────────────────────────────────
 
   const runStream = useCallback(async (
-    disease: string,
+    d: string,
     signal: AbortSignal,
-    keepExisting: boolean,
   ): Promise<void> => {
     const res = await fetch("/api/medical-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ disease }),
+      body: JSON.stringify({ disease: d }),
       signal,
     });
 
@@ -218,8 +271,8 @@ export function MedicalSearch() {
       const { done: rd, value } = await reader.read();
       if (rd) break;
 
-      lastChunkRef.current = Date.now(); // reset stall clock on every chunk
-      setSlowWarning(false);             // clear slow-warning once data arrives
+      // First chunk clears slow warning
+      setSlowWarning(false);
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -230,26 +283,38 @@ export function MedicalSearch() {
         const raw = line.slice(6).trim();
         if (!raw) continue;
 
-        let payload: SsePayload;
-        try { payload = JSON.parse(raw) as SsePayload; } catch { continue; }
+        let event: SseEvent;
+        try { event = JSON.parse(raw) as SseEvent; } catch { continue; }
 
-        if ("error" in payload) throw new Error(payload.error);
-        if ("done"  in payload) { setDone(true); continue; }
-        if ("section" in payload) {
-          const { section, data } = payload;
-          setPartial(prev => {
-            if (!prev) return prev;
-            return { ...prev, sections: { ...prev.sections, [section]: data } };
+        if (event.type === "error")  throw new Error(event.error);
+        if (event.type === "done") {
+          setDone(true);
+          continue;
+        }
+        if (event.type === "section_start") {
+          setCurrentSection(event.key);
+          continue;
+        }
+        if (event.type === "section_end") {
+          setCompletedSections(prev => { const s = new Set(prev); s.add(event.key); return s; });
+          setCurrentSection(null);
+          continue;
+        }
+        if (event.type === "text") {
+          setSectionTexts(prev => {
+            const next = { ...prev, [event.key]: (prev[event.key] ?? "") + event.text };
+            textsRef.current = next;
+            return next;
           });
         }
       }
     }
   }, []);
 
-  // ── Main search with retry loop ──
+  // ── Main search with retry loop ───────────────────────────────────────────
 
   const startFullSearch = useCallback(async (
-    disease: string,
+    d: string,
     opts?: { keepPartial?: boolean },
   ) => {
     abortRef.current?.abort();
@@ -263,17 +328,23 @@ export function MedicalSearch() {
     setRetrying(false);
     setRetryCount(0);
     setFromCache(false);
+    setShowComplete(false);
+    setDisease(d);
 
     if (!opts?.keepPartial) {
-      setPartial({ disease, sections: {} });
+      setSectionTexts({});
+      setCurrentSection(null);
+      setCompletedSections(new Set());
+      textsRef.current = {};
     }
 
-    addHistory(disease);
+    addHistory(d);
 
-    // ── Cache check ──
-    const cached = cache.get(disease);
-    if (cached && Object.keys(cached).length >= SECTIONS.length) {
-      setPartial({ disease, sections: cached });
+    // Cache check
+    const cached = cache.get(d);
+    if (cached && NEW_SECTION_ORDER.every(k => !!cached[k])) {
+      setSectionTexts(cached);
+      setCompletedSections(new Set(NEW_SECTION_ORDER));
       setStreaming(false);
       setDone(true);
       setFromCache(true);
@@ -281,75 +352,60 @@ export function MedicalSearch() {
     }
 
     setStreaming(true);
-    startTimers();
+
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+    setSlowWarning(false);
+    slowTimerRef.current = setTimeout(() => setSlowWarning(true), SLOW_WARNING_MS);
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      if (abort.signal.aborted) { stopTimers(); return; }
+      if (abort.signal.aborted) break;
 
       if (attempt > 0) {
         setRetrying(true);
         setRetryCount(attempt);
         await new Promise<void>(r => setTimeout(r, 1_500 * attempt));
-        if (abort.signal.aborted) { stopTimers(); return; }
+        if (abort.signal.aborted) break;
         setRetrying(false);
-        // Reset stall clock after reconnect delay
-        lastChunkRef.current = Date.now();
-        setStalled(false);
       }
 
       try {
-        await runStream(disease, abort.signal, !!opts?.keepPartial);
+        await runStream(d, abort.signal);
 
         // Success
-        stopTimers();
+        if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
         setStreaming(false);
 
-        // Save full result to cache
-        const current = partialRef.current;
-        if (current && Object.keys(current.sections).length > 0) {
-          cache.set(disease, current.sections);
-        }
+        const finalTexts = textsRef.current;
+        if (Object.keys(finalTexts).length > 0) cache.set(d, finalTexts);
         return;
 
       } catch (err) {
-        if ((err as Error).name === "AbortError") { stopTimers(); return; }
-        if (abort.signal.aborted) { stopTimers(); return; }
+        if ((err as Error).name === "AbortError") break;
+        if (abort.signal.aborted) break;
 
-        const canRetry = attempt < MAX_RETRIES && isRetryableClient(err);
-        if (!canRetry) {
-          stopTimers();
-          setStreaming(false);
-          setError(classifyError(err));
-          if (!opts?.keepPartial) {
-            setPartial(null);
-            setPhase("idle");
-          }
-          return;
+        if (attempt < MAX_RETRIES && isRetryableClient(err)) continue;
+
+        if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+        setStreaming(false);
+        setError(classifyError(err));
+        if (!opts?.keepPartial) {
+          setDisease(null);
+          setPhase("idle");
         }
-        // else: loop continues with next attempt
+        return;
       }
     }
 
-    // Exhausted all retries
-    stopTimers();
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
     setStreaming(false);
-    setError("再試行しましたが接続できませんでした。通信環境をご確認ください。");
-    if (!opts?.keepPartial) {
-      setPartial(null);
-      setPhase("idle");
-    }
-  }, [addHistory, cache, runStream, startTimers, stopTimers]);
+  }, [addHistory, cache, runStream]);
 
-  // ── Resume from stall (keep already-loaded sections) ──
+  // ── Main search trigger ───────────────────────────────────────────────────
 
-  const handleResume = useCallback(() => {
-    if (!partial) return;
-    startFullSearch(partial.disease, { keepPartial: true });
-  }, [partial, startFullSearch]);
-
-  // ── Main search trigger ──
-
-  const handleSearch = useCallback(async (input: string = query, opts?: { direct?: boolean }) => {
+  const handleSearch = useCallback(async (
+    input: string = query,
+    opts?: { direct?: boolean },
+  ) => {
     const q = input.trim();
     if (!q) return;
 
@@ -382,57 +438,29 @@ export function MedicalSearch() {
     }
   }, [query, startFullSearch]);
 
-  const handleClear = () => {
-    abortRef.current?.abort();
-    stopTimers();
-    setPhase("idle");
-    setPartial(null);
-    setDone(false);
-    setError(null);
-    setQuery("");
-    setCandidates([]);
-    setRetrying(false);
-    setRetryCount(0);
-    setOriginalQuery("");
-    setSelectedDiseases([]);
-    setTabDiseases([]);
-    setActiveDiseaseIdx(0);
-    setKeywordAnswer(null);
-    setKeywordAnswerLoading(false);
-    diseaseResultsRef.current = {};
-    inputRef.current?.focus();
-  };
-
-  const handleCopyAll = async () => {
-    if (!partial) return;
-    await navigator.clipboard.writeText(formatAsText(partial.disease, partial.sections));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  // ── Multi-disease / keyword helpers ──────────────────────────────────────
+  // ── Multi-disease helpers ─────────────────────────────────────────────────
 
   const toggleCandidateSelection = useCallback((name: string) => {
     setSelectedDiseases(prev =>
-      prev.includes(name) ? prev.filter(d => d !== name) : [...prev, name]
+      prev.includes(name) ? prev.filter(d => d !== name) : [...prev, name],
     );
   }, []);
 
-  const startFullSearchWithKeyword = useCallback((disease: string, keyword: string) => {
+  const startFullSearchWithKeyword = useCallback((d: string, keyword: string) => {
     if (keyword) {
       setKeywordAnswer(null);
       setKeywordAnswerLoading(true);
       fetch("/api/keyword-answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: keyword, disease }),
+        body: JSON.stringify({ query: keyword, disease: d }),
       })
         .then(r => r.json())
         .then((data: { answer: string }) => setKeywordAnswer(data.answer ?? null))
         .catch(() => setKeywordAnswer(null))
         .finally(() => setKeywordAnswerLoading(false));
     }
-    startFullSearch(disease);
+    startFullSearch(d);
   }, [startFullSearch]);
 
   const handleMultiSearch = useCallback((diseases: string[]) => {
@@ -450,10 +478,10 @@ export function MedicalSearch() {
     const nextDisease = tabDiseases[idx];
     if (!nextDisease) return;
 
-    // Save current to cache before switching
-    if (partial && tabDiseases[activeDiseaseIdx]) {
+    // Save current before switching
+    if (disease && tabDiseases[activeDiseaseIdx]) {
       diseaseResultsRef.current[tabDiseases[activeDiseaseIdx]] = {
-        sections: partial.sections,
+        texts: sectionTexts,
         done,
         keywordAnswer,
       };
@@ -463,7 +491,9 @@ export function MedicalSearch() {
 
     const cached = diseaseResultsRef.current[nextDisease];
     if (cached) {
-      setPartial({ disease: nextDisease, sections: cached.sections });
+      setDisease(nextDisease);
+      setSectionTexts(cached.texts);
+      setCompletedSections(new Set(Object.keys(cached.texts) as NewSectionKey[]));
       setDone(cached.done);
       setStreaming(!cached.done);
       setKeywordAnswer(cached.keywordAnswer);
@@ -473,17 +503,43 @@ export function MedicalSearch() {
     }
 
     startFullSearchWithKeyword(nextDisease, originalQuery);
-  }, [tabDiseases, activeDiseaseIdx, partial, done, keywordAnswer, originalQuery, startFullSearchWithKeyword]);
+  }, [tabDiseases, activeDiseaseIdx, disease, sectionTexts, done, keywordAnswer, originalQuery, startFullSearchWithKeyword]);
 
-  // ─────────────────────────────────────────────────────────────────────────
+  const handleClear = () => {
+    abortRef.current?.abort();
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+    setPhase("idle");
+    setDisease(null);
+    setSectionTexts({});
+    setCurrentSection(null);
+    setCompletedSections(new Set());
+    setDone(false);
+    setError(null);
+    setQuery("");
+    setCandidates([]);
+    setRetrying(false);
+    setRetryCount(0);
+    setOriginalQuery("");
+    setSelectedDiseases([]);
+    setTabDiseases([]);
+    setActiveDiseaseIdx(0);
+    setKeywordAnswer(null);
+    setKeywordAnswerLoading(false);
+    diseaseResultsRef.current = {};
+    inputRef.current?.focus();
+  };
 
-  const loadedCount   = partial ? Object.keys(partial.sections).length : 0;
-  const totalSections = SECTIONS.length;
+  const handleCopyAll = async () => {
+    if (!disease) return;
+    await navigator.clipboard.writeText(formatAsText(disease, sectionTexts));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
-  const primarySections   = SECTIONS.filter(s =>  PRIMARY_SECTION_KEYS.has(s.key));
-  const secondarySections = SECTIONS.filter(s => !PRIMARY_SECTION_KEYS.has(s.key));
+  const loadedCount   = completedSections.size;
+  const totalSections = NEW_SECTION_ORDER.length;
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="w-full">
 
@@ -572,24 +628,16 @@ export function MedicalSearch() {
             {candidates.map(c => {
               const isSelected = selectedDiseases.includes(c.name);
               return (
-                <button
-                  key={c.name}
-                  onClick={() => toggleCandidateSelection(c.name)}
+                <button key={c.name} onClick={() => toggleCandidateSelection(c.name)}
                   className="w-full text-left rounded-xl border px-4 py-4 transition-all"
                   style={{
-                    background:   isSelected ? "#FFF7ED" : "white",
-                    borderColor:  isSelected ? "#E85D04" : "#e5e7eb",
-                    boxShadow:    isSelected ? "0 0 0 1px #E85D04" : undefined,
-                  }}
-                >
+                    background:  isSelected ? "#FFF7ED" : "white",
+                    borderColor: isSelected ? "#E85D04" : "#e5e7eb",
+                    boxShadow:   isSelected ? "0 0 0 1px #E85D04" : undefined,
+                  }}>
                   <div className="flex items-start gap-3">
-                    <div
-                      className="w-5 h-5 rounded flex items-center justify-center mt-0.5 shrink-0 border-2 transition-all"
-                      style={{
-                        borderColor: isSelected ? "#E85D04" : "#d1d5db",
-                        background:  isSelected ? "#E85D04" : "white",
-                      }}
-                    >
+                    <div className="w-5 h-5 rounded flex items-center justify-center mt-0.5 shrink-0 border-2 transition-all"
+                      style={{ borderColor: isSelected ? "#E85D04" : "#d1d5db", background: isSelected ? "#E85D04" : "white" }}>
                       {isSelected && (
                         <svg viewBox="0 0 12 10" fill="none" className="w-3 h-3">
                           <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -618,19 +666,14 @@ export function MedicalSearch() {
             style={{
               background: selectedDiseases.length > 0 ? "#1B4332" : "#9ca3af",
               cursor:     selectedDiseases.length > 0 ? "pointer" : "not-allowed",
-            }}
-          >
+            }}>
             この疾患で調べる
             {selectedDiseases.length > 0 && `（${selectedDiseases.length}件選択中）`}
           </button>
 
           <button
-            onClick={() => {
-              setOriginalQuery("");
-              startFullSearch(searchQuery);
-            }}
-            className="w-full py-3 text-sm text-gray-500 border border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:text-gray-700 transition"
-          >
+            onClick={() => { setOriginalQuery(""); startFullSearch(searchQuery); }}
+            className="w-full py-3 text-sm text-gray-500 border border-dashed border-gray-300 rounded-xl hover:border-gray-400 hover:text-gray-700 transition">
             「{searchQuery}」でそのまま検索する
           </button>
         </div>
@@ -638,57 +681,47 @@ export function MedicalSearch() {
 
       {/* ══ Error ══ */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center print:hidden">
-          <p className="text-red-700 font-medium">エラーが発生しました</p>
-          <p className="text-red-500 text-sm mt-1">{error}</p>
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center print:hidden">
           <button
-            onClick={() => { setError(null); handleSearch(partial?.disease ?? query, { direct: true }); }}
-            className="mt-3 text-sm text-red-600 underline hover:no-underline"
-          >
-            もう一度試す
+            onClick={() => { setError(null); handleSearch(disease ?? query, { direct: true }); }}
+            className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition hover:opacity-90"
+            style={{ background: "#E85D04" }}>
+            もう一度試してください
           </button>
         </div>
       )}
 
       {/* ══ Results ══ */}
-      {phase === "results" && partial && (
+      {phase === "results" && disease && (
         <div>
 
-          {/* ── Disease tabs (multi-disease mode) ── */}
+          {/* Disease tabs */}
           {tabDiseases.length > 1 && (
             <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 print:hidden">
               {tabDiseases.map((d, i) => (
-                <button
-                  key={d}
-                  onClick={() => handleTabSwitch(i)}
+                <button key={d} onClick={() => handleTabSwitch(i)}
                   className="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap"
                   style={{
-                    background:  i === activeDiseaseIdx ? "#1B4332" : "#f3f4f6",
-                    color:       i === activeDiseaseIdx ? "white"    : "#374151",
-                  }}
-                >
+                    background: i === activeDiseaseIdx ? "#1B4332" : "#f3f4f6",
+                    color:      i === activeDiseaseIdx ? "white"    : "#374151",
+                  }}>
                   {d}
                 </button>
               ))}
             </div>
           )}
 
-          {/* ── Keyword answer box ── */}
+          {/* Keyword answer box */}
           {originalQuery && (keywordAnswer !== null || keywordAnswerLoading) && (
-            <div
-              className="mb-5 rounded-2xl overflow-hidden print:hidden"
+            <div className="mb-5 rounded-2xl overflow-hidden print:hidden"
               style={{
-                background:  "#FFF3E0",
-                borderLeft:  "4px solid #E85D04",
-                border:      "1px solid #FFCC80",
+                background:      "#FFF3E0",
+                border:          "1px solid #FFCC80",
                 borderLeftWidth: "4px",
-              }}
-            >
+                borderLeftColor: "#E85D04",
+              }}>
               <div className="px-5 py-4">
-                <p
-                  className="font-bold text-base mb-2"
-                  style={{ color: "#E85D04" }}
-                >
+                <p className="font-bold text-base mb-2" style={{ color: "#E85D04" }}>
                   あなたの質問への回答
                 </p>
                 {keywordAnswerLoading ? (
@@ -697,10 +730,7 @@ export function MedicalSearch() {
                     <p className="text-sm text-orange-600">準備中...</p>
                   </div>
                 ) : (
-                  <p
-                    className="text-sm leading-relaxed whitespace-pre-wrap"
-                    style={{ color: "#1B4332" }}
-                  >
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "#1B4332" }}>
                     {keywordAnswer}
                   </p>
                 )}
@@ -711,18 +741,18 @@ export function MedicalSearch() {
             </div>
           )}
 
-          {/* ── Section title when in keyword mode ── */}
+          {/* Section label in keyword mode */}
           {originalQuery && (
-            <div className="mb-4">
+            <div className="mb-3">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">疾患の基本情報</p>
             </div>
           )}
 
-          {/* Result header */}
+          {/* Header bar */}
           <div className="flex items-start justify-between mb-4 print:mb-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 print:text-2xl">「{partial.disease}」</h2>
-              <div className="print:hidden mt-0.5">
+              <h2 className="text-xl font-bold text-gray-900 print:text-2xl">「{disease}」</h2>
+              <div className="mt-0.5 print:hidden">
                 {retrying ? (
                   <div className="flex items-center gap-2">
                     <span className="inline-block w-3.5 h-3.5 border-2 border-amber-400/40 border-t-amber-400 rounded-full animate-spin" />
@@ -733,7 +763,7 @@ export function MedicalSearch() {
                 ) : streaming ? (
                   <div className="flex items-center gap-2">
                     <div className="flex gap-0.5">
-                      {[0,1,2].map(i => (
+                      {[0, 1, 2].map(i => (
                         <span key={i} className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"
                           style={{ animationDelay: `${i * 0.15}s` }} />
                       ))}
@@ -755,33 +785,28 @@ export function MedicalSearch() {
             </div>
 
             <div className="flex items-center gap-2 print:hidden">
-              {done && partial?.disease && (
+              {done && (
                 <button
                   onClick={() => toggleFavorite({
-                    id:          `disease-${partial.disease}`,
+                    id:          `disease-${disease}`,
                     type:        "disease",
-                    title:       partial.disease,
-                    diseaseData: { disease: partial.disease, sections: partial.sections },
+                    title:       disease,
+                    diseaseData: { disease, sections: sectionTexts },
                   })}
                   className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:border-orange-300 transition"
-                  aria-label={isFavorited(`disease-${partial.disease}`) ? "お気に入り解除" : "お気に入りに追加"}
-                >
-                  <HeartIcon filled={isFavorited(`disease-${partial.disease}`)} />
+                  aria-label={isFavorited(`disease-${disease}`) ? "お気に入り解除" : "お気に入りに追加"}>
+                  <HeartIcon filled={isFavorited(`disease-${disease}`)} />
                 </button>
               )}
               {done && (
                 <>
-                  <button
-                    onClick={handleCopyAll}
-                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition"
-                  >
-                    {copied ? "✓ コピー済み" : "📋 全文コピー"}
+                  <button onClick={handleCopyAll}
+                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition">
+                    {copied ? "✓ コピー済み" : "全文コピー"}
                   </button>
-                  <button
-                    onClick={() => window.print()}
-                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition"
-                  >
-                    🖨️ 印刷
+                  <button onClick={() => window.print()}
+                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition">
+                    印刷
                   </button>
                 </>
               )}
@@ -791,155 +816,85 @@ export function MedicalSearch() {
             </div>
           </div>
 
-          {/* ── Slow warning banner ── */}
-          {slowWarning && streaming && !stalled && !retrying && (
+          {/* Progress bar */}
+          {streaming && (
+            <div className="w-full bg-gray-100 rounded-full h-1 mb-5 overflow-hidden print:hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${(loadedCount / totalSections) * 100}%`, background: "#E85D04" }} />
+            </div>
+          )}
+
+          {/* Slow warning (30s) */}
+          {slowWarning && streaming && (
             <div className="mb-4 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 print:hidden">
               <span className="inline-block w-4 h-4 border-2 border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
-              <p className="text-sm text-blue-700">生成中です。しばらくお待ちください…</p>
+              <p className="text-sm text-blue-700">少し時間がかかっています。このままお待ちください。</p>
             </div>
           )}
 
-          {/* ── Stall banner with resume button ── */}
-          {stalled && !done && !retrying && (
-            <div className="mb-4 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 print:hidden">
-              <p className="text-sm text-amber-700">
-                表示が止まっています。残りの項目を読み込みますか？
-              </p>
-              <button
-                onClick={handleResume}
-                className="shrink-0 text-xs font-bold px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
+          {/* Loading messages (while streaming) */}
+          {streaming && !completedSections.has("definition") && (
+            <div className="mb-4 print:hidden">
+              <LoadingMessages disease={disease} />
+            </div>
+          )}
+
+          {/* Completion flash */}
+          {showComplete && (
+            <div className="mb-3 text-center print:hidden">
+              <span
+                className="inline-block text-xs font-bold text-green-600 px-3 py-1 rounded-full border border-green-200 bg-green-50 animate-pulse"
               >
-                続きを読み込む
-              </button>
+                表示完了
+              </span>
             </div>
           )}
 
-          {/* Progress bar */}
-          {streaming && !stalled && (
-            <div className="w-full bg-gray-100 rounded-full h-1 mb-5 overflow-hidden print:hidden">
-              <div className="bg-blue-500 h-full rounded-full transition-all duration-500"
-                style={{ width: `${(loadedCount / totalSections) * 100}%` }} />
-            </div>
-          )}
-
-          {/* ── Experience level message ── */}
-          {expMeta && done && (
-            <div
-              className="mb-3 flex items-start gap-2 rounded-xl border px-4 py-3 print:hidden"
-              style={{ background: expMeta.bg, borderColor: expMeta.border }}
-            >
-              <span className="text-base shrink-0 mt-0.5">👨‍⚕️</span>
-              <div className="min-w-0">
-                <p className="text-xs font-bold mb-0.5" style={{ color: expMeta.color }}>
-                  あなた（{expMeta.label}）へのメッセージ
-                </p>
-                <p className="text-xs leading-relaxed" style={{ color: expMeta.color }}>
-                  {expMeta.message}
-                </p>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {(["basic", "applied", "expert"] as const).map(t => (
-                    <span
-                      key={t}
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: TIER_BADGE[t].bg, color: TIER_BADGE[t].color }}
-                    >
-                      {TIER_BADGE[t].label}
-                    </span>
-                  ))}
-                  <span className="text-[10px] text-gray-400 self-center">… は各セクションの難易度バッジです</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Primary sections ── */}
+          {/* ── Section cards ── */}
           <div className="space-y-3">
-            {primarySections.map(section => {
-              const data = partial.sections[section.key];
-              if (data) {
-                return (
-                  <SectionCard
-                    key={section.key}
-                    section={data}
-                    icon={section.icon}
-                    colorClass={section.color}
-                    disease={partial.disease}
-                    sectionKey={section.key}
-                    variant="primary"
-                    userTier={expMeta?.badgeTier ?? null}
-                  />
-                );
-              }
+            {NEW_SECTION_ORDER.map(key => {
+              const text        = sectionTexts[key] ?? "";
+              const isActive    = currentSection === key;
+              const isDone      = completedSections.has(key);
+              const hasContent  = text.length > 0;
+              const showSkeleton = streaming && !hasContent && !isActive;
+
               return (
-                <div key={section.key} className="rounded-xl border border-gray-200 overflow-hidden print:hidden">
-                  <div className="flex items-center gap-3 px-5 py-4 bg-white">
-                    <span className="text-xl opacity-20">{section.icon}</span>
-                    <div className="h-4 bg-gray-100 rounded animate-pulse w-44" />
-                  </div>
-                </div>
+                <SectionStreamCard
+                  key={key}
+                  title={NEW_SECTION_TITLES[key]}
+                  text={text}
+                  isActive={isActive}
+                  isDone={isDone}
+                  showSkeleton={showSkeleton}
+                  color={NEW_SECTION_COLORS[key]}
+                />
               );
             })}
           </div>
 
-          {/* Divider between primary and secondary */}
-          <div className="flex items-center gap-3 mt-5 mb-3">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs font-medium text-gray-400 tracking-wide">補足情報</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
-          {/* ── Secondary sections ── */}
-          <div className="space-y-1.5">
-            {secondarySections.map(section => {
-              const data = partial.sections[section.key];
-              if (data) {
-                return (
-                  <SectionCard
-                    key={section.key}
-                    section={data}
-                    icon={section.icon}
-                    colorClass={section.color}
-                    disease={partial.disease}
-                    sectionKey={section.key}
-                    variant="secondary"
-                    userTier={expMeta?.badgeTier ?? null}
-                  />
-                );
-              }
-              return (
-                <div key={section.key} className="rounded-xl border border-gray-200 overflow-hidden print:hidden">
-                  <div className="flex items-center gap-3 px-5 py-3 bg-white">
-                    <span className="text-base opacity-20">{section.icon}</span>
-                    <div className="h-3.5 bg-gray-100 rounded animate-pulse w-36" />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ── Comedical section (after main results) ── */}
+          {/* Comedical section */}
           {done && (
             <div className="mt-4">
-              <ComedicalSection disease={partial.disease} />
+              <ComedicalSection disease={disease} />
             </div>
           )}
 
-          {/* 文献検索ショートカット */}
-          {done && partial?.disease && (
+          {/* 文献検索リンク */}
+          {done && (
             <div className="mt-4 print:hidden">
               <a
-                href={`/stage1/literature?q=${encodeURIComponent(partial.disease)}`}
+                href={`/stage1/literature?q=${encodeURIComponent(disease)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-bold text-sm transition hover:opacity-90"
-                style={{ borderColor: "#1B4332", color: "#1B4332" }}
-              >
+                style={{ borderColor: "#1B4332", color: "#1B4332" }}>
                 この疾患の関連文献を検索する →
               </a>
             </div>
           )}
 
-          {/* ── 免責・出典注記 ── */}
+          {/* 免責注記 */}
           {done && (
             <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 print:border print:border-gray-300 print:bg-white">
               <p className="text-xs font-bold text-amber-800 mb-1">この情報について</p>
@@ -947,19 +902,16 @@ export function MedicalSearch() {
                 この内容は文献・教科書をもとに整理されています。
                 最終的な臨床判断は、原典の確認とPT自身の判断のもとで行ってください。
               </p>
-              {partial?.disease && (
-                <div className="mt-3 pt-3 border-t border-amber-200">
-                  <p className="text-[10px] font-bold text-amber-700 mb-1.5">参照文献を確認する</p>
-                  <a
-                    href={`/stage1/literature?q=${encodeURIComponent(partial.disease)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 transition"
-                  >
-                    「{partial.disease}」の文献検索で原典を確認する →
-                  </a>
-                </div>
-              )}
+              <div className="mt-3 pt-3 border-t border-amber-200">
+                <p className="text-[10px] font-bold text-amber-700 mb-1.5">参照文献を確認する</p>
+                <a
+                  href={`/stage1/literature?q=${encodeURIComponent(disease)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 transition">
+                  「{disease}」の文献検索で原典を確認する →
+                </a>
+              </div>
             </div>
           )}
 
