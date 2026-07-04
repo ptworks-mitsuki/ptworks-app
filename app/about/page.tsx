@@ -33,8 +33,28 @@ export default function AboutPage() {
         <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-4">Mission</p>
           <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-8">
-            理学療法士を、アップデートする。
+            AIで理学療法士をアップデートする。
           </h2>
+          <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
+            <p>
+              AIは道具です。
+              <br />
+              しかし使い方次第で、
+              <br />
+              思考の質も、働き方も、
+              <br />
+              キャリアの可能性も変わります。
+            </p>
+            <p>
+              PT Worksは、AIを理学療法士の
+              <br />
+              「思考パートナー」として設計しました。
+              <br />
+              調べる・考える・相談する・発信する。
+              <br />
+              そのすべてをAIが加速させます。
+            </p>
+          </div>
         </div>
       </section>
 
