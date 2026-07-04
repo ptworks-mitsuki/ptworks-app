@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { useFreeQuota } from "@/hooks/useFreeQuota";
 
 // ─── 型 ───────────────────────────────────────────────────────────────────
 
@@ -11,12 +12,10 @@ interface SavedPlan   { id: string; name: string; disease: string; savedAt: numb
 
 // ─── 定数 ─────────────────────────────────────────────────────────────────
 
-const BANNER_KEY   = "pt-banner-closed-v1";
-const STREAK_KEY   = "pt-streak-days";
-const USAGE_KEY    = "pt-usage-this-month";
-const HISTORY_KEY  = "pt-search-history";
-const PLANS_KEY    = "pt-saved-plans";
-const MAX_FREE     = 5;
+const BANNER_KEY  = "pt-banner-closed-v1";
+const STREAK_KEY  = "pt-streak-days";
+const HISTORY_KEY = "pt-search-history";
+const PLANS_KEY   = "pt-saved-plans";
 
 const QUICK_TAGS = ["変形性膝関節症", "脳梗塞", "人工股関節の禁忌", "肩の評価", "廃用症候群", "テニス肘"];
 
@@ -190,12 +189,12 @@ function getQAIcon(id: string, size = 20) {
 
 export default function HomePage() {
   const router = useRouter();
+  const { used, total, remaining, isExhausted, percentage } = useFreeQuota();
   const [sidebarOpen,  setSidebarOpen]    = useState(false);
   const [bannerClosed, setBannerClosed]   = useState(true);
   const [showNotif,    setShowNotif]      = useState(false);
   const [query,        setQuery]          = useState("");
   const [showPicker,   setShowPicker]     = useState(false);
-  const [usageCount,   setUsageCount]     = useState(1);
   const [streak,       setStreak]         = useState(3);
   const [history,      setHistory]        = useState<HistoryItem[]>([]);
   const [savedPlans,   setSavedPlans]     = useState<SavedPlan[]>([]);
@@ -208,8 +207,6 @@ export default function HomePage() {
   useEffect(() => {
     try {
       if (!localStorage.getItem(BANNER_KEY)) setBannerClosed(false);
-      const u = localStorage.getItem(USAGE_KEY);
-      if (u) setUsageCount(Number(u));
       const s = localStorage.getItem(STREAK_KEY);
       if (s) setStreak(Number(s));
       const h = localStorage.getItem(HISTORY_KEY);
@@ -247,9 +244,8 @@ export default function HomePage() {
     router.push(`${dest}?q=${encodeURIComponent(query)}`);
   };
 
-  const remaining = MAX_FREE - usageCount;
-  const usagePct  = Math.min((usageCount / MAX_FREE) * 100, 100);
-  const isLow     = remaining <= 2;
+  const isLow    = remaining <= 2;
+  const usagePct = percentage;
 
   // 最近の履歴：検索履歴 + 保存プランをマージして最大3件
   const recentItems: { id: string; title: string; sub: string; href: string }[] = [
@@ -400,7 +396,7 @@ export default function HomePage() {
                   style={{ width: `${usagePct}%`, background: isLow ? "#EF4444" : "#E85D04" }} />
               </div>
               <p className="text-xs font-bold" style={{ color: isLow ? "#EF4444" : "#1A1A1A" }}>
-                {usageCount}/{MAX_FREE}回使用
+                {used}/{total}回使用
                 {isLow && <span className="ml-1.5 text-[10px]">（残り{remaining}回）</span>}
               </p>
             </div>
