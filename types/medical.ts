@@ -65,13 +65,14 @@ export interface Suggestion {
 // ── v3 section types (streaming format) ───────────────────────────────────
 
 export type NewSectionKey =
-  | "definition" | "symptoms" | "assessment"
+  | "definition" | "symptoms" | "assessment" | "prognosis"
   | "treatment"  | "contraindications" | "clinical_points" | "references";
 
 export const NEW_SECTION_TITLES: Record<NewSectionKey, string> = {
   definition:        "定義・概要",
   symptoms:          "主な症状",
-  assessment:        "評価方法",
+  assessment:        "評価・検査",
+  prognosis:         "予後予測・ゴール設定",
   treatment:         "治療方針・リハビリアプローチ",
   contraindications: "注意事項・禁忌",
   clinical_points:   "臨床ポイント",
@@ -79,7 +80,7 @@ export const NEW_SECTION_TITLES: Record<NewSectionKey, string> = {
 };
 
 export const NEW_SECTION_ORDER: NewSectionKey[] = [
-  "definition", "symptoms", "assessment",
+  "definition", "symptoms", "assessment", "prognosis",
   "treatment",  "contraindications", "clinical_points", "references",
 ];
 
@@ -87,6 +88,7 @@ export const NEW_SECTION_COLORS: Record<NewSectionKey, string> = {
   definition:        "#1B4332",
   symptoms:          "#B45309",
   assessment:        "#0F766E",
+  prognosis:         "#0369A1",
   treatment:         "#1D4ED8",
   contraindications: "#DC2626",
   clinical_points:   "#7C3AED",

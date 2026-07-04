@@ -39,7 +39,7 @@ const LOADING_MESSAGES = [
 ];
 
 const DISPLAY_SECTIONS: NewSectionKey[] = [
-  "definition", "symptoms", "assessment", "treatment", "contraindications", "clinical_points",
+  "definition", "symptoms", "assessment", "prognosis", "treatment", "contraindications", "clinical_points",
 ];
 
 const QUICK_SEARCHES = [
