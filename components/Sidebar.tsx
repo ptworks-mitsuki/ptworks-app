@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 interface SidebarProps {
   isOpen:  boolean;
@@ -17,11 +17,12 @@ function Toast({ message, visible }: { message: string; visible: boolean }) {
     <div
       className="fixed bottom-24 left-1/2 z-[100] px-5 py-3 rounded-2xl text-white text-sm font-semibold shadow-xl pointer-events-none transition-all duration-300"
       style={{
-        background:   "#1A1A1A",
-        transform:    `translateX(-50%) translateY(${visible ? "0" : "12px"})`,
-        opacity:      visible ? 1 : 0,
-        maxWidth:     "90vw",
-        textAlign:    "center",
+        background: "#1A1A1A",
+        transform:  `translateX(-50%) translateY(${visible ? "0" : "12px"})`,
+        opacity:    visible ? 1 : 0,
+        maxWidth:   "90vw",
+        textAlign:  "center",
+        whiteSpace: "pre-line",
       }}
     >
       {message}
@@ -32,13 +33,11 @@ function Toast({ message, visible }: { message: string; visible: boolean }) {
 function useToast() {
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState("");
-
   const show = (msg: string) => {
     setMessage(msg);
     setVisible(true);
     setTimeout(() => setVisible(false), 2000);
   };
-
   return { visible, message, show };
 }
 
@@ -50,24 +49,55 @@ function NavLink({
   href: string; label: string; sub?: boolean;
   pathname: string; onClose: () => void;
 }) {
-  const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href) && href !== "/stage1" || pathname === href;
+  const isActive = href === "/" ? pathname === "/" : pathname === href;
 
   return (
     <Link
       href={href}
       onClick={onClose}
-      className="flex items-center justify-between rounded-xl text-sm transition-all"
+      className="flex items-center justify-between rounded-xl transition-all"
       style={{
-        marginLeft:   sub ? "1rem" : "0.5rem",
+        marginLeft:   sub ? "0.75rem" : "0.5rem",
         marginRight:  "0.5rem",
         marginBottom: "2px",
-        padding:      sub ? "8px 12px" : "10px 12px",
+        padding:      sub ? "9px 12px" : "10px 12px",
         background:   isActive ? "#FFF7ED" : "transparent",
         color:        isActive ? "#E85D04" : sub ? "#555555" : "#1A1A1A",
-        fontWeight:   isActive ? 700 : sub ? 400 : 500,
+        fontWeight:   isActive ? 700 : sub ? 400 : 600,
+        fontSize:     "13px",
       }}
     >
-      <span className="truncate text-sm">{label}</span>
+      <span className="truncate">{label}</span>
+      {isActive && (
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#E85D04" }} />
+      )}
+    </Link>
+  );
+}
+
+// ─── メインサービスリンク（オレンジ強調） ────────────────────────────────
+
+function MainServiceLink({
+  href, label, pathname, onClose,
+}: {
+  href: string; label: string; pathname: string; onClose: () => void;
+}) {
+  const isActive = pathname === href;
+  return (
+    <Link
+      href={href}
+      onClick={onClose}
+      className="flex items-center justify-between transition-all"
+      style={{
+        padding:      "9px 12px",
+        color:        isActive ? "#c44b00" : "#E85D04",
+        fontWeight:   700,
+        fontSize:     "13px",
+        background:   isActive ? "rgba(232,93,4,0.12)" : "transparent",
+        borderRadius: "0 8px 8px 0",
+      }}
+    >
+      <span className="truncate">{label}</span>
       {isActive && (
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#E85D04" }} />
       )}
@@ -77,25 +107,23 @@ function NavLink({
 
 // ─── 準備中アイテム ────────────────────────────────────────────────────────
 
-function ComingSoonItem({
-  label, onToast,
-}: {
-  label: string; onToast: () => void;
-}) {
+function ComingSoonItem({ label, onToast }: { label: string; onToast: () => void }) {
   return (
     <button
       type="button"
       onClick={onToast}
-      className="w-full flex items-center justify-between rounded-xl text-sm transition-all text-left"
+      className="w-full flex items-center justify-between rounded-xl text-left transition-all"
       style={{
         margin:       "0 0.5rem 2px",
         padding:      "10px 12px",
         width:        "calc(100% - 1rem)",
         color:        "#9CA3AF",
         cursor:       "default",
+        fontSize:     "13px",
+        fontWeight:   500,
       }}
     >
-      <span className="font-medium">{label}</span>
+      <span>{label}</span>
       <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0"
         style={{ background: "#E5E7EB", color: "#9CA3AF" }}>
         準備中
@@ -104,17 +132,15 @@ function ComingSoonItem({
   );
 }
 
-// ─── 区切り線 ─────────────────────────────────────────────────────────────
+// ─── 区切り・見出し ───────────────────────────────────────────────────────
 
 function Divider() {
   return <div className="mx-3 my-2" style={{ borderTop: "1px solid #F0F0F0" }} />;
 }
 
-// ─── セクション見出し ─────────────────────────────────────────────────────
-
 function SectionLabel({ label, color = "#9CA3AF" }: { label: string; color?: string }) {
   return (
-    <p className="px-5 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-wider"
+    <p className="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider"
       style={{ color }}>
       {label}
     </p>
@@ -134,12 +160,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* オーバーレイ */}
       {isOpen && (
         <div onClick={onClose} className="fixed inset-0 bg-black/30 z-30 backdrop-blur-sm" />
       )}
 
-      {/* パネル */}
       <aside
         className={`
           fixed left-0 top-14 h-[calc(100vh-3.5rem)]
@@ -157,7 +181,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {isExhausted ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3">
               <p className="text-[10px] font-black text-red-700 mb-1">今月の無料枠を使い切りました</p>
-              <p className="text-[10px] text-red-500 mb-2">引き続きご利用にはプランのアップグレードが必要です</p>
+              <p className="text-[10px] text-red-500 mb-2">引き続きご利用にはアップグレードが必要です</p>
               <Link href="/pricing" onClick={onClose}
                 className="flex items-center justify-center w-full py-2 rounded-xl font-black text-white text-[10px] transition hover:opacity-90"
                 style={{ background: "#dc2626" }}>
@@ -167,8 +191,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           ) : (
             <div className="rounded-xl border p-3"
               style={{
-                background:   remaining <= 2 ? "#FFF1F2" : "#FFF7ED",
-                borderColor:  remaining <= 2 ? "#FECDD3" : "#FED7AA",
+                background:  remaining <= 2 ? "#FFF1F2" : "#FFF7ED",
+                borderColor: remaining <= 2 ? "#FECDD3" : "#FED7AA",
               }}>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[10px] font-bold" style={{ color: remaining <= 2 ? "#9F1239" : "#9A3412" }}>
@@ -197,7 +221,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           )}
         </div>
 
-        {/* ── ナビゲーション（スクロール可） ── */}
+        {/* ── ナビゲーション ── */}
         <div className="flex-1 overflow-y-auto py-1" style={{ scrollbarWidth: "none" }}>
 
           {/* ホーム */}
@@ -205,11 +229,29 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           <Divider />
 
+          {/* マイアカウント */}
+          <SectionLabel label="マイアカウント" />
+          <NavLink href="/mypage"    label="マイページ"         sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/history"   label="利用履歴"           sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/bookmarks" label="ブックマーク・メモ" sub pathname={pathname} onClose={onClose} />
+
+          <Divider />
+
           {/* 臨床サポートパック */}
           <SectionLabel label="臨床サポートパック　無料〜¥980" color="#E85D04" />
-          <NavLink href="/stage1"              label="疾患を調べる"       sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"              label="治療を考える"       sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"              label="何でも相談する"     sub pathname={pathname} onClose={onClose} />
+
+          {/* メインサービス3つをカードで強調 */}
+          <div className="mx-2 mb-1 overflow-hidden rounded-xl"
+            style={{ background: "#FFF5F0", borderLeft: "4px solid #E85D04" }}>
+            <p className="px-3 pt-2 pb-0 text-[9px] font-bold tracking-wider uppercase"
+              style={{ color: "#9CA3AF" }}>
+              メインサービス
+            </p>
+            <MainServiceLink href="/stage1" label="疾患を調べる"  pathname={pathname} onClose={onClose} />
+            <MainServiceLink href="/stage1" label="治療を考える"  pathname={pathname} onClose={onClose} />
+            <MainServiceLink href="/stage1" label="何でも相談する" pathname={pathname} onClose={onClose} />
+          </div>
+
           <NavLink href="/stage1/literature"   label="文献検索"           sub pathname={pathname} onClose={onClose} />
           <NavLink href="/stage1"              label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
           <NavLink href="/stage1/slides"       label="スライド自動生成"   sub pathname={pathname} onClose={onClose} />
@@ -218,45 +260,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           <Divider />
 
-          {/* コンテンツマーケット */}
+          {/* 準備中4項目 */}
           <ComingSoonItem label="コンテンツマーケット" onToast={handleComingSoon} />
-
-          <Divider />
-
-          {/* 副業支援パック */}
-          <ComingSoonItem label="副業支援パック" onToast={handleComingSoon} />
-
-          <Divider />
-
-          {/* 開業・院運営パック */}
-          <ComingSoonItem label="開業・院運営パック" onToast={handleComingSoon} />
-
-          <Divider />
-
-          {/* 全部入りパック */}
-          <ComingSoonItem label="全部入りパック" onToast={handleComingSoon} />
-
-          <Divider />
-
-          {/* マイアカウント */}
-          <SectionLabel label="マイアカウント" />
-          <NavLink href="/mypage"    label="マイページ"       sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/history"   label="利用履歴"         sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/bookmarks" label="ブックマーク・メモ" sub pathname={pathname} onClose={onClose} />
+          <ComingSoonItem label="副業支援パック"       onToast={handleComingSoon} />
+          <ComingSoonItem label="開業・院運営パック"   onToast={handleComingSoon} />
+          <ComingSoonItem label="全部入りパック"       onToast={handleComingSoon} />
 
           <Divider />
 
           {/* サービス情報 */}
           <SectionLabel label="サービス情報" />
-          <NavLink href="/about"   label="PT Worksとは"           sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/about"   label="PT Worksとは"             sub pathname={pathname} onClose={onClose} />
           <NavLink href="/guide"   label="PT Worksの使い方について" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/pricing" label="料金プラン"              sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/pricing" label="料金プラン"               sub pathname={pathname} onClose={onClose} />
 
           <div className="h-6" />
         </div>
       </aside>
 
-      {/* トースト */}
       <Toast message={toast.message} visible={toast.visible} />
     </>
   );
