@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Sidebar } from "@/components/Sidebar";
 
 // ─── 型 ───────────────────────────────────────────────────────────────────
 
@@ -26,12 +27,14 @@ const NOTIFICATIONS = [
 ];
 
 const QUICK_ACCESS = [
-  { id: "search",   label: "疾患を調べる",  sub: "教科書・辞典",   href: "/stage1",            main: true },
-  { id: "evidence", label: "治療を考える",  sub: "AI個別提案",     href: "/stage1",            main: false },
-  { id: "case",     label: "何でも相談",    sub: "先輩PTに聞く",   href: "/stage1",            main: false },
-  { id: "slides",   label: "スライド生成",  sub: "発表を10分で",   href: "/stage1/slides",     main: false },
-  { id: "lit",      label: "文献検索",      sub: "論文・書籍",     href: "/stage1/literature", main: false },
-  { id: "calc",     label: "算定ガイド",    sub: "点数・加算",     href: "/learn/reimbursement", main: false },
+  { id: "search",   label: "疾患を調べる",      sub: "教科書・辞典",   href: "/stage1",              main: true  },
+  { id: "evidence", label: "治療を考える",       sub: "AI個別提案",     href: "/stage1",              main: false },
+  { id: "case",     label: "何でも相談",         sub: "先輩PTに聞く",   href: "/stage1",              main: false },
+  { id: "slides",   label: "スライド生成",       sub: "発表を10分で",   href: "/stage1/slides",       main: false },
+  { id: "lit",      label: "文献検索",           sub: "論文・書籍",     href: "/stage1/literature",   main: false },
+  { id: "calc",     label: "算定ガイド",         sub: "点数・加算",     href: "/learn/reimbursement", main: false },
+  { id: "learn",    label: "学習コンテンツ",     sub: "スキルを伸ばす", href: "/learn",               main: false },
+  { id: "market",   label: "コンテンツマーケット", sub: "動画・PDF販売",  href: "/market",              main: false },
 ];
 
 const PLANS_DATA = [
@@ -133,6 +136,28 @@ function IconCalc({ size = 20 }: { size?: number }) {
     </svg>
   );
 }
+function IconGraduate({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+    </svg>
+  );
+}
+function IconShop({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/>
+      <path d="M16 10a4 4 0 0 1-8 0"/>
+    </svg>
+  );
+}
+function IconMenu({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  );
+}
 function IconBell({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -155,6 +180,8 @@ function getQAIcon(id: string, size = 20) {
     case "case":     return <IconChat size={size} />;
     case "slides":   return <IconSlides size={size} />;
     case "lit":      return <IconBook size={size} />;
+    case "learn":    return <IconGraduate size={size} />;
+    case "market":   return <IconShop size={size} />;
     default:         return <IconCalc size={size} />;
   }
 }
@@ -163,6 +190,7 @@ function getQAIcon(id: string, size = 20) {
 
 export default function HomePage() {
   const router = useRouter();
+  const [sidebarOpen,  setSidebarOpen]    = useState(false);
   const [bannerClosed, setBannerClosed]   = useState(true);
   const [showNotif,    setShowNotif]      = useState(false);
   const [query,        setQuery]          = useState("");
@@ -244,13 +272,24 @@ export default function HomePage() {
   return (
     <div className="bg-white min-h-screen pb-24" style={{ color: "#1A1A1A" }}>
 
+      {/* サイドバー */}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
       {/* ① ヘッダー */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-100"
         style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
         <div className="flex items-center justify-between px-4 h-14 max-w-xl mx-auto">
 
-          {/* ロゴ */}
+          {/* 左：ハンバーガー＋ロゴ */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidebarOpen(v => !v)}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition"
+              style={{ color: "#1A1A1A" }}
+              aria-label="メニューを開く"
+            >
+              <IconMenu size={20} />
+            </button>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-base"
               style={{ background: "linear-gradient(135deg,#E85D04,#c44b00)" }}>P</div>
             <span className="text-lg font-black tracking-tight">
@@ -452,10 +491,10 @@ export default function HomePage() {
         {/* ⑤ クイックアクセス */}
         <section className="mt-6">
           <h2 className="text-[18px] font-black mb-3" style={{ color: "#1A1A1A" }}>クイックアクセス</h2>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-4 gap-2">
             {QUICK_ACCESS.map(item => (
               <a key={item.id} href={item.href}
-                className="flex flex-col items-center text-center px-2 py-4 rounded-2xl border transition active:scale-95"
+                className="flex flex-col items-center text-center px-1 py-3 rounded-2xl border transition active:scale-95"
                 style={{
                   background:   item.main ? "#FFF7ED" : "#F9FAFB",
                   borderColor:  item.main ? "#E85D04" : "#F3F4F6",
