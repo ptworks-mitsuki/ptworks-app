@@ -31,6 +31,24 @@ interface ParsedRef {
 const MAX_RETRIES    = 3;
 const SLOW_WARNING_MS = 30_000;
 
+// Which step-2 group each section belongs to (3 parallel API calls)
+const SECTION_GROUP: Record<NewSectionKey, 1 | 2 | 3> = {
+  definition: 1, symptoms: 1, assessment: 1,
+  prognosis: 2, treatment: 2,
+  contraindications: 3, clinical_points: 3,
+  references: 1,
+};
+
+type GroupStatus = "idle" | "loading" | "done" | "error";
+
+// Strip leaked ===MARKER=== lines from displayed text
+function cleanText(text: string): string {
+  return text
+    .split("\n")
+    .filter(line => !/^={3,}[A-Z_]*(={3,})?$/.test(line.trim()))
+    .join("\n");
+}
+
 const LOADING_MESSAGES = [
   (d: string) => `${d}について文献・教科書をもとに整理しています...`,
   ()          => "文献を確認しています...",
@@ -293,7 +311,7 @@ function replaceTerms(
 function SectionCard({
   title, summary, detail, refs, color, sectionKey,
   isStep1Active, isStep1Done, showSkeleton,
-  step2Loading, step2Done,
+  step2Status,
   onTermClick,
 }: {
   title:         string;
@@ -305,8 +323,7 @@ function SectionCard({
   isStep1Active: boolean;
   isStep1Done:   boolean;
   showSkeleton:  boolean;
-  step2Loading:  boolean;
-  step2Done:     boolean;
+  step2Status:   GroupStatus;
   onTermClick:   (term: string) => void;
 }) {
   const step1HasContent = summary.length > 0;
@@ -324,8 +341,17 @@ function SectionCard({
             ))}
           </span>
         )}
-        {isStep1Done && !isStep1Active && (
+        {step2Status === "loading" && (
+          <span className="text-[10px] text-blue-400 font-medium shrink-0">生成中...</span>
+        )}
+        {step2Status === "done" && (
           <span className="text-[10px] text-green-500 font-bold shrink-0">完了</span>
+        )}
+        {step2Status === "error" && (
+          <span className="text-[10px] text-red-400 font-medium shrink-0">未完了</span>
+        )}
+        {step2Status === "idle" && isStep1Done && !isStep1Active && (
+          <span className="text-[10px] text-gray-300 font-medium shrink-0">待機中</span>
         )}
       </div>
 
@@ -347,21 +373,21 @@ function SectionCard({
           </div>
         )}
 
-        {/* Step 2: Detail — shown only after fully done */}
+        {/* Step 2: Detail */}
         {step1HasContent && (
           <>
-            {step2Loading && !step2Done && (
+            {step2Status === "loading" && (
               <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
                 <span className="inline-block w-3 h-3 border border-gray-300 border-t-blue-400 rounded-full animate-spin shrink-0" />
-                詳細を読み込み中...
+                詳細を生成中...
               </div>
             )}
-            {step2Done && detail && (
+            {step2Status === "done" && detail && (
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <MdContent text={detail} color={color} onTermClick={onTermClick} />
+                <MdContent text={cleanText(detail)} color={color} onTermClick={onTermClick} />
               </div>
             )}
-            {step2Done && refs.length > 0 && <RefBlock refs={refs} />}
+            {step2Status === "done" && refs.length > 0 && <RefBlock refs={refs} />}
           </>
         )}
       </div>
@@ -431,9 +457,12 @@ export function MedicalSearch() {
   const [step2RawTexts,      setStep2RawTexts]      = useState<Record<string, string>>({});
   const [step2CurrentSec,    setStep2CurrentSec]    = useState<NewSectionKey | null>(null);
   const [step2CompletedSecs, setStep2CompletedSecs] = useState<Set<NewSectionKey>>(new Set());
-  const [step2Streaming,     setStep2Streaming]     = useState(false);
-  const [step2Done,          setStep2Done]          = useState(false);
-  const [step2Error,         setStep2Error]         = useState(false);
+  // Group-based status (3 sequential API calls)
+  const [step2GroupStatus, setStep2GroupStatus] = useState<Record<1|2|3, GroupStatus>>({ 1: "idle", 2: "idle", 3: "idle" });
+  // Computed shorthands
+  const step2ActiveGroup = ([1, 2, 3] as const).find(g => step2GroupStatus[g] === "loading") ?? null;
+  const step2Done    = step2GroupStatus[1] === "done" && step2GroupStatus[2] === "done" && step2GroupStatus[3] === "done";
+  const step2Streaming = step2ActiveGroup !== null;
 
   // Multi-disease
   const [selectedDiseases, setSelectedDiseases] = useState<string[]>([]);
@@ -453,7 +482,7 @@ export function MedicalSearch() {
   const diseaseResultsRef = useRef<Record<string, {
     step1Texts: Record<string, string>;
     step2RawTexts: Record<string, string>;
-    step2Done: boolean;
+    step2GroupStatus: Record<1|2|3, GroupStatus>;
   }>>({});
 
   useEffect(() => { step1TextsRef.current = step1Texts; }, [step1Texts]);
@@ -494,11 +523,12 @@ export function MedicalSearch() {
     d: string,
     signal: AbortSignal,
     step: 1 | 2,
+    group?: 1 | 2 | 3,
   ): Promise<void> => {
     const res = await fetch("/api/medical-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ disease: d, step }),
+      body: JSON.stringify({ disease: d, step, ...(group ? { group } : {}) }),
       signal,
     });
 
@@ -532,7 +562,6 @@ export function MedicalSearch() {
 
         if (event.type === "done") {
           if (step === 1) setStep1Done(true);
-          else            setStep2Done(true);
           continue;
         }
 
@@ -593,29 +622,57 @@ export function MedicalSearch() {
 
   // ── Step 2 trigger ────────────────────────────────────────────────────────
 
-  const startStep2 = useCallback(async (d: string) => {
+  const startStep2 = useCallback(async (d: string, fromGroup: 1 | 2 | 3 = 1) => {
     abort2Ref.current?.abort();
     const abort = new AbortController();
     abort2Ref.current = abort;
 
-    setStep2Error(false);
-    setStep2Done(false);
-    setStep2RawTexts({});
-    setStep2CurrentSec(null);
-    setStep2CompletedSecs(new Set());
-    step2TextsRef.current = {};
-    setStep2Streaming(true);
+    // Reset groups from fromGroup onwards
+    setStep2GroupStatus(p => {
+      const next = { ...p };
+      ([1, 2, 3] as const).forEach(g => { if (g >= fromGroup) next[g] = "idle"; });
+      return next;
+    });
+    if (fromGroup === 1) {
+      setStep2RawTexts({});
+      setStep2CurrentSec(null);
+      setStep2CompletedSecs(new Set());
+      step2TextsRef.current = {};
+    }
 
-    try {
-      await runStream(d, abort.signal, 2);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      if (!abort.signal.aborted) {
-        console.error("[MedicalSearch] step2 failed:", err);
-        setStep2Error(true);
+    for (const group of ([1, 2, 3] as const)) {
+      if (group < fromGroup) continue;
+      if (abort.signal.aborted) return;
+
+      setStep2GroupStatus(p => ({ ...p, [group]: "loading" }));
+
+      let success = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (abort.signal.aborted) return;
+        if (attempt > 0) {
+          await new Promise<void>(r => setTimeout(r, 3_000));
+          if (abort.signal.aborted) return;
+        }
+        try {
+          await runStream(d, abort.signal, 2, group);
+          success = true;
+          break;
+        } catch (err) {
+          if ((err as Error).name === "AbortError") return;
+          if (abort.signal.aborted) return;
+          console.error(`[MedicalSearch] step2 group${group} attempt${attempt + 1}:`, err);
+          if (!isRetryableClient(err) || attempt === 2) break;
+        }
       }
-    } finally {
-      if (!abort.signal.aborted) setStep2Streaming(false);
+
+      if (abort.signal.aborted) return;
+
+      if (success) {
+        setStep2GroupStatus(p => ({ ...p, [group]: "done" }));
+      } else {
+        setStep2GroupStatus(p => ({ ...p, [group]: "error" }));
+        return;
+      }
     }
   }, [runStream]);
 
@@ -629,8 +686,7 @@ export function MedicalSearch() {
 
     setPhase("results");
     setStep1Done(false);
-    setStep2Done(false);
-    setStep2Error(false);
+    setStep2GroupStatus({ 1: "idle", 2: "idle", 3: "idle" });
     setError(null);
     setCopied(false);
     setRetrying(false);
@@ -644,7 +700,6 @@ export function MedicalSearch() {
     setStep2RawTexts({});
     setStep2CurrentSec(null);
     setStep2CompletedSecs(new Set());
-    setStep2Streaming(false);
     step1TextsRef.current = {};
     step2TextsRef.current = {};
 
@@ -764,9 +819,9 @@ export function MedicalSearch() {
 
     if (disease && tabDiseases[activeDiseaseIdx]) {
       diseaseResultsRef.current[tabDiseases[activeDiseaseIdx]] = {
-        step1Texts:    step1Texts,
-        step2RawTexts: step2RawTexts,
-        step2Done:     step2Done,
+        step1Texts:      step1Texts,
+        step2RawTexts:   step2RawTexts,
+        step2GroupStatus: step2GroupStatus,
       };
     }
 
@@ -781,8 +836,7 @@ export function MedicalSearch() {
       setStep1Streaming(false);
       setStep2RawTexts(cached.step2RawTexts);
       setStep2CompletedSecs(new Set(Object.keys(cached.step2RawTexts) as NewSectionKey[]));
-      setStep2Done(cached.step2Done);
-      setStep2Streaming(!cached.step2Done);
+      setStep2GroupStatus(cached.step2GroupStatus);
       setPhase("results");
       return;
     }
@@ -804,9 +858,7 @@ export function MedicalSearch() {
     setStep2RawTexts({});
     setStep2CurrentSec(null);
     setStep2CompletedSecs(new Set());
-    setStep2Done(false);
-    setStep2Streaming(false);
-    setStep2Error(false);
+    setStep2GroupStatus({ 1: "idle", 2: "idle", 3: "idle" });
     setError(null);
     setQuery("");
     setCandidates([]);
@@ -990,7 +1042,9 @@ export function MedicalSearch() {
                 ) : step1Done && step2Streaming ? (
                   <div className="flex items-center gap-2">
                     <span className="inline-block w-3 h-3 border border-blue-400/40 border-t-blue-500 rounded-full animate-spin shrink-0" />
-                    <span className="text-xs text-blue-500">詳細情報を読み込み中...</span>
+                    <span className="text-xs text-blue-500">
+                      詳細を生成中 ({step2ActiveGroup}/3)...
+                    </span>
                   </div>
                 ) : step1Done && step2Done ? (
                   <div className="flex items-center gap-2">
@@ -1063,17 +1117,17 @@ export function MedicalSearch() {
               const summary      = step1Texts[key] ?? "";
               const rawDetail    = step2RawTexts[key] ?? "";
               const { detail, refs } = splitStep2Text(rawDetail);
-              const isStep1Active    = step1CurrentSec === key;
-              const isStep1Done      = step1CompletedSecs.has(key);
-              const showSkeleton     = step1Streaming && !summary && !isStep1Active;
-              const step2LoadingThis = step2Streaming && isStep1Done;
-              const step2DoneThis    = step2Done;
+              const isStep1Active = step1CurrentSec === key;
+              const isStep1Done   = step1CompletedSecs.has(key);
+              const showSkeleton  = step1Streaming && !summary && !isStep1Active;
+              const group         = SECTION_GROUP[key];
+              const sectionStep2Status = step2GroupStatus[group];
 
               return (
                 <SectionCard
                   key={key}
                   title={NEW_SECTION_TITLES[key]}
-                  summary={summary}
+                  summary={cleanText(summary)}
                   detail={detail}
                   refs={refs}
                   color={NEW_SECTION_COLORS[key]}
@@ -1081,25 +1135,27 @@ export function MedicalSearch() {
                   isStep1Active={isStep1Active}
                   isStep1Done={isStep1Done}
                   showSkeleton={showSkeleton}
-                  step2Loading={step2LoadingThis}
-                  step2Done={step2DoneThis}
+                  step2Status={sectionStep2Status}
                   onTermClick={handleTermClick}
                 />
               );
             })}
           </div>
 
-          {/* Step 2 error: retry button only */}
-          {step2Error && !step2Streaming && (
+          {/* Step 2 per-group error: retry from the failed group */}
+          {!step2Streaming && ([1, 2, 3] as const).some(g => step2GroupStatus[g] === "error") && (
             <div className="mt-3 flex flex-col items-center gap-1.5 print:hidden">
               <p className="text-xs text-gray-400">詳細情報の読み込みが止まりました。</p>
-              <button
-                onClick={() => disease && startStep2(disease)}
-                className="text-xs font-bold px-5 py-2.5 rounded-xl border transition"
-                style={{ borderColor: "#E85D04", color: "#E85D04" }}
-              >
-                続きを読み込む
-              </button>
+              {([1, 2, 3] as const).filter(g => step2GroupStatus[g] === "error").map(g => (
+                <button
+                  key={g}
+                  onClick={() => disease && startStep2(disease, g)}
+                  className="text-xs font-bold px-5 py-2.5 rounded-xl border transition"
+                  style={{ borderColor: "#E85D04", color: "#E85D04" }}
+                >
+                  続きを読み込む
+                </button>
+              ))}
             </div>
           )}
 

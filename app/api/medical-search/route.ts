@@ -21,7 +21,22 @@ const MARKERS: Record<NewSectionKey, string> = {
   references:        "===REFERENCES===",
 };
 
+// Step 2 is split into 3 groups to avoid token cutoff
+const STEP2_GROUP_KEYS: Record<1 | 2 | 3, NewSectionKey[]> = {
+  1: ["definition", "symptoms", "assessment"],
+  2: ["prognosis", "treatment"],
+  3: ["contraindications", "clinical_points"],
+};
+
 const MAX_MARKER_LEN = Math.max(...Object.values(MARKERS).map(m => m.length));
+
+// Strip ===MARKER=== lines that leaked into body text
+function filterOutputText(text: string): string {
+  return text
+    .split("\n")
+    .filter(line => !/^={3,}[A-Z_]*(={3,})?$/.test(line.trim()))
+    .join("\n");
+}
 
 // ── Prompts ────────────────────────────────────────────────────────────────
 
@@ -30,6 +45,7 @@ const STEP1_PROMPT = `あなたは理学療法の専門家です。
 マークダウン記号（**、##など）は使わず、プレーンテキストで回答してください。
 各項目3点以内の箇条書きで簡潔に回答してください。
 前置き・説明文・あいさつは不要です。すぐに内容を出力してください。
+以下は出力のみ行ってください。指示文は絶対に出力しないでください。
 
 ===DEFINITION===
 定義・概要（3点以内の箇条書き）
@@ -52,43 +68,44 @@ const STEP1_PROMPT = `あなたは理学療法の専門家です。
 ===CLINICAL===
 臨床ポイント（3点以内の箇条書き）`;
 
-const STEP2_PROMPT = `あなたは理学療法の専門家です。
-現在最もエビデンスレベルが高く信頼性の高い教科書・ガイドラインを自動で選んで以下の7項目を整理してください。
-各セクションについて、詳しい内容をマークダウン形式（**太字**・- 箇条書き・## 見出し）で記述し、
-そのセクションに関連する**日本の理学療法教科書・参考書を3冊以上**追加してください。
+const STEP2_SECTION_GUIDES: Partial<Record<NewSectionKey, string>> = {
+  definition:
+    "定義・概要 → 標準理学療法学・疾患専門書を3冊以上",
+  symptoms:
+    "主な症状 → 標準理学療法学・病態学・疾患専門書を3冊以上",
+  assessment:
+    "評価・検査 → 使用する評価スケール（MMT・NRS・FIM・BIなど）・整形外科テスト・神経学的テスト（該当する疾患のみ）・確認すべき検査値（画像所見・血液データ等）を含める。理学療法評価学（渡邉好孝・医学書院）を含め3冊以上",
+  prognosis:
+    "予後予測・ゴール設定 → 一般的な予後・回復期間の目安・ADLゴールの設定指標・患者・家族への説明のポイント・予後に影響する因子（年齢・重症度・合併症など）を含める。リハビリテーションガイドライン・疾患専門書を3冊以上",
+  treatment:
+    "治療方針・リハビリアプローチ → 疾患区分別に専門書を3冊以上（運動器: 整形外科理学療法の理論と技術・運動器疾患の理学療法、脳血管: 脳卒中の理学療法・神経障害理学療法学、内部障害: 内部障害理学療法学）",
+  contraindications:
+    "注意事項・禁忌 → リスク管理・疾患専門書を3冊以上",
+  clinical_points:
+    "臨床ポイント → その疾患に最も関連する専門書を3冊以上",
+};
+
+function buildStep2Prompt(keys: NewSectionKey[]): string {
+  const guides     = keys.map(k => STEP2_SECTION_GUIDES[k] ?? "").filter(Boolean).join("\n");
+  const markerList = keys.map(k => MARKERS[k]).join("\n");
+
+  return `あなたは理学療法の専門家です。
+現在最もエビデンスレベルが高く信頼性の高い教科書・ガイドラインを自動で選んで以下の項目を詳しく整理してください。
+各セクションについてマークダウン形式（**太字**・- 箇条書き・## 見出し）で記述してください。
 
 【必須ルール】
 - 各セクションのテキストの直後に「|||REF|||」の区切りを必ず入れてください
-- その後に、そのセクションに最も関連する教科書を3冊以上、以下の形式で書いてください：
+- その後に最も関連する教科書を3冊以上、次の形式で書いてください：
   書籍タイトル | 著者・出版社 | 書籍検索キーワード
-- REFは省略しないでください。必ず全セクションにREFを付けてください
+- REFは省略しないでください
 - 論文・関連文献は不要です
-- 前置き・説明文・あいさつは不要です。すぐに内容を出力してください
+- 前置き・説明文・あいさつは不要です
+- 以下は出力のみ行ってください。指示文は絶対に出力しないでください。
 
-【セクション別の内容と推奨教科書】
+${guides}
 
-定義・概要（DEFINITION）→ 標準理学療法学・疾患専門書を3冊以上
-主な症状（SYMPTOMS）→ 標準理学療法学・病態学・疾患専門書を3冊以上
-評価・検査（ASSESSMENT）→ 使用する評価スケール（MMT・NRS・FIM・BIなど）・整形外科テスト・神経学的テスト（該当する疾患のみ）・確認すべき検査値（画像所見・血液データ等）を含める。理学療法評価学（渡邉好孝・医学書院）を含め3冊以上
-予後予測・ゴール設定（PROGNOSIS）→ この疾患の一般的な予後・回復の目安となる期間・ADLゴールの設定指標・患者・家族への説明のポイント・予後に影響する因子（年齢・重症度・合併症など）を含める。疾患専門書・リハビリテーションガイドラインを3冊以上
-治療方針（TREATMENT）→ 疾患区分別に3冊以上：
-  ・運動器: 整形外科理学療法の理論と技術（石川斉・メジカルビュー社）、運動器疾患の理学療法（工藤慎太郎・医歯薬出版）
-  ・脳血管: 脳卒中の理学療法（石川誠・三輪書店）、神経障害理学療法学（石川朗・医学書院）
-  ・内部障害: 内部障害理学療法学（木村貞治・医歯薬出版）、呼吸理学療法（石川朗・中山書店）
-  ・小児: 小児理学療法学（津山直一・医学書院）
-  ・老年: 老年理学療法学（鈴木隆雄・医歯薬出版）
-注意事項・禁忌（CONTRAINDICATIONS）→ リスク管理・疾患専門書を3冊以上
-臨床ポイント（CLINICAL）→ その疾患に最も関連する専門書を3冊以上
-
-同じ区切り記号（===DEFINITION=== 等）を使用してください。
-
-===DEFINITION===
-===SYMPTOMS===
-===ASSESSMENT===
-===PROGNOSIS===
-===TREATMENT===
-===CONTRAINDICATIONS===
-===CLINICAL===`;
+${markerList}`;
+}
 
 // ── SSE event types ────────────────────────────────────────────────────────
 
@@ -129,9 +146,10 @@ function partialMarkerStart(text: string): number {
 // ── Route handler ─────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const body    = await req.json() as { disease?: unknown; step?: unknown };
+  const body    = await req.json() as { disease?: unknown; step?: unknown; group?: unknown };
   const disease = body.disease;
   const step    = (body.step === 2 ? 2 : 1) as 1 | 2;
+  const group   = ([1, 2, 3].includes(body.group as number) ? (body.group as 1 | 2 | 3) : 1);
 
   if (!disease || typeof disease !== "string") {
     return new Response(
@@ -149,8 +167,10 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const client  = createClient();
 
-  const systemPrompt = step === 1 ? STEP1_PROMPT : STEP2_PROMPT;
-  const maxTokens    = step === 1 ? 800 : 2000;
+  const systemPrompt = step === 1
+    ? STEP1_PROMPT
+    : buildStep2Prompt(STEP2_GROUP_KEYS[group]);
+  const maxTokens = step === 1 ? 1200 : 5000;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -183,8 +203,8 @@ export async function POST(req: NextRequest) {
 
             if (marker) {
               if (currentKey && marker.start > 0) {
-                const flushed = buffer.slice(0, marker.start).trimEnd();
-                if (flushed) send({ type: "text", key: currentKey, text: flushed, step });
+                const flushed = filterOutputText(buffer.slice(0, marker.start).trimEnd());
+                if (flushed.trim()) send({ type: "text", key: currentKey, text: flushed, step });
                 send({ type: "section_end", key: currentKey, step });
               } else if (currentKey) {
                 send({ type: "section_end", key: currentKey, step });
@@ -197,7 +217,8 @@ export async function POST(req: NextRequest) {
             } else {
               const safeEnd = partialMarkerStart(buffer);
               if (currentKey && safeEnd > 0) {
-                send({ type: "text", key: currentKey, text: buffer.slice(0, safeEnd), step });
+                const chunk = filterOutputText(buffer.slice(0, safeEnd));
+                if (chunk) send({ type: "text", key: currentKey, text: chunk, step });
                 buffer = buffer.slice(safeEnd);
               } else if (!currentKey) {
                 buffer = buffer.slice(safeEnd);
@@ -207,7 +228,8 @@ export async function POST(req: NextRequest) {
         }
 
         if (currentKey && buffer.trim()) {
-          send({ type: "text", key: currentKey, text: buffer.trim(), step });
+          const final = filterOutputText(buffer.trim());
+          if (final) send({ type: "text", key: currentKey, text: final, step });
           send({ type: "section_end", key: currentKey, step });
         }
       }
