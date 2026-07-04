@@ -126,6 +126,24 @@ function LoadingMessages({ disease }: { disease: string }) {
 
 function RefBlock({ refs }: { refs: ParsedRef[] }) {
   if (refs.length === 0) return null;
+  const [saved, setSaved]     = useState<Set<string>>(new Set());
+  const [toastOn, setToastOn] = useState(false);
+
+  const handleSave = (ref: ParsedRef) => {
+    if (saved.has(ref.citation)) return;
+    try {
+      const prev = JSON.parse(localStorage.getItem("pt-saved-books") ?? "[]") as Array<{ id: string }>;
+      const id = `book-${ref.citation.slice(0, 40)}`;
+      if (!prev.some(b => b.id === id)) {
+        prev.push({ id, citation: ref.citation, level: ref.level, keyword: ref.keyword, savedAt: Date.now() } as never);
+        localStorage.setItem("pt-saved-books", JSON.stringify(prev));
+      }
+    } catch { /* ignore */ }
+    setSaved(p => new Set(p).add(ref.citation));
+    setToastOn(true);
+    setTimeout(() => setToastOn(false), 2000);
+  };
+
   return (
     <div className="mt-3 rounded-xl overflow-hidden" style={{ background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
       <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-1.5">
@@ -135,24 +153,33 @@ function RefBlock({ refs }: { refs: ParsedRef[] }) {
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">参考</span>
       </div>
       <div className="px-3 py-2 space-y-2">
-        {refs.map((ref, i) => (
-          <div key={i}>
-            <p className="text-[11px] font-semibold text-gray-700 leading-snug">{ref.citation}</p>
-            {ref.level && <p className="text-[10px] text-gray-400 mt-0.5">{ref.level}</p>}
-            {ref.keyword && (
-              <a
-                href={`/stage1/literature?q=${encodeURIComponent(ref.keyword)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1 inline-block text-[11px] font-semibold transition hover:opacity-80"
-                style={{ color: "#E85D04" }}
+        {refs.map((ref, i) => {
+          const isSaved = saved.has(ref.citation);
+          return (
+            <div key={i}>
+              <p className="text-[11px] font-semibold text-gray-700 leading-snug">{ref.citation}</p>
+              {ref.level && <p className="text-[10px] text-gray-400 mt-0.5">{ref.level}</p>}
+              <button
+                type="button"
+                onClick={() => handleSave(ref)}
+                disabled={isSaved}
+                className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold transition-all"
+                style={{ color: isSaved ? "#9CA3AF" : "#E85D04", cursor: isSaved ? "default" : "pointer" }}
               >
-                参考書で詳しく見る →
-              </a>
-            )}
-          </div>
-        ))}
+                <svg viewBox="0 0 24 24" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+                {isSaved ? "保存済み" : "お気に入りに追加"}
+              </button>
+            </div>
+          );
+        })}
       </div>
+      {toastOn && (
+        <div className="px-3 py-1.5 text-center text-[11px] font-bold text-green-700 bg-green-50 border-t border-green-100">
+          保存しました
+        </div>
+      )}
     </div>
   );
 }
@@ -455,6 +482,12 @@ export function MedicalSearch() {
     if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
   }, []);
 
+  // ページ離脱時にストリームをキャンセル
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    abort2Ref.current?.abort();
+  }, []);
+
   // ── SSE runner ─────────────────────────────────────────────────────────────
 
   const runStream = useCallback(async (
@@ -577,7 +610,10 @@ export function MedicalSearch() {
       await runStream(d, abort.signal, 2);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
-      if (!abort.signal.aborted) setStep2Error(true);
+      if (!abort.signal.aborted) {
+        console.error("[MedicalSearch] step2 failed:", err);
+        setStep2Error(true);
+      }
     } finally {
       if (!abort.signal.aborted) setStep2Streaming(false);
     }
@@ -632,12 +668,15 @@ export function MedicalSearch() {
     setSlowWarning(false);
     slowTimerRef.current = setTimeout(() => setSlowWarning(true), SLOW_WARNING_MS);
 
+    let lastErr: unknown = null;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       if (abort.signal.aborted) break;
       if (attempt > 0) {
         setRetrying(true);
         setRetryCount(attempt);
-        await new Promise<void>(r => setTimeout(r, 1_500 * attempt));
+        const m = (lastErr instanceof Error ? lastErr.message : String(lastErr)).toLowerCase();
+        const delay = (m.includes("429") || m.includes("529") || m.includes("overload")) ? 3_000 : 1_500;
+        await new Promise<void>(r => setTimeout(r, delay));
         if (abort.signal.aborted) break;
         setRetrying(false);
       }
@@ -651,9 +690,11 @@ export function MedicalSearch() {
         if (!abort.signal.aborted) startStep2(d);
         return;
       } catch (err) {
+        lastErr = err;
         if ((err as Error).name === "AbortError") break;
         if (abort.signal.aborted) break;
         if (attempt < MAX_RETRIES && isRetryableClient(err)) continue;
+        console.error("[MedicalSearch] step1 failed:", err);
         if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
         setStep1Streaming(false);
         setError(classifyError(err));
@@ -1050,12 +1091,14 @@ export function MedicalSearch() {
 
           {/* Step 2 error: retry button only */}
           {step2Error && !step2Streaming && (
-            <div className="mt-3 flex justify-center print:hidden">
+            <div className="mt-3 flex flex-col items-center gap-1.5 print:hidden">
+              <p className="text-xs text-gray-400">詳細情報の読み込みが止まりました。</p>
               <button
                 onClick={() => disease && startStep2(disease)}
-                className="text-xs font-bold px-4 py-2 rounded-xl border border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-800 transition"
+                className="text-xs font-bold px-5 py-2.5 rounded-xl border transition"
+                style={{ borderColor: "#E85D04", color: "#E85D04" }}
               >
-                再度読み込む
+                続きを読み込む
               </button>
             </div>
           )}
