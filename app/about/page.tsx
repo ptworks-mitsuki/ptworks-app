@@ -33,21 +33,8 @@ export default function AboutPage() {
         <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-4">Mission</p>
           <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-8">
-            PT Worksのミッション
+            理学療法士を、アップデートする。
           </h2>
-          <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.9]">
-            <p className="text-xl sm:text-2xl font-black text-gray-900">
-              理学療法士が、正当に評価される社会をつくる。
-            </p>
-            <p>
-              資格を取るために何年も勉強して、国家試験に合格して、それでも年収300万円。
-            </p>
-            <p>私が尊敬していた先輩PTの現実です。</p>
-            <p>
-              「頑張れば報われる」とずっと信じていました。でも現場に出てみると、どれだけ患者さんに向き合っても、どれだけ勉強しても、それが収入に反映されない構造があることに気づきました。
-            </p>
-            <p>PT Worksは、その違和感から生まれました。</p>
-          </div>
         </div>
       </section>
 
@@ -68,23 +55,21 @@ export default function AboutPage() {
           <div className="relative z-10">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-4">Background</p>
             <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-8">
-              なぜ、PT Worksは生まれたのか。
+              思考を、加速させる
             </h2>
             <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
-              <p>副業を探していた友人が、マルチ商法に巻き込まれました。</p>
+              <p>疾患を調べる。治療を考える。論文を読む。算定ルールを確認する。</p>
               <p>
-                悪意のある人間に狙われたのではなく、ただ「収入を増やしたかっただけ」でした。PTとして一生懸命働きながら、それでも生活が不安で、藁をもつかむ思いで情報を探した結果でした。
+                理学療法士の仕事は、臨床の時間と同じくらい「考える時間」で成り立っています。
               </p>
-              <p>このことが、私には刺さりました。</p>
               <p>
-                知識も技術もある。患者さんのために本気で働いている。それでも、お金の不安から間違った選択をしてしまう現実がある。
+                PT Worksは、その「考える時間」をAIの力で圧縮し、より深く・より速く・より自由に思考できる環境を提供します。
               </p>
-              <p>PTを守れるのは、PTを知っている人間だと思いました。</p>
               <p>
-                副業・独立・開業。どのルートを選んでも、正しい情報と使えるツールがあれば、もっと安心して前に進めるはずです。
+                教科書を何冊も開く必要はありません。論文を読む時間がなくても、最新のエビデンスに触れられます。治療方針で迷ったとき、24時間いつでも相談できます。
               </p>
               <p className="font-bold text-gray-900">
-                その思いから、PT Worksは生まれました。
+                これは、思考の効率化ではありません。思考の拡張です。
               </p>
             </div>
           </div>
@@ -97,30 +82,30 @@ export default function AboutPage() {
       <section style={{ background: "#F9FAFB" }}>
         <div className="max-w-5xl mx-auto px-6 py-14 sm:py-20">
           <div className="text-center mb-10">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-3">Problems</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-3">Background</p>
             <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
-              PT Worksが解決する3つの課題
+              なぜ、PT専用なのか
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             {([
               {
-                num: "01", title: "臨床の孤独",
-                body: "先輩に聞くのが申し訳ない。\n一人職場で相談できる人がいない。",
-                solution: "24時間いつでも臨床をサポート",
+                num: "01", title: "汎用AIとの違い",
+                body: "ChatGPTやGoogleでも、医療情報は調べられます。\nしかし、それらは「PTの臨床現場を知らない」ツールです。",
+                solution: "PT専用の文脈で即座に答えます",
                 accent: "#1d4ed8", top: "#2563EB",
               },
               {
-                num: "02", title: "収入の壁",
-                body: "どれだけ頑張っても給料が上がらない。\n副業したいけど何から始めればいいかわからない。",
-                solution: "安全に収入を増やす仕組みを提供",
+                num: "02", title: "PTならではの問い",
+                body: "「MMT4の患者に、いつ階段昇降訓練を開始するか」\n「廃用症候群の算定起算日はいつか」\n「人工股関節の禁忌肢位は」",
+                solution: "現場の文脈で即座に答えられるのはPT専用ツールだけ",
                 accent: "#15803d", top: "#16a34a",
               },
               {
-                num: "03", title: "キャリアの不安",
-                body: "独立したいけど方法がわからない。\nこのまま働き続けていいのか不安。",
-                solution: "学生から独立開業まで全ステージをサポート",
+                num: "03", title: "PT専用の設計思想",
+                body: "PT Worksは、理学療法の教科書・ガイドライン・算定ルールを深く理解した上で設計されています。",
+                solution: "PTが毎日使える道具として作られています",
                 accent: "#b45309", top: "#E85D04",
               },
             ] as const).map(c => (
@@ -150,7 +135,7 @@ export default function AboutPage() {
         <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-3">Founder</p>
           <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-10">
-            代表プロフィール
+            つくった人について
           </h2>
 
           <div className="flex flex-col sm:flex-row gap-8 sm:gap-12">
@@ -162,7 +147,7 @@ export default function AboutPage() {
               <div className="mb-6">
                 <p className="text-2xl sm:text-3xl font-black text-gray-900">藤 充輝</p>
                 <p className="text-sm text-gray-400 mt-0.5">とう みつき</p>
-                <p className="text-sm text-gray-600 mt-1.5">理学療法士 / PT Works 創業者</p>
+                <p className="text-sm text-gray-600 mt-1.5">理学療法士 / PT Works 創業者 / カヌーポロ日本代表コーチ</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-7">
@@ -170,9 +155,9 @@ export default function AboutPage() {
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">略歴</p>
                   <ul className="space-y-2.5">
                     {[
-                      "理学療法士 国家資格取得後、整形外科病院に勤務",
-                      "整体院にて店長職を経験",
-                      "PT Works 創業",
+                      "整形外科病院・整体院勤務を経てPT Works創業",
+                      "カヌーポロ日本代表コーチとして世界大会・アジア大会に出場",
+                      "現役理学療法士として臨床・開発を並行",
                     ].map(item => (
                       <li key={item} className="flex items-start gap-2.5">
                         <span className="shrink-0 mt-2 w-1.5 h-1.5 rounded-full" style={{ background: "#1B4332" }} />
@@ -201,9 +186,8 @@ export default function AboutPage() {
 
               <blockquote className="border-l-4 pl-5 py-1" style={{ borderColor: "#1B4332" }}>
                 <p className="text-sm sm:text-base text-gray-700 leading-[1.9] italic">
-                  「自分がほしかったツールを、<br />
-                  同じ悩みを持つ仲間のために作る。<br />
-                  それがPT Worksを作り続けている理由です。」
+                  「現場を知る人間が、現場のために作ったツール」であることが、<br />
+                  PT Worksの最大の強みです。
                 </p>
                 <p className="text-xs text-gray-400 mt-2 not-italic">— 藤 充輝</p>
               </blockquote>
@@ -219,16 +203,16 @@ export default function AboutPage() {
       {/* ── ⑥ PROMISE ──────────────────────────────────────────── */}
       <section style={{ background: "#1B4332" }}>
         <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20">
-          <p className="text-xs font-bold text-white/40 uppercase tracking-[0.22em] mb-4">Our Promise</p>
+          <p className="text-xs font-bold text-white/40 uppercase tracking-[0.22em] mb-4">Vision</p>
           <h2 className="text-2xl sm:text-3xl font-black text-white mb-10">
-            私たちの約束
+            働き方を、自分で決める
           </h2>
           <ul className="space-y-5">
             {[
-              "AIの出力は必ず文献・論文をもとに整理します",
-              "医療情報の正確性を最優先に考えます",
-              "PTが安心して使えるサービスであり続けます",
-              "現役PTの声を反映し、常に改善し続けます",
+              "PT Worksが目指すのは、臨床準備の効率化だけではありません。",
+              "自分の知識を動画や資料にして販売する。セミナーを開く。整体院を開業する。",
+              "スポーツ・企業・教育・AIの分野で新しい価値を生み出す。",
+              "臨床で培った専門性を、自分らしい形で社会に届けられる環境をつくっていきます。",
             ].map(item => (
               <li key={item} className="flex items-center gap-4">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
@@ -248,9 +232,9 @@ export default function AboutPage() {
       <section className="bg-white">
         <div className="max-w-xl mx-auto px-6 py-14 sm:py-20 text-center">
           <p className="text-2xl sm:text-3xl font-black text-gray-900 mb-3">
-            まず、試してみてください。
+            理学療法士の可能性を、創造する。
           </p>
-          <p className="text-gray-400 text-sm mb-8">クレジットカード不要 · 30秒で登録完了</p>
+          <p className="text-gray-400 text-sm mb-8">それがPT Worksです。</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/register"
               className="w-full sm:w-auto px-10 py-4 rounded-2xl font-black text-white text-base hover:opacity-90 shadow-lg transition"
