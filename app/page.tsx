@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { ServiceGuide } from "@/components/ServiceGuide";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
 
 // ─── 型 ───────────────────────────────────────────────────────────────────
@@ -195,6 +196,7 @@ export default function HomePage() {
   const [showNotif,    setShowNotif]      = useState(false);
   const [query,        setQuery]          = useState("");
   const [showPicker,   setShowPicker]     = useState(false);
+  const [guideOpen,    setGuideOpen]      = useState(false);
   const [streak,       setStreak]         = useState(3);
   const [history,      setHistory]        = useState<HistoryItem[]>([]);
   const [savedPlans,   setSavedPlans]     = useState<SavedPlan[]>([]);
@@ -447,7 +449,24 @@ export default function HomePage() {
               </button>
             ))}
           </div>
+
+          {/* はじめましょうボタン */}
+          <div className="mt-4">
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="w-full py-3.5 rounded-2xl font-black text-white text-sm transition hover:opacity-90 active:scale-[0.98]"
+              style={{ background: "#E85D04", boxShadow: "0 4px 16px rgba(232,93,4,0.25)" }}
+            >
+              はじめましょう →
+            </button>
+            <p className="text-center text-[11px] mt-2" style={{ color: "#9CA3AF" }}>
+              悩み別に最適なサービスをご案内します
+            </p>
+          </div>
         </section>
+
+        {/* 悩み別サービス診断 */}
+        {guideOpen && <ServiceGuide onClose={() => setGuideOpen(false)} />}
 
         {/* 検索機能選択モーダル */}
         {showPicker && (
