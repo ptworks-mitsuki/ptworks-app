@@ -13,7 +13,6 @@ function BackButton() {
   const pathname = usePathname();
   const router   = useRouter();
 
-  // ホームページでは非表示
   if (pathname === "/") return null;
 
   return (
@@ -35,18 +34,33 @@ function BackButton() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const isOnline = useOnlineStatus();
+  const isOnline  = useOnlineStatus();
+  const pathname  = usePathname();
+  const isHome    = pathname === "/";
+
+  // ホームページは独自レイアウト
+  if (isHome) {
+    return (
+      <ThemeProvider>
+        {!isOnline && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white text-xs font-bold text-center py-2">
+            通信環境をご確認ください。ネットワークに接続していません。
+          </div>
+        )}
+        {children}
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>
-      {/* ── Offline banner ── */}
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white text-xs font-bold text-center py-2 flex items-center justify-center gap-2">
           <span className="w-2 h-2 rounded-full bg-white/70 animate-pulse" />
           通信環境をご確認ください。ネットワークに接続していません。
         </div>
       )}
-      {!isOnline && <div className="h-8" />}{/* spacer so content isn't hidden behind banner */}
+      {!isOnline && <div className="h-8" />}
 
       <Header
         onSidebarToggle={() => setSidebarOpen(v => !v)}
