@@ -65,3 +65,34 @@ export const categories: Category[] = [
 
 // 新しいサービスを追加する時は
 // ここにcategoryまたはsubcategoryを追加するだけ
+
+// ─── サービスルーティング ─────────────────────────────────────────────────
+
+export interface ServiceRoute {
+  service: string;
+  url:     string;
+  desc:    string;
+}
+
+const ROUTING_RULES: Array<{ pattern: RegExp; route: (q: string) => ServiceRoute }> = [
+  { pattern: /禁忌|注意事項|リスク|危険|合併症/,             route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の禁忌・注意事項を教科書ベースで確認できます` }) },
+  { pattern: /基本情報|定義|概要|術式|手術内容|病態|症状/,   route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の詳細情報を教科書・ガイドライン基準で整理します` }) },
+  { pattern: /リハビリ方針|治療方針|アプローチ|プログラム/,  route: q => ({ service: "治療を考える",           url: "/stage1",                    desc: `${q}の個別リハビリ方針をAIが提案します` }) },
+  { pattern: /評価方法|スケール|判定基準|評価指標/,          route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の評価方法・スケールを確認できます` }) },
+  { pattern: /予後|回復|ゴール|ADL|転帰|目標/,              route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の予後予測・ゴール設定の指標を整理します` }) },
+  { pattern: /論文|文献|根拠|エビデンス|研究|参考書|教科書/, route: q => ({ service: "文献検索",              url: "/stage1/literature",         desc: `${q}に関連する文献・参考書を検索できます` }) },
+  { pattern: /スライド|発表|学会|プレゼン|原稿/,             route: q => ({ service: "スライド自動生成",      url: "/stage1/slides",             desc: `${q}の発表スライドを自動生成できます` }) },
+  { pattern: /自主トレ|指導書|ホームエクサ/,                 route: q => ({ service: "自主トレ指導書作成",    url: "/stage1/homeexercise",       desc: `${q}向けの自主トレ指導書を作成できます` }) },
+  { pattern: /算定|加算|点数|診療報酬|請求|減算/,            route: q => ({ service: "診療報酬・算定ガイド", url: "/stage1/learning/diagnosis", desc: `${q}に関する算定ルールを確認できます` }) },
+  { pattern: /副業|収入|稼ぐ|コンテンツ販売/,               route: q => ({ service: "副業支援パック",        url: "/stage2",                    desc: `PT向け副業の始め方をサポートします` }) },
+  { pattern: /開業|独立|院運営|経営/,                        route: q => ({ service: "開業・院運営パック",    url: "/stage3",                    desc: `開業・院運営に必要な情報を提供します` }) },
+  { pattern: /学習|勉強|知識|スキル/,                        route: q => ({ service: "学習コンテンツ",        url: "/stage1/learning",           desc: `${q}に関する学習コンテンツを確認できます` }) },
+];
+
+export function routeIntent(query: string, intent: string): ServiceRoute {
+  const text = `${intent} ${query}`.toLowerCase();
+  for (const rule of ROUTING_RULES) {
+    if (rule.pattern.test(text)) return rule.route(query);
+  }
+  return { service: "何でも相談する", url: "/stage1", desc: `${query}について何でも相談できます` };
+}

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
-import { ServiceGuide } from "@/components/ServiceGuide";
+import { SearchBox } from "@/components/SearchBox";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
 
 // ─── 型 ───────────────────────────────────────────────────────────────────
@@ -194,9 +194,6 @@ export default function HomePage() {
   const [sidebarOpen,  setSidebarOpen]    = useState(false);
   const [bannerClosed, setBannerClosed]   = useState(true);
   const [showNotif,    setShowNotif]      = useState(false);
-  const [query,        setQuery]          = useState("");
-  const [showPicker,   setShowPicker]     = useState(false);
-  const [guideOpen,    setGuideOpen]      = useState(false);
   const [streak,       setStreak]         = useState(3);
   const [history,      setHistory]        = useState<HistoryItem[]>([]);
   const [savedPlans,   setSavedPlans]     = useState<SavedPlan[]>([]);
@@ -233,17 +230,8 @@ export default function HomePage() {
     try { localStorage.setItem(BANNER_KEY, "1"); } catch { /* ignore */ }
   };
 
-  const handleSearch = () => {
-    if (query.trim()) setShowPicker(true);
-  };
-
   const handleTagSearch = (tag: string) => {
     router.push(`/stage1?q=${encodeURIComponent(tag)}`);
-  };
-
-  const handlePick = (dest: string) => {
-    setShowPicker(false);
-    router.push(`${dest}?q=${encodeURIComponent(query)}`);
   };
 
   const isLow    = remaining <= 2;
@@ -415,28 +403,8 @@ export default function HomePage() {
           </div>
 
           {/* ④ 検索窓 */}
-          <div className="rounded-2xl overflow-hidden mb-3"
-            style={{ border: "2px solid #E85D04", boxShadow: "0 4px 20px rgba(232,93,4,0.15)" }}>
-            <div className="flex items-center bg-white">
-              <span className="pl-4 text-gray-400 shrink-0"><IconSearch size={18} /></span>
-              <input
-                type="text"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleSearch()}
-                placeholder="疾患・症状・キーワードを入力"
-                className="flex-1 px-3 py-3.5 text-sm bg-transparent outline-none placeholder-gray-400"
-                style={{ color: "#1A1A1A" }}
-                autoComplete="off"
-              />
-              <button
-                onClick={handleSearch}
-                disabled={!query.trim()}
-                className="px-5 py-3.5 text-sm font-black text-white transition hover:opacity-90 active:scale-95 disabled:opacity-40"
-                style={{ background: "#E85D04" }}>
-                検索
-              </button>
-            </div>
+          <div className="mb-3">
+            <SearchBox />
           </div>
 
           {/* クイックタグ */}
@@ -450,58 +418,7 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* はじめましょうボタン */}
-          <div className="mt-4">
-            <button
-              onClick={() => setGuideOpen(true)}
-              className="w-full py-3.5 rounded-2xl font-black text-white text-sm transition hover:opacity-90 active:scale-[0.98]"
-              style={{ background: "#E85D04", boxShadow: "0 4px 16px rgba(232,93,4,0.25)" }}
-            >
-              はじめましょう →
-            </button>
-            <p className="text-center text-[11px] mt-2" style={{ color: "#9CA3AF" }}>
-              悩み別に最適なサービスをご案内します
-            </p>
-          </div>
         </section>
-
-        {/* 悩み別サービス診断 */}
-        {guideOpen && <ServiceGuide onClose={() => setGuideOpen(false)} />}
-
-        {/* 検索機能選択モーダル */}
-        {showPicker && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center"
-            onClick={() => setShowPicker(false)}>
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="relative bg-white rounded-t-3xl w-full max-w-xl px-4 pt-5 pb-8"
-              style={{ boxShadow: "0 -8px 32px rgba(0,0,0,0.12)" }}
-              onClick={e => e.stopPropagation()}>
-              <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-5" />
-              <p className="text-sm font-bold mb-1" style={{ color: "#1A1A1A" }}>
-                「{query}」をどの機能で調べますか？
-              </p>
-              <p className="text-[11px] mb-4" style={{ color: "#888888" }}>機能を選んでください</p>
-              <div className="space-y-2">
-                {[
-                  { label: "疾患を調べる",  sub: "教科書・ガイドライン辞典",  href: "/stage1", icon: <IconSearch size={18}/> },
-                  { label: "治療を考える",  sub: "AI個別治療提案",            href: "/stage1", icon: <IconClipboard size={18}/> },
-                  { label: "何でも相談する",sub: "先輩PTチャット",             href: "/stage1", icon: <IconChat size={18}/> },
-                ].map(opt => (
-                  <button key={opt.label} onClick={() => handlePick(opt.href)}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition hover:border-orange-400 active:scale-[0.98]"
-                    style={{ background: "#F9FAFB", borderColor: "#E5E7EB" }}>
-                    <span style={{ color: "#E85D04" }}>{opt.icon}</span>
-                    <div className="text-left">
-                      <p className="text-sm font-bold" style={{ color: "#1A1A1A" }}>{opt.label}</p>
-                      <p className="text-[11px]" style={{ color: "#888888" }}>{opt.sub}</p>
-                    </div>
-                    <span className="ml-auto" style={{ color: "#888888" }}><IconChevronRight /></span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ⑤ クイックアクセス */}
         <section className="mt-6">
