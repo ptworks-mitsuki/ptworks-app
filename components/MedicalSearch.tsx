@@ -536,13 +536,20 @@ export function MedicalSearch() {
     step: 1 | 2,
     group?: 1 | 2 | 3,
   ): Promise<void> => {
-    const timeout = AbortSignal.timeout(60_000);
-    const combined = AbortSignal.any([signal, timeout]);
+    // AbortSignal.any is available in Chrome116+/Firefox124+/Safari17.4+ and Node20+
+    // Fall back to just the caller's signal on older environments
+    let fetchSignal: AbortSignal = signal;
+    try {
+      if (typeof AbortSignal.any === "function" && typeof AbortSignal.timeout === "function") {
+        fetchSignal = AbortSignal.any([signal, AbortSignal.timeout(90_000)]);
+      }
+    } catch { /* ignore — use original signal */ }
+
     const res = await fetch("/api/medical-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ disease: d, step, ...(group ? { group } : {}) }),
-      signal: combined,
+      signal: fetchSignal,
     });
 
     if (!res.ok || !res.body) {

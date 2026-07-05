@@ -6,7 +6,7 @@ import {
   isBalanceError, translateError, notifyAdmin,
 } from "@/lib/api-error";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 // ── Section delimiters ────────────────────────────────────────────────────
 
@@ -250,25 +250,28 @@ export async function POST(req: NextRequest) {
         );
       };
 
-      try {
-        await runStream();
-      } catch (firstErr) {
-        if (transient(firstErr)) {
-          await new Promise<void>(r => setTimeout(r, 1200));
-          try {
-            await runStream();
-          } catch (secondErr) {
-            if (isBalanceError(secondErr)) void notifyAdmin(secondErr);
-            send({ type: "error", error: translateError(secondErr) });
-            controller.close();
-            return;
-          }
-        } else {
-          if (isBalanceError(firstErr)) void notifyAdmin(firstErr);
-          send({ type: "error", error: translateError(firstErr) });
-          controller.close();
-          return;
+      let lastErr: unknown;
+      let succeeded = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          const delay = transient(lastErr) ? 3_000 : 1_500;
+          await new Promise<void>(r => setTimeout(r, delay));
         }
+        try {
+          await runStream();
+          succeeded = true;
+          break;
+        } catch (err) {
+          lastErr = err;
+          if (!transient(err) || attempt === 2) break;
+        }
+      }
+
+      if (!succeeded) {
+        if (isBalanceError(lastErr)) void notifyAdmin(lastErr);
+        send({ type: "error", error: translateError(lastErr) });
+        controller.close();
+        return;
       }
 
       send({ type: "done", step });
