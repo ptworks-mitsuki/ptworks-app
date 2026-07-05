@@ -240,16 +240,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* 臨床サポートパック */}
           <SectionLabel label="臨床サポートパック　無料〜¥980" color="#E85D04" />
 
-          {/* メインサービス3つをカードで強調 */}
+          {/* メインサービスカード */}
           <div className="mx-2 mb-1 overflow-hidden rounded-xl"
             style={{ background: "#FFF5F0", borderLeft: "4px solid #E85D04" }}>
             <p className="px-3 pt-2 pb-0 text-[9px] font-bold tracking-wider uppercase"
               style={{ color: "#9CA3AF" }}>
               メインサービス
             </p>
-            <MainServiceLink href="/stage1" label="疾患を調べる"  pathname={pathname} onClose={onClose} />
-            <MainServiceLink href="/stage1" label="治療を考える"  pathname={pathname} onClose={onClose} />
-            <MainServiceLink href="/stage1" label="何でも相談する" pathname={pathname} onClose={onClose} />
+            <MainServiceLink href="/pt-gpt" label="PT専用GPT"  pathname={pathname} onClose={onClose} />
+            <MainServiceLink href="/stage1" label="治療を考える（専用サービス）" pathname={pathname} onClose={onClose} />
           </div>
 
           <NavLink href="/stage1/literature"   label="文献検索"           sub pathname={pathname} onClose={onClose} />

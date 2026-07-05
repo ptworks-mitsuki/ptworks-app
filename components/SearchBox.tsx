@@ -298,6 +298,9 @@ export function SearchBox() {
           onFocus={handleFocus}
           onKeyDown={e => {
             if (e.key === "Escape") setMode("closed");
+            if (e.key === "Enter" && query.trim()) {
+              router.push(`/pt-gpt?q=${encodeURIComponent(query.trim())}`);
+            }
           }}
           placeholder={`疾患・術式・症状・キーワードを入力して${"\n"}はじめましょう`}
           className="flex-1 px-3 py-3.5 text-sm bg-white outline-none placeholder-gray-400"
@@ -315,9 +318,10 @@ export function SearchBox() {
         <button
           type="button"
           onClick={() => {
-            if (query.trim()) {
-              if (mode !== "intents") fetchIntents(query.trim());
-              goMode("intents");
+            const q = query.trim();
+            if (q) {
+              // テキスト入力ありの場合は PT-GPT へ直接遷移
+              router.push(`/pt-gpt?q=${encodeURIComponent(q)}`);
             } else {
               goMode("categories");
             }
