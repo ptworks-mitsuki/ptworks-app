@@ -21,25 +21,22 @@ const MARKERS: Record<NewSectionKey, string> = {
   references:        "===REFERENCES===",
 };
 
-// Step 2 is split into 3 groups to avoid token cutoff
-const STEP2_GROUP_KEYS: Record<1 | 2 | 3, NewSectionKey[]> = {
-  1: ["definition", "symptoms", "assessment"],
-  2: ["prognosis", "treatment"],
-  3: ["contraindications", "clinical_points"],
-};
+const BRIEF_KEYS: NewSectionKey[] = [
+  "symptoms", "assessment", "prognosis", "treatment", "contraindications", "clinical_points",
+];
 
 const MAX_MARKER_LEN = Math.max(...Object.values(MARKERS).map(m => m.length));
 
-// Strip leaked instruction/marker lines from body text
+// Strip leaked instruction / marker lines from body text
 function filterOutputText(text: string): string {
   return text
     .split("\n")
     .filter(line => {
       const t = line.trim();
       if (!t) return true;
-      if (/^={3,}[A-Z_]*(={3,})?$/.test(t)) return false;   // ===MARKER===
-      if (/^-{3,}$/.test(t)) return false;                    // --- only
-      if (/^[A-Z_]{2,}$/.test(t)) return false;              // CONTRA NOTE OUTPUT etc.
+      if (/^={3,}[A-Z_]*(={3,})?$/.test(t)) return false;
+      if (/^-{3,}$/.test(t)) return false;
+      if (/^[A-Z_]{2,}$/.test(t)) return false;
       if (/^以下の通り/.test(t) || /^してください/.test(t)) return false;
       return true;
     })
@@ -47,6 +44,58 @@ function filterOutputText(text: string): string {
 }
 
 // ── Prompts ────────────────────────────────────────────────────────────────
+
+const DEFINITION_SYSTEM = `あなたは理学療法の専門家です。
+現在最もエビデンスレベルが高く信頼性の高い教科書・ガイドラインをもとに回答してください。
+マークダウン形式（**太字**・- 箇条書き・## 見出し）で記述してください。
+前置き・説明文・あいさつ・指示文は絶対に出力しないでください。回答内容のみを出力してください。`;
+
+function buildDefinitionPrompt(disease: string): string {
+  return `${disease}の定義・概要について教科書・ガイドラインをもとに以下の内容を詳しく説明してください。
+
+## 疾患の定義
+## 分類・種類
+## 疫学・有病率
+## 病態・メカニズム
+
+最後に、参照した教科書・ガイドラインを3冊以上、以下の形式で列挙してください。
+## 参考資料
+- 書名 | 著者・出版社`;
+}
+
+const BRIEF_SYSTEM = `あなたは理学療法の専門家です。
+各セクションを3点以内の箇条書きで簡潔に答えてください。
+前置き・説明文・あいさつ・指示文は絶対に出力しないでください。回答内容のみを出力してください。`;
+
+function buildBriefPrompt(disease: string): string {
+  return `${disease}について以下の各項目を3点以内の箇条書きで簡潔に答えてください。
+
+===SYMPTOMS===
+主な症状
+
+===ASSESSMENT===
+評価・検査（主な評価スケール・テストを含む）
+
+===PROGNOSIS===
+予後予測・ゴール設定（回復期間の目安・ADLゴール）
+
+===TREATMENT===
+治療方針・リハビリアプローチ
+
+===CONTRAINDICATIONS===
+注意事項・禁忌
+
+===CLINICAL===
+臨床ポイント`;
+}
+
+// ── Legacy prompts (step1/step2 kept for compatibility) ───────────────────
+
+const STEP2_GROUP_KEYS: Record<1 | 2 | 3, NewSectionKey[]> = {
+  1: ["definition", "symptoms", "assessment"],
+  2: ["prognosis", "treatment"],
+  3: ["contraindications", "clinical_points"],
+};
 
 const STEP1_PROMPT = `あなたは理学療法の専門家です。
 現在最もエビデンスレベルが高く信頼性の高い教科書・ガイドラインをもとに以下の7項目を整理してください。
@@ -122,15 +171,23 @@ type SseEvent =
   | { type: "text";          key: NewSectionKey; text: string; step: 1 | 2 }
   | { type: "section_end";   key: NewSectionKey; step: 1 | 2 }
   | { type: "done";          step: 1 | 2 }
+  // New events for definition/brief modes
+  | { type: "def_chunk";  text: string }
+  | { type: "def_done" }
+  | { type: "brief_start"; key: NewSectionKey }
+  | { type: "brief_text";  key: NewSectionKey; text: string }
+  | { type: "brief_end";   key: NewSectionKey }
+  | { type: "brief_done" }
   | { type: "error"; error: string };
 
 // ── Buffer parser ─────────────────────────────────────────────────────────
 
 function findEarliestMarker(
   text: string,
+  keys: NewSectionKey[],
 ): { key: NewSectionKey; start: number; end: number } | null {
   let best: { key: NewSectionKey; start: number; end: number } | null = null;
-  for (const key of NEW_SECTION_ORDER) {
+  for (const key of keys) {
     const m   = MARKERS[key];
     const idx = text.indexOf(m);
     if (idx !== -1 && (best === null || idx < best.start)) {
@@ -151,15 +208,24 @@ function partialMarkerStart(text: string): number {
   return text.length;
 }
 
+// ── Transient error check ─────────────────────────────────────────────────
+
+function isTransient(e: unknown): boolean {
+  const m = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  return (
+    m.includes("429") || m.includes("529") || m.includes("overloaded") ||
+    m.includes("rate_limit") || m.includes("timeout") || m.includes("fetch failed")
+  );
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const body    = await req.json() as { disease?: unknown; step?: unknown; group?: unknown };
-  const disease = body.disease;
-  const step    = (body.step === 2 ? 2 : 1) as 1 | 2;
-  const group   = ([1, 2, 3].includes(body.group as number) ? (body.group as 1 | 2 | 3) : 1);
+  const body    = await req.json() as { disease?: unknown; step?: unknown; group?: unknown; mode?: unknown };
+  const disease = typeof body.disease === "string" ? body.disease : "";
+  const mode    = typeof body.mode === "string" ? body.mode : null;
 
-  if (!disease || typeof disease !== "string") {
+  if (!disease) {
     return new Response(
       `data: ${JSON.stringify({ type: "error", error: "検索キーワードを入力してください" })}\n\n`,
       { status: 400, headers: { "Content-Type": "text/event-stream" } },
@@ -174,6 +240,160 @@ export async function POST(req: NextRequest) {
 
   const encoder = new TextEncoder();
   const client  = createClient();
+
+  // ── Mode: definition ─────────────────────────────────────────────────────
+
+  if (mode === "definition") {
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (event: SseEvent) =>
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+
+        async function run(): Promise<void> {
+          const anthropicStream = client.messages.stream({
+            model:      "claude-sonnet-4-6",
+            max_tokens: 2000,
+            system:     DEFINITION_SYSTEM,
+            messages:   [{ role: "user", content: buildDefinitionPrompt(disease) }],
+          });
+
+          for await (const event of anthropicStream) {
+            if (event.type !== "content_block_delta" || event.delta.type !== "text_delta") continue;
+            const filtered = filterOutputText(event.delta.text);
+            if (filtered) send({ type: "def_chunk", text: filtered });
+          }
+        }
+
+        let lastErr: unknown;
+        let succeeded = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            await new Promise<void>(r => setTimeout(r, isTransient(lastErr) ? 3_000 : 1_500));
+          }
+          try {
+            await run();
+            succeeded = true;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (!isTransient(err) || attempt === 2) break;
+          }
+        }
+
+        if (!succeeded) {
+          if (isBalanceError(lastErr)) void notifyAdmin(lastErr);
+          send({ type: "error", error: translateError(lastErr) });
+          controller.close();
+          return;
+        }
+
+        send({ type: "def_done" });
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+    });
+  }
+
+  // ── Mode: brief ──────────────────────────────────────────────────────────
+
+  if (mode === "brief") {
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (event: SseEvent) =>
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+
+        async function run(): Promise<void> {
+          const anthropicStream = client.messages.stream({
+            model:      "claude-sonnet-4-6",
+            max_tokens: 800,
+            system:     BRIEF_SYSTEM,
+            messages:   [{ role: "user", content: buildBriefPrompt(disease) }],
+          });
+
+          let buffer     = "";
+          let currentKey: NewSectionKey | null = null;
+
+          for await (const event of anthropicStream) {
+            if (event.type !== "content_block_delta" || event.delta.type !== "text_delta") continue;
+            buffer += event.delta.text;
+
+            let changed = true;
+            while (changed) {
+              changed = false;
+              const marker = findEarliestMarker(buffer, BRIEF_KEYS);
+
+              if (marker) {
+                if (currentKey && marker.start > 0) {
+                  const flushed = filterOutputText(buffer.slice(0, marker.start).trimEnd());
+                  if (flushed.trim()) send({ type: "brief_text", key: currentKey, text: flushed });
+                  send({ type: "brief_end", key: currentKey });
+                } else if (currentKey) {
+                  send({ type: "brief_end", key: currentKey });
+                }
+                currentKey = marker.key;
+                send({ type: "brief_start", key: marker.key });
+                buffer = buffer.slice(marker.end).replace(/^\n/, "");
+                changed = true;
+              } else {
+                const safeEnd = partialMarkerStart(buffer);
+                if (currentKey && safeEnd > 0) {
+                  const chunk = filterOutputText(buffer.slice(0, safeEnd));
+                  if (chunk) send({ type: "brief_text", key: currentKey, text: chunk });
+                  buffer = buffer.slice(safeEnd);
+                } else if (!currentKey) {
+                  buffer = buffer.slice(safeEnd);
+                }
+              }
+            }
+          }
+
+          if (currentKey && buffer.trim()) {
+            const final = filterOutputText(buffer.trim());
+            if (final) send({ type: "brief_text", key: currentKey, text: final });
+            send({ type: "brief_end", key: currentKey });
+          }
+        }
+
+        let lastErr: unknown;
+        let succeeded = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            await new Promise<void>(r => setTimeout(r, isTransient(lastErr) ? 3_000 : 1_500));
+          }
+          try {
+            await run();
+            succeeded = true;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (!isTransient(err) || attempt === 2) break;
+          }
+        }
+
+        if (!succeeded) {
+          if (isBalanceError(lastErr)) void notifyAdmin(lastErr);
+          send({ type: "error", error: translateError(lastErr) });
+          controller.close();
+          return;
+        }
+
+        send({ type: "brief_done" });
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+    });
+  }
+
+  // ── Legacy: step1 / step2 ─────────────────────────────────────────────────
+
+  const step  = (body.step === 2 ? 2 : 1) as 1 | 2;
+  const group = ([1, 2, 3].includes(body.group as number) ? (body.group as 1 | 2 | 3) : 1);
 
   const systemPrompt = step === 1
     ? STEP1_PROMPT
@@ -207,7 +427,7 @@ export async function POST(req: NextRequest) {
           let changed = true;
           while (changed) {
             changed = false;
-            const marker = findEarliestMarker(buffer);
+            const marker = findEarliestMarker(buffer, NEW_SECTION_ORDER);
 
             if (marker) {
               if (currentKey && marker.start > 0) {
@@ -242,19 +462,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const transient = (e: unknown) => {
-        const m = (e instanceof Error ? e.message : String(e)).toLowerCase();
-        return (
-          m.includes("429") || m.includes("529") || m.includes("overloaded") ||
-          m.includes("rate_limit") || m.includes("timeout") || m.includes("fetch failed")
-        );
-      };
-
       let lastErr: unknown;
       let succeeded = false;
       for (let attempt = 0; attempt < 3; attempt++) {
         if (attempt > 0) {
-          const delay = transient(lastErr) ? 3_000 : 1_500;
+          const delay = isTransient(lastErr) ? 3_000 : 1_500;
           await new Promise<void>(r => setTimeout(r, delay));
         }
         try {
@@ -263,7 +475,7 @@ export async function POST(req: NextRequest) {
           break;
         } catch (err) {
           lastErr = err;
-          if (!transient(err) || attempt === 2) break;
+          if (!isTransient(err) || attempt === 2) break;
         }
       }
 
