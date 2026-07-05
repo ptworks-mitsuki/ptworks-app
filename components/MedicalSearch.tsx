@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   NewSectionKey, NEW_SECTION_ORDER, NEW_SECTION_TITLES, NEW_SECTION_COLORS,
   Suggestion,
@@ -220,6 +221,7 @@ function preprocessTerms(raw: string, color: string, onTermClick: (t: string) =>
       const segment = raw.slice(last, m.index);
       parts.push(
         <ReactMarkdown key={i++}
+          remarkPlugins={[remarkGfm]}
           components={{
             p: ({ children }) => <span>{children}</span>,
             strong: ({ children }) => <strong className="font-bold">{children}</strong>,
@@ -243,6 +245,7 @@ function preprocessTerms(raw: string, color: string, onTermClick: (t: string) =>
     const segment = raw.slice(last);
     parts.push(
       <ReactMarkdown key={i++}
+        remarkPlugins={[remarkGfm]}
         components={{
           p: ({ children }) => <span>{children}</span>,
           strong: ({ children }) => <strong className="font-bold">{children}</strong>,
@@ -267,6 +270,7 @@ function MdContent({ text, color, onTermClick }: { text: string; color: string; 
 
   return (
     <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }) => <p className="text-sm text-gray-800 leading-relaxed mb-1.5 last:mb-0">{replaceTerms(children, placeholders, color, onTermClick)}</p>,
         strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
@@ -281,6 +285,34 @@ function MdContent({ text, color, onTermClick }: { text: string; color: string; 
             <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
             <span>{children}</span>
           </li>
+        ),
+        // テーブル：スマホ横スクロール対応＋スタイル
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-3 rounded-xl border border-gray-200">
+            <table className="w-full text-sm border-collapse min-w-[360px]">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead style={{ background: "#1B4332" }}>{children}</thead>
+        ),
+        th: ({ children }) => (
+          <th className="px-3 py-2 text-left text-xs font-bold text-white border-r border-white/20 last:border-r-0 whitespace-nowrap">
+            {children}
+          </th>
+        ),
+        tbody: ({ children }) => <tbody>{children}</tbody>,
+        tr: ({ children, ...props }) => {
+          // 偶数行にグレー背景
+          const isEven = (props as { node?: { position?: { start?: { line?: number } } } })
+            ?.node?.position?.start?.line ?? 0;
+          return (
+            <tr style={{ background: isEven % 2 === 0 ? "#F9FAFB" : "white" }}>{children}</tr>
+          );
+        },
+        td: ({ children }) => (
+          <td className="px-3 py-2 text-xs text-gray-700 border-t border-gray-200 border-r border-gray-100 last:border-r-0 leading-relaxed">
+            {children}
+          </td>
         ),
       }}
     >
