@@ -373,9 +373,12 @@ function AssistantMessage({ content, onHelpOpen }: { content: string; onHelpOpen
 
 function toJapanese(err: unknown): string {
   const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
-  if (m.includes("429") || m.includes("529") || m.includes("overload")) return "現在アクセスが集中しています。しばらくお待ちください。";
-  if (m.includes("timeout")) return "通信に時間がかかっています。しばらくお待ちください。";
-  if (m.includes("fetch")) return "通信環境をご確認ください。";
+  if (m.includes("429") || m.includes("529") || m.includes("overload"))
+    return "現在アクセスが集中しています。しばらくしてからもう一度お試しください。";
+  if (m.includes("timeout") || m.includes("timed out"))
+    return "通信に時間がかかっています。もう一度お試しください。";
+  if (m.includes("fetch failed") || m.includes("network") || m.includes("econnreset") || m.includes("enotfound"))
+    return "通信エラーが発生しました。インターネット接続を確認してもう一度お試しください。";
   if (/[ぁ-ん]/.test(m)) return err instanceof Error ? err.message : String(err);
   return "現在メンテナンス中です。しばらくお待ちください。";
 }

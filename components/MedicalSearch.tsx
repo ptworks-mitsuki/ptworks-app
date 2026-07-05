@@ -41,11 +41,19 @@ const SECTION_GROUP: Record<NewSectionKey, 1 | 2 | 3> = {
 
 type GroupStatus = "idle" | "loading" | "done" | "error";
 
-// Strip leaked ===MARKER=== lines from displayed text
+// Strip leaked instruction/marker lines from displayed text
 function cleanText(text: string): string {
   return text
     .split("\n")
-    .filter(line => !/^={3,}[A-Z_]*(={3,})?$/.test(line.trim()))
+    .filter(line => {
+      const t = line.trim();
+      if (!t) return true;
+      if (/^={3,}[A-Z_]*(={3,})?$/.test(t)) return false;
+      if (/^-{3,}$/.test(t)) return false;
+      if (/^[A-Z_]{2,}$/.test(t)) return false;
+      if (/^以下の通り/.test(t) || /^してください/.test(t)) return false;
+      return true;
+    })
     .join("\n");
 }
 
@@ -401,8 +409,11 @@ function classifyError(err: unknown): string {
   const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
   if (m.includes("401") || m.includes("maintenance")) return "現在メンテナンス中です。しばらくお待ちください。";
   if (m.includes("402") || m.includes("429") || m.includes("529") || m.includes("overload"))
-    return "現在アクセスが集中しています。しばらくお待ちください。";
-  if (m.includes("timeout") || m.includes("timed out")) return "通信に時間がかかっています。";
+    return "現在アクセスが集中しています。しばらくしてからもう一度お試しください。";
+  if (m.includes("timeout") || m.includes("timed out") || m.includes("timeouterror"))
+    return "通信に時間がかかっています。もう一度お試しください。";
+  if (m.includes("fetch failed") || m.includes("network") || m.includes("econnreset") || m.includes("enotfound"))
+    return "通信エラーが発生しました。インターネット接続を確認してもう一度お試しください。";
   if (/[ぁ-ん]/.test(m) || /[ァ-ン]/.test(m)) return err instanceof Error ? err.message : String(err);
   return "現在メンテナンス中です。しばらくお待ちください。";
 }
@@ -525,11 +536,13 @@ export function MedicalSearch() {
     step: 1 | 2,
     group?: 1 | 2 | 3,
   ): Promise<void> => {
+    const timeout = AbortSignal.timeout(60_000);
+    const combined = AbortSignal.any([signal, timeout]);
     const res = await fetch("/api/medical-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ disease: d, step, ...(group ? { group } : {}) }),
-      signal,
+      signal: combined,
     });
 
     if (!res.ok || !res.body) {

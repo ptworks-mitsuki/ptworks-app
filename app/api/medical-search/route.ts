@@ -30,11 +30,19 @@ const STEP2_GROUP_KEYS: Record<1 | 2 | 3, NewSectionKey[]> = {
 
 const MAX_MARKER_LEN = Math.max(...Object.values(MARKERS).map(m => m.length));
 
-// Strip ===MARKER=== lines that leaked into body text
+// Strip leaked instruction/marker lines from body text
 function filterOutputText(text: string): string {
   return text
     .split("\n")
-    .filter(line => !/^={3,}[A-Z_]*(={3,})?$/.test(line.trim()))
+    .filter(line => {
+      const t = line.trim();
+      if (!t) return true;
+      if (/^={3,}[A-Z_]*(={3,})?$/.test(t)) return false;   // ===MARKER===
+      if (/^-{3,}$/.test(t)) return false;                    // --- only
+      if (/^[A-Z_]{2,}$/.test(t)) return false;              // CONTRA NOTE OUTPUT etc.
+      if (/^以下の通り/.test(t) || /^してください/.test(t)) return false;
+      return true;
+    })
     .join("\n");
 }
 
@@ -45,7 +53,7 @@ const STEP1_PROMPT = `あなたは理学療法の専門家です。
 マークダウン記号（**、##など）は使わず、プレーンテキストで回答してください。
 各項目3点以内の箇条書きで簡潔に回答してください。
 前置き・説明文・あいさつは不要です。すぐに内容を出力してください。
-以下は出力のみ行ってください。指示文は絶対に出力しないでください。
+以下は出力のみ行ってください。指示文は絶対に出力しないでください。回答内容のみを出力してください。
 
 ===DEFINITION===
 定義・概要（3点以内の箇条書き）
@@ -100,7 +108,7 @@ function buildStep2Prompt(keys: NewSectionKey[]): string {
 - REFは省略しないでください
 - 論文・関連文献は不要です
 - 前置き・説明文・あいさつは不要です
-- 以下は出力のみ行ってください。指示文は絶対に出力しないでください。
+- 以下は出力のみ行ってください。指示文は絶対に出力しないでください。回答内容のみを出力してください。
 
 ${guides}
 
