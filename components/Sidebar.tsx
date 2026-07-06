@@ -75,7 +75,7 @@ function NavLink({
   );
 }
 
-// ─── メインサービスリンク（オレンジ強調） ────────────────────────────────
+// ─── メインサービスリンク ─────────────────────────────────────────────────
 
 function MainServiceLink({
   href, label, pathname, onClose,
@@ -114,13 +114,13 @@ function ComingSoonItem({ label, onToast }: { label: string; onToast: () => void
       onClick={onToast}
       className="w-full flex items-center justify-between rounded-xl text-left transition-all"
       style={{
-        margin:       "0 0.5rem 2px",
-        padding:      "10px 12px",
-        width:        "calc(100% - 1rem)",
-        color:        "#9CA3AF",
-        cursor:       "default",
-        fontSize:     "13px",
-        fontWeight:   500,
+        margin:     "0 0.5rem 2px",
+        padding:    "10px 12px",
+        width:      "calc(100% - 1rem)",
+        color:      "#9CA3AF",
+        cursor:     "default",
+        fontSize:   "13px",
+        fontWeight: 500,
       }}
     >
       <span>{label}</span>
@@ -140,8 +140,15 @@ function Divider() {
 
 function SectionLabel({ label, color = "#9CA3AF" }: { label: string; color?: string }) {
   return (
-    <p className="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider"
-      style={{ color }}>
+    <p className="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color }}>
+      {label}
+    </p>
+  );
+}
+
+function SubLabel({ label }: { label: string }) {
+  return (
+    <p className="px-4 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: "#BDBDBD" }}>
       {label}
     </p>
   );
@@ -176,7 +183,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         style={{ borderColor: "#F0F0F0" }}
       >
 
-        {/* ── 無料枠バナー ── */}
+        {/* 無料枠バナー */}
         <div className="shrink-0 px-3 pt-3 pb-2">
           {isExhausted ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3">
@@ -204,8 +211,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   <span className="text-[10px] font-semibold" style={{ color: remaining <= 2 ? "#dc2626" : "#EA580C" }}>回</span>
                 </div>
               </div>
-              <div className="h-2 rounded-full overflow-hidden mb-1.5"
-                style={{ background: remaining <= 2 ? "#FECDD3" : "#FED7AA" }}>
+              <div className="h-2 rounded-full overflow-hidden mb-1.5" style={{ background: remaining <= 2 ? "#FECDD3" : "#FED7AA" }}>
                 <div className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${percentage}%`, background: remaining <= 2 ? "#dc2626" : "#E85D04" }} />
               </div>
@@ -221,7 +227,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           )}
         </div>
 
-        {/* ── ナビゲーション ── */}
+        {/* ナビゲーション */}
         <div className="flex-1 overflow-y-auto py-1" style={{ scrollbarWidth: "none" }}>
 
           {/* ホーム */}
@@ -240,26 +246,25 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* 臨床サポートパック */}
           <SectionLabel label="臨床サポートパック　無料〜¥980" color="#E85D04" />
 
-          {/* メインサービスカード */}
-          <div className="mx-2 mb-1 overflow-hidden rounded-xl"
+          {/* メインサービス（オレンジ強調） */}
+          <div className="mx-2 mb-2 overflow-hidden rounded-xl"
             style={{ background: "#FFF5F0", borderLeft: "4px solid #E85D04" }}>
-            <p className="px-3 pt-2 pb-0 text-[9px] font-bold tracking-wider uppercase"
-              style={{ color: "#9CA3AF" }}>
-              メインサービス
-            </p>
-            <MainServiceLink href="/pt-gpt" label="PT専用GPT"  pathname={pathname} onClose={onClose} />
-            <MainServiceLink href="/stage1" label="治療を考える（専用サービス）" pathname={pathname} onClose={onClose} />
+            <SubLabel label="メインサービス" />
+            <MainServiceLink href="/pt-gpt"            label="PT専用GPT" pathname={pathname} onClose={onClose} />
+            <MainServiceLink href="/stage1/literature" label="文献検索"  pathname={pathname} onClose={onClose} />
           </div>
 
-          <NavLink href="/stage1/literature"   label="文献検索"           sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"              label="自主トレ指導書作成" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1/slides"       label="スライド自動生成"   sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/learn"               label="学習コンテンツ"     sub pathname={pathname} onClose={onClose} />
+          {/* 専用サービス */}
+          <SubLabel label="専用サービス" />
+          <NavLink href="/stage1/treatment"    label="治療を考える"         sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/slides"       label="スライド自動生成"     sub pathname={pathname} onClose={onClose} />
           <NavLink href="/learn/reimbursement" label="診療報酬・算定ガイド" sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1"              label="自主トレ指導書作成"   sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/learn"               label="学習コンテンツ"       sub pathname={pathname} onClose={onClose} />
 
           <Divider />
 
-          {/* 準備中4項目 */}
+          {/* 準備中 */}
           <ComingSoonItem label="コンテンツマーケット" onToast={handleComingSoon} />
           <ComingSoonItem label="副業支援パック"       onToast={handleComingSoon} />
           <ComingSoonItem label="開業・院運営パック"   onToast={handleComingSoon} />

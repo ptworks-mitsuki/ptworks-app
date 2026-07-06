@@ -21,20 +21,20 @@ const QUICK_TAGS = [
 ];
 
 const QUICK_ACCESS = [
-  { id: "treatment", label: "治療を考える",       sub: "AI個別提案",  href: "/stage1",              icon: <IconClipboard /> },
-  { id: "slides",    label: "スライド自動生成",   sub: "発表を10分で", href: "/stage1/slides",       icon: <IconSlides /> },
-  { id: "calc",      label: "診療報酬・算定ガイド", sub: "点数・加算", href: "/learn/reimbursement", icon: <IconCalc /> },
-  { id: "lit",       label: "文献検索",           sub: "論文・書籍",  href: "/stage1/literature",   icon: <IconBook /> },
-  { id: "homeex",    label: "自主トレ指導書作成", sub: "患者指導に",  href: "/stage1/homeexercise", icon: <IconSheet /> },
-  { id: "learn",     label: "学習コンテンツ",     sub: "スキルアップ", href: "/learn",               icon: <IconGraduate /> },
+  { id: "gpt",       label: "PT専用GPT",          sub: "AI何でも相談", href: "/pt-gpt",              icon: <IconChat />,      main: true  },
+  { id: "lit",       label: "文献検索",           sub: "論文・書籍",   href: "/stage1/literature",  icon: <IconBook />,      main: true  },
+  { id: "treatment", label: "治療を考える",       sub: "AI個別提案",   href: "/stage1/treatment",   icon: <IconClipboard />, main: false },
+  { id: "slides",    label: "スライド自動生成",   sub: "発表を10分で", href: "/stage1/slides",      icon: <IconSlides />,    main: false },
+  { id: "calc",      label: "診療報酬・算定",     sub: "点数・加算",   href: "/learn/reimbursement",icon: <IconCalc />,      main: false },
+  { id: "homeex",    label: "自主トレ指導書",     sub: "患者指導に",   href: "/stage1",             icon: <IconSheet />,     main: false },
 ];
 
 const BOTTOM_TABS = [
-  { label: "ホーム",   emoji: "🏠", href: "/"        },
-  { label: "PT-GPT",  emoji: "🤖", href: "/pt-gpt"  },
-  { label: "治療",     emoji: "🩺", href: "/stage1"  },
-  { label: "サービス", emoji: "📋", href: null        }, // opens sheet
-  { label: "MY",       emoji: "👤", href: "/mypage"  },
+  { label: "ホーム",  emoji: "🏠", href: "/"                  },
+  { label: "PT-GPT", emoji: "🤖", href: "/pt-gpt"            },
+  { label: "文献",    emoji: "📚", href: "/stage1/literature" },
+  { label: "治療",    emoji: "🩺", href: "/stage1/treatment"  },
+  { label: "MY",      emoji: "👤", href: "/mypage"            },
 ];
 
 // ─── アイコン ─────────────────────────────────────────────────────────────
@@ -114,6 +114,13 @@ function IconGraduate({ size = 22 }: { size?: number }) {
     </svg>
   );
 }
+function IconChat({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  );
+}
 function IconClose({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -138,42 +145,6 @@ const NOTIFICATIONS = [
   { id: 3, text: "AIモデルが最新版（Sonnet 4.6）に更新されました",       date: "2026-06-20", read: true  },
 ];
 
-// ─── サービスシート ────────────────────────────────────────────────────────
-
-function ServiceSheet({ onClose }: { onClose: () => void }) {
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/40 z-50" onClick={onClose} />
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl overflow-hidden"
-        style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.12)" }}
-      >
-        {/* ハンドル */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-200" />
-        </div>
-        <div className="px-4 pb-2 pt-1 flex items-center justify-between">
-          <p className="text-base font-black" style={{ color: "#1A1A1A" }}>サービス一覧</p>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition" style={{ color: "#888" }}>
-            <IconClose size={14} />
-          </button>
-        </div>
-        <div className="grid grid-cols-3 gap-3 px-4 pb-6">
-          {QUICK_ACCESS.map(item => (
-            <a key={item.id} href={item.href} onClick={onClose}
-              className="flex flex-col items-center text-center py-4 px-2 rounded-2xl border transition active:scale-95"
-              style={{ background: "#F9FAFB", borderColor: "#F3F4F6", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-              <span className="mb-2" style={{ color: "#888" }}>{item.icon}</span>
-              <p className="text-xs font-black leading-snug" style={{ color: "#1A1A1A" }}>{item.label}</p>
-              <p className="text-[10px] mt-0.5" style={{ color: "#888" }}>{item.sub}</p>
-            </a>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-}
-
 // ─── ホームページ ─────────────────────────────────────────────────────────
 
 interface GptMessage { id: string; role: string; content: string; }
@@ -187,7 +158,6 @@ export default function HomePage() {
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
   const [bannerClosed, setBannerClosed] = useState(true);
   const [showNotif,    setShowNotif]    = useState(false);
-  const [showService,  setShowService]  = useState(false);
   const [streak,       setStreak]       = useState(0);
   const [recentItems,  setRecentItems]  = useState<{ id: string; title: string; sub: string; href: string }[]>([]);
 
@@ -276,9 +246,6 @@ export default function HomePage() {
 
       {/* サイドバー */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-      {/* サービスシート */}
-      {showService && <ServiceSheet onClose={() => setShowService(false)} />}
 
       {/* ① ヘッダー */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-100"
@@ -469,14 +436,14 @@ export default function HomePage() {
           <div className="grid grid-cols-3 gap-3">
             {QUICK_ACCESS.map(item => (
               <a key={item.id} href={item.href}
-                className="flex flex-col items-center text-center py-4 px-2 rounded-2xl border transition active:scale-95 hover:border-orange-200"
+                className="flex flex-col items-center text-center py-4 px-2 rounded-2xl border transition active:scale-95"
                 style={{
-                  background:  "#F9FAFB",
-                  borderColor: "#F3F4F6",
-                  boxShadow:   "0 2px 8px rgba(0,0,0,0.04)",
+                  background:   item.main ? "#FFF7ED" : "#F9FAFB",
+                  borderColor:  item.main ? "#FED7AA" : "#F3F4F6",
+                  boxShadow:    "0 2px 8px rgba(0,0,0,0.04)",
                   borderRadius: "16px",
                 }}>
-                <span className="mb-2" style={{ color: "#888" }}>{item.icon}</span>
+                <span className="mb-2" style={{ color: item.main ? "#E85D04" : "#888" }}>{item.icon}</span>
                 <p className="text-xs font-black leading-snug" style={{ color: "#1A1A1A" }}>{item.label}</p>
                 <p className="text-[10px] mt-0.5" style={{ color: "#888" }}>{item.sub}</p>
               </a>
@@ -524,17 +491,10 @@ export default function HomePage() {
         <div className="flex max-w-xl mx-auto">
           {BOTTOM_TABS.map(tab => {
             const isActive = tab.href ? pathname === tab.href : false;
-            const isServiceTab = tab.label === "サービス";
             return (
               <button
                 key={tab.label}
-                onClick={() => {
-                  if (isServiceTab) {
-                    setShowService(v => !v);
-                  } else if (tab.href) {
-                    router.push(tab.href);
-                  }
-                }}
+                onClick={() => router.push(tab.href)}
                 className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors"
                 style={{ color: isActive ? "#E85D04" : "#888", background: "none", border: "none", cursor: "pointer" }}
               >
