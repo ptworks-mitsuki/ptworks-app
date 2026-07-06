@@ -10,6 +10,8 @@ import type { SavedPlan } from "@/hooks/useSavedPlans";
 import { useFavorites } from "@/hooks/useFavorites";
 import type { FavoriteItem, FavoriteType } from "@/hooks/useFavorites";
 import { NEW_SECTION_ORDER, NEW_SECTION_TITLES, NEW_SECTION_COLORS } from "@/types/medical";
+import dynamic from "next/dynamic";
+const NotesDictionary = dynamic(() => import("@/components/NotesDictionary").then(m => m.NotesDictionary), { ssr: false });
 
 // モック：実認証が実装されたら差し替える
 const MOCK_USER = { name: "田中 優子" };
@@ -653,7 +655,12 @@ export default function MyPage() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          ZONE 5：お気に入り
+          ZONE 5：自分の辞書
+      ══════════════════════════════════════════════════════════ */}
+      <NotesDictionary />
+
+      {/* ══════════════════════════════════════════════════════════
+          ZONE 6：お気に入り
       ══════════════════════════════════════════════════════════ */}
       <div>
         <h2 className="text-base font-black text-gray-900 mb-3">お気に入り</h2>

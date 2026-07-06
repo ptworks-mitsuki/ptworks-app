@@ -8,6 +8,8 @@ import type { PatientInfo, HighlightConfig } from "./PatientInfoForm";
 import { useSavedPlans } from "@/hooks/useSavedPlans";
 import { useFavorites } from "@/hooks/useFavorites";
 import { ComedicalSection } from "./ComedicalSection";
+import { saveNewNote } from "@/lib/notes";
+import { SaveNoteModal, NoteToast, SaveIconButton } from "@/components/SaveNoteModal";
 
 interface TreatmentEvidenceProps {
   onSharedDiseaseChange?:     (disease: string) => void;
@@ -207,8 +209,11 @@ export function TreatmentEvidence({
 
   const { savePlan }           = useSavedPlans();
   const { isFavorited, toggleFavorite } = useFavorites();
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [savedMsg,      setSavedMsg]      = useState(false);
+  const [showSaveModal,     setShowSaveModal]     = useState(false);
+  const [savedMsg,          setSavedMsg]          = useState(false);
+  const [showNoteModal,     setShowNoteModal]      = useState(false);
+  const [noteSavedToast,    setNoteSavedToast]     = useState(false);
+  const [noteSaved,         setNoteSaved]          = useState(false);
 
   // 親コンポーネントへの同期（「何でも相談する」タブで患者情報を引き継ぐため）
   const handleQueryChange = (v: string) => {
@@ -338,6 +343,52 @@ export function TreatmentEvidence({
           />
         )}
 
+        {/* ノート保存モーダル */}
+        {showNoteModal && result && (
+          <SaveNoteModal
+            type="treatment"
+            defaultTitle={`${disease}${patientInfo.age ? ` ${patientInfo.age}歳` : ""}${patientInfo.gender ? ` ${patientInfo.gender}` : ""}`}
+            content={[
+              `【疾患名】${disease}`,
+              patientInfo.age    ? `【年齢】${patientInfo.age}歳` : "",
+              patientInfo.gender ? `【性別】${patientInfo.gender}` : "",
+              patientInfo.goal   ? `【目標】${patientInfo.goal}` : "",
+              "",
+              "【治療方針】",
+              ...result.standard.points.map(p => `・${p}`),
+              "",
+              "【使用文献】",
+              ...result.standard.references.map(r => `・${r}`),
+            ].filter(Boolean).join("\n")}
+            literature={result.standard.references.map(r => ({ title: r, author: "", year: "" }))}
+            onSave={({ title, memo, tags }) => {
+              const content = [
+                `【疾患名】${disease}`,
+                patientInfo.age    ? `【年齢】${patientInfo.age}歳` : "",
+                patientInfo.gender ? `【性別】${patientInfo.gender}` : "",
+                patientInfo.goal   ? `【目標】${patientInfo.goal}` : "",
+                "",
+                "【治療方針】",
+                ...result.standard.points.map(p => `・${p}`),
+              ].filter(Boolean).join("\n");
+              saveNewNote({
+                type:       "treatment",
+                title,
+                content,
+                memo,
+                tags,
+                literature: result.standard.references.map(r => ({ title: r, author: "", year: "" })),
+              });
+              setNoteSaved(true);
+              setShowNoteModal(false);
+              setNoteSavedToast(true);
+              setTimeout(() => setNoteSavedToast(false), 2000);
+            }}
+            onCancel={() => setShowNoteModal(false)}
+          />
+        )}
+        <NoteToast visible={noteSavedToast} />
+
         {/* ヘッダー */}
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -350,6 +401,7 @@ export function TreatmentEvidence({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <SaveIconButton saved={noteSaved} onClick={() => setShowNoteModal(true)} />
             {/* ハートボタン */}
             <button
               onClick={() => toggleFavorite({

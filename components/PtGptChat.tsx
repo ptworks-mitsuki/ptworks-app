@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
+import { saveNewNote } from "@/lib/notes";
+import { SaveNoteModal, NoteToast, SaveIconButton } from "@/components/SaveNoteModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -108,8 +110,17 @@ function UserBubble({ content }: { content: string }) {
   );
 }
 
-function AssistantBubble({ msg, onRetry }: { msg: Message; onRetry: (q: string) => void }) {
-  const router = useRouter();
+function AssistantBubble({
+  msg, onRetry, userQuery, onSaved,
+}: {
+  msg: Message;
+  onRetry: (q: string) => void;
+  userQuery?: string;
+  onSaved: () => void;
+}) {
+  const router  = useRouter();
+  const [showModal, setShowModal] = useState(false);
+  const [saved,     setSaved]     = useState(false);
 
   if (msg.intent === "service" && msg.service) {
     return (
@@ -163,24 +174,51 @@ function AssistantBubble({ msg, onRetry }: { msg: Message; onRetry: (q: string) 
     );
   }
 
+  const defaultTitle = (userQuery ?? msg.content).slice(0, 20);
+
   return (
-    <div className="flex justify-start mb-4">
-      <div className="max-w-[92%] w-full bg-white rounded-2xl rounded-tl-md border border-gray-200 shadow-sm overflow-hidden">
-        {msg.intent && (
-          <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-2"
-            style={{ background: `${INTENT_COLORS[msg.intent]}12` }}>
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: INTENT_COLORS[msg.intent] }} />
-            <span className="text-[10px] font-bold" style={{ color: INTENT_COLORS[msg.intent] }}>
-              {INTENT_LABELS[msg.intent]}
-            </span>
+    <>
+      {showModal && (
+        <SaveNoteModal
+          type="gpt"
+          defaultTitle={defaultTitle}
+          content={msg.content}
+          onSave={({ title, memo, tags }) => {
+            saveNewNote({ type: "gpt", title, content: msg.content, memo, tags, literature: [] });
+            setSaved(true);
+            setShowModal(false);
+            onSaved();
+          }}
+          onCancel={() => setShowModal(false)}
+        />
+      )}
+
+      <div className="flex justify-start mb-4">
+        <div className="max-w-[92%] w-full bg-white rounded-2xl rounded-tl-md border border-gray-200 shadow-sm overflow-hidden">
+          {msg.intent && (
+            <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between"
+              style={{ background: `${INTENT_COLORS[msg.intent]}12` }}>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: INTENT_COLORS[msg.intent] }} />
+                <span className="text-[10px] font-bold" style={{ color: INTENT_COLORS[msg.intent] }}>
+                  {INTENT_LABELS[msg.intent]}
+                </span>
+              </div>
+              {!msg.loading && <SaveIconButton saved={saved} onClick={() => setShowModal(true)} />}
+            </div>
+          )}
+          <div className="px-4 py-4">
+            <MdBody text={msg.content} />
+            {msg.loading && <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />}
+            {!msg.loading && !msg.intent && (
+              <div className="flex justify-end mt-3">
+                <SaveIconButton saved={saved} onClick={() => setShowModal(true)} />
+              </div>
+            )}
           </div>
-        )}
-        <div className="px-4 py-4">
-          <MdBody text={msg.content} />
-          {msg.loading && <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -192,10 +230,11 @@ interface PtGptChatProps {
 }
 
 export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
-  const [messages,  setMessages]  = useState<Message[]>([]);
-  const [input,     setInput]     = useState("");
-  const [sending,   setSending]   = useState(false);
-  const [retryMsg,  setRetryMsg]  = useState<string | null>(null);
+  const [messages,    setMessages]    = useState<Message[]>([]);
+  const [input,       setInput]       = useState("");
+  const [sending,     setSending]     = useState(false);
+  const [retryMsg,    setRetryMsg]    = useState<string | null>(null);
+  const [savedToast,  setSavedToast]  = useState(false);
 
   const abortRef    = useRef<AbortController | null>(null);
   const bottomRef   = useRef<HTMLDivElement>(null);
@@ -405,14 +444,23 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
 
         {/* メッセージ一覧 */}
         <div className="pt-4">
-          {messages.map(msg =>
-            msg.role === "user"
-              ? <UserBubble key={msg.id} content={msg.content} />
-              : <AssistantBubble key={msg.id} msg={msg} onRetry={handleRetry} />,
-          )}
+          {messages.map((msg, i) => {
+            if (msg.role === "user") return <UserBubble key={msg.id} content={msg.content} />;
+            const prevUser = messages.slice(0, i).reverse().find(m => m.role === "user");
+            return (
+              <AssistantBubble
+                key={msg.id}
+                msg={msg}
+                onRetry={handleRetry}
+                userQuery={prevUser?.content}
+                onSaved={() => { setSavedToast(true); setTimeout(() => setSavedToast(false), 2000); }}
+              />
+            );
+          })}
         </div>
         <div ref={bottomRef} />
       </div>
+      <NoteToast visible={savedToast} />
 
       {/* 入力エリア */}
       <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3"
