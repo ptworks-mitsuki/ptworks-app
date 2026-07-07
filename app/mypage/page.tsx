@@ -29,51 +29,38 @@ const PLAN_LABELS: Record<typeof CURRENT_PLAN, string> = {
 
 const QUICK_ACTIONS = [
   {
-    id:    "search",
-    label: "疾患を調べる",
-    desc:  "教科書・ガイドラインをもとに整理",
-    href:  "/stage1",
-    color: "#2563EB",
-    bg:    "#EFF6FF",
-    icon:  (
-      <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10" aria-hidden="true">
-        <circle cx="18" cy="18" r="10" stroke="#2563EB" strokeWidth="2" fill="#2563EB" fillOpacity="0.1"/>
-        <line x1="25" y1="25" x2="34" y2="34" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round"/>
-        <line x1="14" y1="18" x2="22" y2="18" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5"/>
-        <line x1="18" y1="14" x2="18" y2="22" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5"/>
-      </svg>
-    ),
-  },
-  {
-    id:    "treatment",
-    label: "治療を考える",
-    desc:  "患者情報を入力して治療を提案",
-    href:  "/stage1",
-    color: "#16a34a",
-    bg:    "#F0FDF4",
-    icon:  (
-      <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10" aria-hidden="true">
-        <rect x="8" y="10" width="24" height="22" rx="3" fill="#16a34a" fillOpacity="0.1" stroke="#16a34a" strokeWidth="1.5"/>
-        <rect x="14" y="6" width="12" height="7" rx="2" fill="#16a34a" fillOpacity="0.15" stroke="#16a34a" strokeWidth="1.5"/>
-        <path d="M20 22 C20 19 14 17 14 21 C14 25 20 28 20 28 C20 28 26 25 26 21 C26 17 20 19 20 22Z" fill="#16a34a" fillOpacity="0.5"/>
-      </svg>
-    ),
-  },
-  {
-    id:    "consult",
-    label: "何でも相談する",
-    desc:  "症例の悩みを24時間相談",
-    href:  "/stage1",
-    color: "#ea580c",
+    id:    "pt-gpt",
+    label: "PT専用GPT",
+    desc:  "疾患・術式・臨床の疑問を何でも解決",
+    href:  "/pt-gpt",
+    color: "#E85D04",
     bg:    "#FFF7ED",
     icon:  (
       <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10" aria-hidden="true">
-        <rect x="4" y="8" width="24" height="16" rx="4" fill="#ea580c" fillOpacity="0.1" stroke="#ea580c" strokeWidth="1.5"/>
-        <path d="M8 24 L6 32 L16 27" fill="#ea580c" fillOpacity="0.1" stroke="#ea580c" strokeWidth="1.2" strokeLinejoin="round"/>
-        <circle cx="12" cy="16" r="1.5" fill="#ea580c"/>
-        <circle cx="16" cy="16" r="1.5" fill="#ea580c" fillOpacity="0.6"/>
-        <circle cx="20" cy="16" r="1.5" fill="#ea580c" fillOpacity="0.35"/>
-        <rect x="26" y="7" width="10" height="8" rx="3" fill="#ea580c" fillOpacity="0.08" stroke="#ea580c" strokeWidth="1.2" strokeDasharray="2 1.5"/>
+        <rect x="4" y="8" width="24" height="18" rx="4" fill="#E85D04" fillOpacity="0.1" stroke="#E85D04" strokeWidth="1.5"/>
+        <path d="M8 26 L6 34 L16 29" fill="#E85D04" fillOpacity="0.1" stroke="#E85D04" strokeWidth="1.2" strokeLinejoin="round"/>
+        <circle cx="11" cy="17" r="1.5" fill="#E85D04"/>
+        <circle cx="16" cy="17" r="1.5" fill="#E85D04" fillOpacity="0.6"/>
+        <circle cx="21" cy="17" r="1.5" fill="#E85D04" fillOpacity="0.35"/>
+        <circle cx="31" cy="12" r="6" fill="#E85D04" fillOpacity="0.15" stroke="#E85D04" strokeWidth="1.5"/>
+        <path d="M29 12h4M31 10v4" stroke="#E85D04" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
+    id:    "literature",
+    label: "文献検索",
+    desc:  "論文・教科書を日本語で検索",
+    href:  "/stage1/literature",
+    color: "#1B4332",
+    bg:    "#F0FDF4",
+    icon:  (
+      <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10" aria-hidden="true">
+        <circle cx="17" cy="17" r="10" stroke="#1B4332" strokeWidth="2" fill="#1B4332" fillOpacity="0.1"/>
+        <line x1="24" y1="24" x2="34" y2="34" stroke="#1B4332" strokeWidth="2.5" strokeLinecap="round"/>
+        <line x1="13" y1="17" x2="21" y2="17" stroke="#1B4332" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6"/>
+        <line x1="13" y1="13" x2="21" y2="13" stroke="#1B4332" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.4"/>
+        <line x1="13" y1="21" x2="18" y2="21" stroke="#1B4332" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.4"/>
       </svg>
     ),
   },
@@ -469,40 +456,32 @@ export default function MyPage() {
       <div>
         <h2 className="text-base font-black text-gray-900 mb-3">今すぐ使う</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {QUICK_ACTIONS.map((action) => (
             <Link
               key={action.id}
               href={action.href}
-              className="flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-3 bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 hover:shadow-md hover:border-opacity-100 transition group"
+              className="flex flex-col items-start gap-3 bg-white rounded-2xl border p-4 hover:shadow-md transition group"
               style={{ borderColor: action.color + "33" }}
             >
               {/* アイコン */}
               <div
-                className="shrink-0 w-14 h-14 sm:w-full sm:h-16 rounded-xl sm:rounded-lg flex items-center justify-center"
+                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                 style={{ background: action.bg }}
               >
                 {action.icon}
               </div>
 
               {/* テキスト */}
-              <div className="flex-1 sm:flex-none">
+              <div>
                 <p
-                  className="font-black text-sm sm:text-base leading-tight mb-1 group-hover:opacity-80 transition"
+                  className="font-black text-sm leading-tight mb-1 group-hover:opacity-80 transition"
                   style={{ color: action.color }}
                 >
                   {action.label}
                 </p>
                 <p className="text-xs text-gray-500 leading-snug">{action.desc}</p>
               </div>
-
-              {/* 矢印（スマホのみ右端） */}
-              <svg
-                className="w-4 h-4 text-gray-300 shrink-0 sm:hidden"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-              </svg>
             </Link>
           ))}
         </div>
@@ -565,9 +544,11 @@ export default function MyPage() {
               </p>
               <ul className="space-y-1.5">
                 {[
-                  "メディカルサーチ 無制限",
-                  "治療アプローチAI生成",
+                  "PT専用GPT 無制限",
+                  "文献検索 無制限",
                   "スライド自動生成",
+                  "診療報酬・算定ガイド",
+                  "治療を考える",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-xs text-white/80">
                     <span className="text-green-400 font-bold shrink-0">✓</span>
