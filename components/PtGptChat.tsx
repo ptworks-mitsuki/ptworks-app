@@ -48,6 +48,13 @@ const INTENT_COLORS: Record<GptIntent, string> = {
 
 // ─── Markdown ─────────────────────────────────────────────────────────────
 
+function cleanMarkdown(text: string): string {
+  return text
+    .replace(/\*\*\s*\*\*/g, "")
+    .replace(/\*\*\s*[Ee]mpty\s*\*\*/g, "")
+    .replace(/^\s*\*\*\s*$/gm, "");
+}
+
 function MdBody({ text }: { text: string }) {
   return (
     <ReactMarkdown
@@ -92,7 +99,7 @@ function MdBody({ text }: { text: string }) {
         },
       }}
     >
-      {text}
+      {cleanMarkdown(text)}
     </ReactMarkdown>
   );
 }
@@ -236,10 +243,12 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
   const [retryMsg,    setRetryMsg]    = useState<string | null>(null);
   const [savedToast,  setSavedToast]  = useState(false);
 
-  const abortRef    = useRef<AbortController | null>(null);
-  const bottomRef   = useRef<HTMLDivElement>(null);
-  const textaRef    = useRef<HTMLTextAreaElement>(null);
-  const initialised = useRef(false);
+  const abortRef      = useRef<AbortController | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const latestAnsRef  = useRef<HTMLDivElement>(null);
+  const textaRef      = useRef<HTMLTextAreaElement>(null);
+  const initialised   = useRef(false);
+  const [showTopBtn, setShowTopBtn] = useState(false);
 
   // localStorage 復元
   useEffect(() => {
@@ -260,10 +269,12 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
-  // 最下部へスクロール
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // 手動スクロール検出
+  const handleScroll = useCallback(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    setShowTopBtn(el.scrollTop > 80);
+  }, []);
 
   // 履歴保存
   useEffect(() => {
@@ -280,6 +291,7 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
 
     setSending(true);
     setRetryMsg(null);
+    setShowTopBtn(false);
 
     const userMsg: Message = { id: `u-${Date.now()}`, role: "user", content: q };
     const assistantId      = `a-${Date.now()}`;
@@ -341,6 +353,7 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, loading: false } : m,
               ));
+              setShowTopBtn(true);
             } else if (ev.type === "error") {
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, loading: false, error: true, content: q } : m,
@@ -395,7 +408,7 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
       )}
 
       {/* メッセージエリア */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 max-w-2xl mx-auto w-full">
+      <div ref={scrollAreaRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 pb-4 max-w-2xl mx-auto w-full">
 
         {/* 空状態 */}
         {messages.length === 0 && (
@@ -445,22 +458,37 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
         {/* メッセージ一覧 */}
         <div className="pt-4">
           {messages.map((msg, i) => {
+            const isLatestAssistant = msg.role === "assistant" && i === messages.length - 1;
             if (msg.role === "user") return <UserBubble key={msg.id} content={msg.content} />;
             const prevUser = messages.slice(0, i).reverse().find(m => m.role === "user");
             return (
-              <AssistantBubble
-                key={msg.id}
-                msg={msg}
-                onRetry={handleRetry}
-                userQuery={prevUser?.content}
-                onSaved={() => { setSavedToast(true); setTimeout(() => setSavedToast(false), 2000); }}
-              />
+              <div key={msg.id} ref={isLatestAssistant ? latestAnsRef : undefined}>
+                <AssistantBubble
+                  msg={msg}
+                  onRetry={handleRetry}
+                  userQuery={prevUser?.content}
+                  onSaved={() => { setSavedToast(true); setTimeout(() => setSavedToast(false), 2000); }}
+                />
+              </div>
             );
           })}
         </div>
-        <div ref={bottomRef} />
       </div>
       <NoteToast visible={savedToast} />
+
+      {/* 先頭に戻るボタン */}
+      {showTopBtn && (
+        <button
+          onClick={() => latestAnsRef.current?.scrollIntoView({ behavior: "smooth" })}
+          className="fixed bottom-28 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold text-white shadow-lg transition hover:opacity-90 active:scale-95"
+          style={{ background: "#1B4332" }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+          先頭に戻る
+        </button>
+      )}
 
       {/* 入力エリア */}
       <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3"
