@@ -23,41 +23,46 @@ export async function POST(req: NextRequest) {
       summary?: string;
     };
 
-    const { title, titleJa, authors, journal, year, summary } = body;
-    if (!title) return NextResponse.json({ error: "タイトルが必要です" }, { status: 400 });
+    const { title, titleJa, authors, journal, year, summary, citation } = body as typeof body & { citation?: string };
+    if (!title && !citation) return NextResponse.json({ error: "タイトルまたは文献情報が必要です" }, { status: 400 });
+
+    const citationText = citation
+      ? `文献：${citation}`
+      : [
+          `論文タイトル（英語）：${title}`,
+          titleJa  ? `論文タイトル（日本語）：${titleJa}` : "",
+          authors  ? `著者：${authors}` : "",
+          journal  ? `雑誌：${journal}` : "",
+          year     ? `発行年：${year}` : "",
+          summary  ? `既存の要約：${summary}` : "",
+        ].filter(Boolean).join("\n");
 
     const message = await client.messages.create({
       model:      "claude-sonnet-4-6",
-      max_tokens: 800,
+      max_tokens: 1000,
       messages: [{
         role: "user",
-        content: `以下の論文情報をもとに、理学療法士向けの情報を生成してください。
+        content: `以下の文献について日本語で詳しく説明してください。
 
-論文タイトル（英語）：${title}
-論文タイトル（日本語）：${titleJa ?? ""}
-著者：${authors ?? ""}
-雑誌：${journal ?? ""}
-発行年：${year ?? ""}
-既存の要約：${summary ?? ""}
+${citationText}
 
-以下のJSON形式のみで回答してください：
+以下のJSON形式のみで回答してください（前置き・指示文は出力しないでください）：
 {
-  "summaryJa": "研究目的・方法・結果・結論を含む日本語要約（5〜8行、改行なし）",
+  "summaryJa": "研究目的・方法・結果・結論を3〜4行でわかりやすくまとめた日本語要約",
   "clinicalPoints": [
-    "臨床で活かせるポイント1（この結果をどう臨床応用するか）",
-    "臨床で活かせるポイント2（どんな患者に応用できるか）",
-    "臨床で活かせるポイント3（注意すべき点）",
-    "臨床で活かせるポイント4（エビデンスの限界）"
+    "PTが臨床で活かせるポイント1",
+    "PTが臨床で活かせるポイント2",
+    "PTが臨床で活かせるポイント3"
   ],
   "evidenceLevel": "A" or "B" or "C" or "D",
   "evidenceLevelReason": "エビデンスレベルの判定根拠（1文）"
 }
 
 エビデンスレベル判定基準：
-A = システマティックレビュー・メタ解析
-B = RCT（無作為化比較試験）
-C = コホート研究・前後比較研究
-D = 症例報告・専門家意見`,
+A = RCT・メタ解析・システマティックレビュー（強い根拠）
+B = コホート研究・前後比較研究（根拠あり）
+C = 専門家意見・ガイドライン（専門家意見）
+D = 症例報告・経験則（経験則）`,
       }],
     });
 

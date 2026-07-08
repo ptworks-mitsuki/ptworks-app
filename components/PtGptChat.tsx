@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
+import type { LiteratureDetailResponse } from "@/app/api/literature-detail/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast, SaveIconButton } from "@/components/SaveNoteModal";
 
@@ -45,6 +46,198 @@ const INTENT_COLORS: Record<GptIntent, string> = {
   service: "#E85D04",
   career:  "#7C3AED",
 };
+
+// ─── Evidence level meta ──────────────────────────────────────────────────
+
+const EVIDENCE_META: Record<string, { label: string; bg: string; text: string }> = {
+  A: { label: "Lv.A  強い根拠",   bg: "#1B4332", text: "#fff" },
+  B: { label: "Lv.B  根拠あり",   bg: "#1D4ED8", text: "#fff" },
+  C: { label: "Lv.C  専門家意見", bg: "#6B7280", text: "#fff" },
+  D: { label: "Lv.D  経験則",     bg: "#D1D5DB", text: "#374151" },
+};
+
+// ─── Extract references from markdown text ────────────────────────────────
+
+function extractReferences(text: string): string[] {
+  // 「参考文献」「文献」「References」などのセクション以降を抽出
+  const sectionRe = /(?:^|\n)(?:#{1,3}\s*)?(?:参考文献|参照した文献|文献|References?)[：:\s]*\n/im;
+  const match = sectionRe.exec(text);
+  if (!match) return [];
+
+  const afterSection = text.slice(match.index + match[0].length);
+  const refs: string[] = [];
+
+  for (const line of afterSection.split("\n")) {
+    // セクション終端（次の見出し）で停止
+    if (/^#{1,3}\s/.test(line)) break;
+    const clean = line.replace(/^[\s\-\*\d\.）)\]]+/, "").trim();
+    // 空行 or 短すぎる行はスキップ
+    if (clean.length < 8) continue;
+    // 文献らしい行（年度・著者・誌名パターン）を採用
+    refs.push(clean);
+    if (refs.length >= 10) break;
+  }
+  return refs;
+}
+
+// ─── LiteratureDetailCard ─────────────────────────────────────────────────
+
+function LiteratureDetailCard({ citation }: { citation: string }) {
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [detail,  setDetail]  = useState<LiteratureDetailResponse | null>(null);
+  const [error,   setError]   = useState("");
+  const [saved,   setSaved]   = useState(false);
+  const [toast,   setToast]   = useState(false);
+
+  const pubmedUrl = `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(citation.slice(0, 80))}`;
+
+  const handleToggle = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (detail || loading) return;
+
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/literature-detail", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ citation }),
+      });
+      const data = await res.json() as LiteratureDetailResponse & { error?: string };
+      if (data.error) throw new Error(data.error);
+      setDetail(data);
+    } catch (e) {
+      setError((e instanceof Error ? e.message : null) ?? "読み込みに失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = () => {
+    if (saved || !detail) return;
+    const content = [
+      `文献：${citation}`,
+      "",
+      `エビデンスレベル：${detail.evidenceLevel}（${detail.evidenceLevelReason}）`,
+      "",
+      "AI日本語要約：",
+      detail.summaryJa,
+      "",
+      "臨床ポイント：",
+      ...detail.clinicalPoints.map(p => `・${p}`),
+      "",
+      `PubMed: ${pubmedUrl}`,
+    ].join("\n");
+
+    saveNewNote({
+      type:    "literature",
+      title:   citation.slice(0, 60),
+      content,
+      memo:    "",
+      tags:    ["文献", `Lv.${detail.evidenceLevel}`],
+      literature: [{ title: citation, author: "", year: "" }],
+    });
+    setSaved(true);
+    setToast(true);
+    setTimeout(() => setToast(false), 2000);
+  };
+
+  const evMeta = detail ? (EVIDENCE_META[detail.evidenceLevel] ?? EVIDENCE_META.C) : null;
+
+  return (
+    <div className="mt-1.5 rounded-xl border border-gray-200 overflow-hidden bg-white">
+      {toast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full text-white text-xs font-bold shadow-lg"
+          style={{ background: "#1B4332" }}>
+          ノートに保存しました
+        </div>
+      )}
+
+      {/* 文献テキスト + トグルボタン */}
+      <div className="px-3 py-2.5 flex items-start justify-between gap-2 bg-gray-50">
+        <p className="text-xs text-gray-600 leading-relaxed flex-1">{citation}</p>
+        <button
+          onClick={handleToggle}
+          className="shrink-0 flex items-center gap-1 text-xs font-bold transition whitespace-nowrap"
+          style={{ color: "#E85D04" }}
+        >
+          {open ? "閉じる ▲" : "詳しく見る ▼"}
+        </button>
+      </div>
+
+      {/* 展開部分 */}
+      {open && (
+        <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-3">
+          {loading && (
+            <div className="flex items-center gap-2 py-3">
+              <span className="w-4 h-4 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin shrink-0" />
+              <span className="text-xs text-gray-400">文献情報を読み込み中...</span>
+            </div>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-500 py-2">{error}</p>
+          )}
+
+          {detail && (
+            <>
+              {/* エビデンスレベル */}
+              <div className="flex items-start gap-2 pt-1">
+                <span className="text-xs font-black px-2 py-1 rounded-lg shrink-0"
+                  style={{ background: evMeta!.bg, color: evMeta!.text }}>
+                  {evMeta!.label}
+                </span>
+                <p className="text-xs text-gray-500 leading-snug pt-0.5">{detail.evidenceLevelReason}</p>
+              </div>
+
+              {/* AI日本語要約 */}
+              <div className="rounded-xl px-3 py-3" style={{ background: "#F9FAFB" }}>
+                <p className="text-xs font-bold text-gray-500 mb-1.5">AI日本語要約</p>
+                <p className="text-xs text-gray-700 leading-relaxed">{detail.summaryJa}</p>
+              </div>
+
+              {/* 臨床ポイント */}
+              <div className="border-l-4 pl-3 py-1" style={{ borderLeftColor: "#E85D04" }}>
+                <p className="text-xs font-bold mb-1.5" style={{ color: "#E85D04" }}>臨床ポイント</p>
+                <ul className="space-y-1">
+                  {detail.clinicalPoints.map((pt, i) => (
+                    <li key={i} className="text-xs text-gray-700 leading-relaxed">・{pt}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* アクション */}
+              <div className="flex items-center gap-2 pt-1">
+                <a href={pubmedUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs font-bold transition hover:opacity-70"
+                  style={{ color: "#E85D04" }}>
+                  PubMedで確認
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3 h-3">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </a>
+                <button
+                  onClick={handleSave}
+                  className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg border-2 transition"
+                  style={{
+                    borderColor: saved ? "#E85D04" : "#E5E7EB",
+                    color:       saved ? "#E85D04" : "#6B7280",
+                    background:  saved ? "#FFF7ED" : "#fff",
+                  }}>
+                  {saved ? "保存済み" : "ノートに保存"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Markdown ─────────────────────────────────────────────────────────────
 
@@ -182,6 +375,7 @@ function AssistantBubble({
   }
 
   const defaultTitle = (userQuery ?? msg.content).slice(0, 20);
+  const refs = !msg.loading ? extractReferences(msg.content) : [];
 
   return (
     <>
@@ -223,6 +417,16 @@ function AssistantBubble({
               </div>
             )}
           </div>
+
+          {/* 文献詳細カード */}
+          {refs.length > 0 && (
+            <div className="px-4 pb-4 space-y-2">
+              <p className="text-xs font-bold text-gray-400">文献を詳しく見る</p>
+              {refs.map((ref, i) => (
+                <LiteratureDetailCard key={i} citation={ref} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>
