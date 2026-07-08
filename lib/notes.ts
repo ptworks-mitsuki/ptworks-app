@@ -1,6 +1,6 @@
 // ── ノート・辞書機能 ── DB移行対応のデータ構造
 
-export type NoteType = "gpt" | "treatment" | "literature";
+export type NoteType = "gpt" | "treatment" | "literature" | "homeexercise";
 
 export interface NoteLiterature {
   title:  string;
@@ -57,6 +57,13 @@ export function updateNote(id: string, patch: Partial<Pick<Note, "title" | "memo
   );
   localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
   if (patch.tags) saveTags(patch.tags);
+}
+
+export function updateMemo(id: string, memo: string): void {
+  const notes = loadNotes().map(n =>
+    n.id === id ? { ...n, memo, updatedAt: new Date().toISOString() } : n,
+  );
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
 }
 
 export function deleteNote(id: string): void {

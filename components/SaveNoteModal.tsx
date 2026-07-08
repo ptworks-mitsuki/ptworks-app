@@ -6,14 +6,16 @@ import { loadTags, type NoteType, type NoteLiterature } from "@/lib/notes";
 // ── バッジ色 ──────────────────────────────────────────────────────────────
 
 export const NOTE_TYPE_LABELS: Record<NoteType, string> = {
-  gpt:        "GPT回答",
-  treatment:  "治療プラン",
-  literature: "文献",
+  gpt:          "GPT回答",
+  treatment:    "治療プラン",
+  literature:   "文献",
+  homeexercise: "指導書",
 };
 export const NOTE_TYPE_COLORS: Record<NoteType, string> = {
-  gpt:        "#1B4332",
-  treatment:  "#E85D04",
-  literature: "#2563EB",
+  gpt:          "#1B4332",
+  treatment:    "#E85D04",
+  literature:   "#2563EB",
+  homeexercise: "#7C3AED",
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────

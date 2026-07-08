@@ -3,7 +3,6 @@
 import { useState, useCallback, useTransition, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useFavorites } from "@/hooks/useFavorites";
 import {
   DUMMY_PAPERS, DUMMY_BOOKS, BOOK_CATEGORIES,
   type Paper, type Book, type BookCategoryId,
@@ -54,8 +53,6 @@ function evidenceBadge(level: string) {
 // ──────────────────────────────────────────────────────────────
 
 function PaperCard({ paper, onSaved }: { paper: Paper; onSaved?: () => void }) {
-  const { isFavorited, toggleFavorite } = useFavorites();
-  const favId = `literature-${paper.id}`;
   const [expanded, setExpanded] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
 
@@ -124,13 +121,6 @@ function PaperCard({ paper, onSaved }: { paper: Paper; onSaved?: () => void }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
           <button
-            onClick={() => toggleFavorite({ id: favId, type: "literature", title: paper.titleJa, subtitle: `${paper.journal} ${paper.year}`, literatureData: { id: paper.id, title: paper.title, titleJa: paper.titleJa, authors: paper.authors, journal: paper.journal, year: paper.year, evidenceLevel: paper.evidenceLevel, url: paper.url, summary: paper.summary } })}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, padding: 0, color: isFavorited(favId) ? "#ef4444" : "#d1d5db" }}
-            title={isFavorited(favId) ? "お気に入り解除" : "お気に入りに追加"}
-          >
-            {isFavorited(favId) ? "♥" : "♡"}
-          </button>
-          <button
             onClick={handleSaveNote}
             style={{ background: noteSaved ? "#FFF7ED" : "#F9FAFB", border: `1px solid ${noteSaved ? "#FED7AA" : "#E5E7EB"}`, borderRadius: 8, cursor: noteSaved ? "default" : "pointer", padding: "3px 8px", fontSize: 11, fontWeight: 600, color: noteSaved ? "#E85D04" : "#9CA3AF", display: "flex", alignItems: "center", gap: 4 }}
             title={noteSaved ? "保存済み" : "ノートに保存"}
@@ -193,8 +183,6 @@ function PaperCard({ paper, onSaved }: { paper: Paper; onSaved?: () => void }) {
 // ──────────────────────────────────────────────────────────────
 
 function BookCard({ book }: { book: Book }) {
-  const { isFavorited, toggleFavorite } = useFavorites();
-  const favId = `book-${book.id}`;
   const affiliateId = process.env.NEXT_PUBLIC_RAKUTEN_AFFILIATE_ID ?? "RAKUTEN_AFFILIATE_ID_HERE";
   const rakutenUrl = `https://hb.afl.rakuten.co.jp/hgc/${affiliateId}/?pc=${encodeURIComponent("https://books.rakuten.co.jp/search/?" + new URLSearchParams({ sty: "1", b: "1", f: "1", s: "0", sf: "0", e: "2", kw: book.title }).toString())}`;
 
@@ -204,12 +192,6 @@ function BookCard({ book }: { book: Book }) {
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "#111", lineHeight: 1.4 }}>{book.title}</p>
-          <button
-            onClick={() => toggleFavorite({ id: favId, type: "book", title: book.title, subtitle: book.authors, bookData: { id: book.id, title: book.title, authors: book.authors, publisher: book.publisher, year: book.year, price: book.price, coverUrl: book.coverUrl, summary: book.summary, rakutenUrl, category: book.category } })}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, padding: 0, color: isFavorited(favId) ? "#ef4444" : "#d1d5db", flexShrink: 0 }}
-          >
-            {isFavorited(favId) ? "♥" : "♡"}
-          </button>
         </div>
         <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>{book.authors} ／ {book.publisher}（{book.year}）</p>
         <p style={{ margin: "6px 0 0", fontSize: 12, color: "#374151", lineHeight: 1.6 }}>{book.summary}</p>

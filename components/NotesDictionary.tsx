@@ -1,32 +1,391 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  loadNotes, updateNote, deleteNote, exportNotes, importNotes,
+  loadNotes, updateNote, updateMemo, deleteNote, exportNotes, importNotes,
   type Note, type NoteType,
 } from "@/lib/notes";
 import { NOTE_TYPE_LABELS, NOTE_TYPE_COLORS } from "@/components/SaveNoteModal";
 
-// ── タブ ──────────────────────────────────────────────────────────────────
+const ORANGE = "#E85D04";
+const GREEN  = "#1B4332";
+
+// ── Types ─────────────────────────────────────────────────────────────────
 
 type Tab = "all" | NoteType;
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "all",        label: "全て"    },
-  { id: "gpt",        label: "GPT回答"   },
-  { id: "treatment",  label: "治療プラン" },
-  { id: "literature", label: "文献"       },
-];
-
 type SortKey = "newest" | "type" | "tag";
 
-// ── 編集モーダル ──────────────────────────────────────────────────────────
+const TABS: { id: Tab; label: string }[] = [
+  { id: "all",          label: "全て"      },
+  { id: "gpt",          label: "GPT回答"   },
+  { id: "treatment",    label: "治療プラン" },
+  { id: "literature",   label: "文献"       },
+  { id: "homeexercise", label: "指導書"     },
+];
+
+// ── AI分析キャッシュキー ──────────────────────────────────────────────────
+const AI_ANALYSIS_KEY = "ptworks_ai_analysis";
+
+interface AiAnalysis {
+  summary: string;
+  points: string[];
+  nextTopics: string[];
+  generatedAt: string;
+  noteCount: number;
+}
+
+// ── 連続学習日数キー ─────────────────────────────────────────────────────
+const STREAK_KEY = "ptworks_streak";
+interface StreakData { lastDate: string; days: number; }
+
+function updateStreak(): number {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const raw = localStorage.getItem(STREAK_KEY);
+    const data: StreakData = raw ? JSON.parse(raw) as StreakData : { lastDate: "", days: 0 };
+    if (data.lastDate === today) return data.days;
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const days = data.lastDate === yesterday ? data.days + 1 : 1;
+    localStorage.setItem(STREAK_KEY, JSON.stringify({ lastDate: today, days }));
+    return days;
+  } catch { return 1; }
+}
+
+// ── 進捗統計 ──────────────────────────────────────────────────────────────
+
+function ProgressStats({ notes }: { notes: Note[] }) {
+  const [streak, setStreak] = useState(0);
+  useEffect(() => { setStreak(updateStreak()); }, []);
+
+  const totalCount = notes.length;
+
+  // 今週追加
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+  const weekCount = notes.filter(n => new Date(n.createdAt) >= weekStart).length;
+
+  // よく調べる分野（タグ頻度）
+  const tagFreq: Record<string, number> = {};
+  notes.forEach(n => n.tags.forEach(t => { tagFreq[t] = (tagFreq[t] ?? 0) + 1; }));
+  const topTag = Object.entries(tagFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+
+  const stats = [
+    { label: "保存ノート",     value: `${totalCount}件`,     sub: "合計" },
+    { label: "今週追加",       value: `${weekCount}件`,      sub: "今週" },
+    { label: "よく調べる",     value: topTag,                sub: "分野" },
+    { label: "連続学習",       value: `🔥${streak}日`,       sub: "連続" },
+  ];
+
+  return (
+    <div className="grid grid-cols-4 gap-2 mb-4">
+      {stats.map(s => (
+        <div key={s.label} className="rounded-2xl p-3 text-center border border-gray-100"
+          style={{ background: "#F9FAFB" }}>
+          <p className="text-[10px] text-gray-400 mb-1 leading-tight">{s.label}</p>
+          <p className="text-sm font-black text-gray-900 leading-snug break-all">{s.value}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{s.sub}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── AI学習分析 ──────────────────────────────────────────────────────────────
+
+function AiAnalysisCard({ notes, onReload }: { notes: Note[]; onReload: () => void }) {
+  const [analysis, setAnalysis] = useState<AiAnalysis | null>(null);
+  const [loading,  setLoading]  = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AI_ANALYSIS_KEY);
+      if (raw) setAnalysis(JSON.parse(raw) as AiAnalysis);
+    } catch { /* ignore */ }
+  }, []);
+
+  const generate = useCallback(async () => {
+    if (notes.length < 3 || loading) return;
+    setLoading(true);
+    try {
+      const summary = notes.slice(0, 20).map(n =>
+        `[${NOTE_TYPE_LABELS[n.type]}] ${n.title} タグ:${n.tags.join(",")}`
+      ).join("\n");
+
+      const res = await fetch("/api/pt-gpt", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `以下は私が保存したノート一覧です。学習傾向を分析してください。\n\n${summary}\n\n以下のJSON形式のみで回答してください：\n{"summary":"あなたが最近よく調べているのは○○分野です。（1文）","points":["共通の臨床ポイント1","共通の臨床ポイント2","共通の臨床ポイント3"],"nextTopics":["次に学ぶと良いテーマ1","次に学ぶと良いテーマ2"]}`,
+          history: [],
+        }),
+      });
+
+      // SSEストリームを読んで最終テキストを集める
+      const reader  = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let   buf     = "";
+      let   fullText = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const ev = JSON.parse(line.slice(6)) as { type: string; text?: string };
+            if (ev.type === "chunk" && ev.text) fullText += ev.text;
+          } catch { /* ignore */ }
+        }
+      }
+
+      const match = fullText.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]) as { summary: string; points: string[]; nextTopics: string[] };
+        const result: AiAnalysis = { ...parsed, generatedAt: new Date().toISOString(), noteCount: notes.length };
+        localStorage.setItem(AI_ANALYSIS_KEY, JSON.stringify(result));
+        setAnalysis(result);
+      }
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [notes, loading]);
+
+  // 3件以上かつ前回の分析がない or ノート数が変わったら自動生成
+  useEffect(() => {
+    if (notes.length >= 3 && (!analysis || analysis.noteCount !== notes.length)) {
+      void generate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes.length]);
+
+  if (notes.length < 3) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden mb-4" style={{ background: GREEN }}>
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-black text-white">AIがあなたの学習を分析</p>
+          <button onClick={generate} disabled={loading}
+            className="text-xs font-bold px-3 py-1.5 rounded-xl transition disabled:opacity-50"
+            style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+            {loading ? "分析中..." : "再分析する"}
+          </button>
+        </div>
+
+        {loading && !analysis && (
+          <div className="flex items-center gap-2">
+            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+            <span className="text-xs text-white/70">学習データを分析中...</span>
+          </div>
+        )}
+
+        {analysis && (
+          <div className="space-y-3">
+            <p className="text-sm text-white/90 leading-relaxed">{analysis.summary}</p>
+
+            {analysis.points.length > 0 && (
+              <div className="rounded-xl px-3 py-3" style={{ background: "rgba(255,255,255,0.1)" }}>
+                <p className="text-xs font-bold text-white/60 mb-2">保存したノートから見えてくる共通の臨床ポイント</p>
+                <ul className="space-y-1">
+                  {analysis.points.map((p, i) => (
+                    <li key={i} className="text-xs text-white/90 leading-relaxed">・{p}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {analysis.nextTopics.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-white/60 mb-1.5">次に学ぶと良い関連テーマ</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {analysis.nextTopics.map((t, i) => (
+                    <span key={i} className="text-xs px-2.5 py-1 rounded-full font-bold"
+                      style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── RelatedNotes ──────────────────────────────────────────────────────────
+
+function RelatedNotes({ note, allNotes, onSelect }: { note: Note; allNotes: Note[]; onSelect: (n: Note) => void }) {
+  const others = allNotes.filter(n => n.id !== note.id);
+  if (others.length === 0) return null;
+
+  // スコアリング（タグ一致 + タイトルキーワード）
+  const scored = others.map(n => {
+    let score = 0;
+    note.tags.forEach(t => { if (n.tags.includes(t)) score += 2; });
+    const keywords = note.title.split(/[\s　・。、]+/).filter(k => k.length >= 2);
+    keywords.forEach(k => {
+      if (n.title.includes(k)) score += 1;
+      if (n.content.slice(0, 300).includes(k)) score += 0.5;
+    });
+    return { note: n, score };
+  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 3);
+
+  if (scored.length === 0) return null;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100">
+      <p className="text-xs font-bold text-gray-500 mb-2">関連するノート</p>
+      <div className="space-y-1.5">
+        {scored.map(({ note: related }) => (
+          <button key={related.id} onClick={() => onSelect(related)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-orange-50 transition text-left group">
+            <svg viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+            <span className="text-xs text-gray-700 group-hover:text-orange-700 leading-snug line-clamp-1">{related.title}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── NoteDetail ────────────────────────────────────────────────────────────
+
+function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
+  note: Note;
+  allNotes: Note[];
+  onClose: () => void;
+  onMemoSaved: () => void;
+  onSelect: (n: Note) => void;
+}) {
+  const [memo,       setMemo]       = useState(note.memo);
+  const [toastMsg,   setToastMsg]   = useState("");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const color = NOTE_TYPE_COLORS[note.type] ?? ORANGE;
+  const label = NOTE_TYPE_LABELS[note.type] ?? note.type;
+
+  // 自動保存（1秒デバウンス）
+  const handleMemoChange = (val: string) => {
+    setMemo(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      updateMemo(note.id, val);
+      onMemoSaved();
+      setToastMsg("メモを保存しました");
+      setTimeout(() => setToastMsg(""), 1000);
+    }, 1000);
+  };
+
+  const updatedAt = new Date(note.updatedAt).toLocaleString("ja-JP", {
+    year: "numeric", month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50">
+      <div className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+        style={{ maxHeight: "90vh" }}>
+
+        {/* ヘッダー */}
+        <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
+              style={{ background: color }}>{label}</span>
+            <p className="text-sm font-black text-gray-900 leading-snug line-clamp-1">{note.title}</p>
+          </div>
+          <button onClick={onClose}
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-gray-400">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3 h-3">
+              <path d="M1 1l12 12M13 1L1 13"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* コンテンツ（スクロール） */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* タグ */}
+          {note.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {note.tags.map(t => (
+                <span key={t} className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
+                  style={{ background: "#FFF7ED", color: ORANGE, border: "1px solid #FED7AA" }}>
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* 保存内容 */}
+          <div className="rounded-xl border border-gray-200 px-4 py-3" style={{ background: "#F9FAFB" }}>
+            <p className="text-xs font-bold text-gray-400 mb-2">AIの回答内容</p>
+            <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {note.content.slice(0, 1500)}{note.content.length > 1500 && "…"}
+            </p>
+          </div>
+
+          {/* 参考文献 */}
+          {note.literature.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-gray-400 mb-1.5">参考文献</p>
+              <div className="space-y-1">
+                {note.literature.map((lit, i) => (
+                  <p key={i} className="text-xs text-gray-600 leading-snug">
+                    {lit.author && <span className="font-semibold">{lit.author} </span>}
+                    {lit.title}
+                    {lit.year && <span className="text-gray-400"> ({lit.year})</span>}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 自分のメモエリア */}
+          <div className="rounded-xl border-l-4 overflow-hidden"
+            style={{ borderLeftColor: ORANGE, background: "#FFFDE7" }}>
+            <div className="px-4 pt-3 pb-1">
+              <p className="text-xs font-bold text-gray-400 mb-2">自分のメモ</p>
+              <textarea
+                value={memo}
+                onChange={e => handleMemoChange(e.target.value)}
+                placeholder="この内容についてのメモを自由に書き込めます（自動保存されます）"
+                rows={4}
+                className="w-full text-sm outline-none resize-none bg-transparent leading-relaxed"
+                style={{ color: "#1A1A1A" }}
+              />
+            </div>
+            <div className="px-4 pb-3">
+              <p className="text-[10px] text-gray-400">最終更新：{updatedAt}</p>
+            </div>
+          </div>
+
+          {/* 関連ノート */}
+          <RelatedNotes note={note} allNotes={allNotes} onSelect={onSelect} />
+        </div>
+
+        {/* 保存トースト */}
+        {toastMsg && (
+          <div className="shrink-0 px-5 py-2 text-center">
+            <span className="text-xs font-bold text-green-700 bg-green-50 px-4 py-1.5 rounded-full border border-green-200">
+              {toastMsg}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── EditModal ─────────────────────────────────────────────────────────────
 
 function EditModal({
-  note,
-  onSave,
-  onClose,
+  note, onSave, onClose,
 }: {
   note: Note;
   onSave: (patch: { title: string; memo: string; tags: string[] }) => void;
@@ -64,18 +423,12 @@ function EditModal({
               style={{ color: "#1A1A1A" }} maxLength={80} />
           </div>
           <div>
-            <label className="text-xs font-bold text-gray-500 mb-1 block">メモ</label>
-            <textarea value={memo} onChange={e => setMemo(e.target.value)} rows={3}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition resize-none"
-              style={{ color: "#1A1A1A" }} />
-          </div>
-          <div>
             <label className="text-xs font-bold text-gray-500 mb-1.5 block">タグ</label>
             <div className="flex flex-wrap gap-1.5 mb-2 min-h-[28px]">
               {tags.map(t => (
                 <span key={t} onClick={() => setTags(p => p.filter(x => x !== t))}
                   className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold cursor-pointer"
-                  style={{ background: "#FFF7ED", color: "#E85D04", border: "1px solid #FED7AA" }}>
+                  style={{ background: "#FFF7ED", color: ORANGE, border: "1px solid #FED7AA" }}>
                   {t}
                   <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-2.5 h-2.5">
                     <path d="M1 1l8 8M9 1L1 9"/>
@@ -90,7 +443,7 @@ function EditModal({
                 placeholder="タグを追加" />
               <button onClick={() => addTag(tagInput)}
                 className="px-3 py-2 rounded-xl text-xs font-bold text-white"
-                style={{ background: "#E85D04" }}>追加</button>
+                style={{ background: ORANGE }}>追加</button>
             </div>
           </div>
           <div className="flex gap-3 pt-1">
@@ -101,7 +454,7 @@ function EditModal({
             <button onClick={() => { if (title.trim()) onSave({ title: title.trim(), memo, tags }); }}
               disabled={!title.trim()}
               className="flex-1 py-3 rounded-xl text-sm font-black text-white hover:opacity-90 transition disabled:opacity-30"
-              style={{ background: "#E85D04" }}>
+              style={{ background: ORANGE }}>
               保存する
             </button>
           </div>
@@ -114,94 +467,48 @@ function EditModal({
 // ── NoteCard ──────────────────────────────────────────────────────────────
 
 function NoteCard({
-  note,
-  onEdit,
-  onDelete,
+  note, onEdit, onDelete, onOpen,
 }: {
-  note:     Note;
-  onEdit:   (n: Note) => void;
-  onDelete: (id: string) => void;
+  note: Note; onEdit: (n: Note) => void; onDelete: (id: string) => void; onOpen: (n: Note) => void;
 }) {
-  const router   = useRouter();
-  const [expanded, setExpanded] = useState(false);
-  const color = NOTE_TYPE_COLORS[note.type];
-  const label = NOTE_TYPE_LABELS[note.type];
-
-  const handleLiteratureSearch = () => {
-    const title = note.literature[0]?.title || note.title;
-    router.push(`/stage1/literature?q=${encodeURIComponent(title)}`);
-  };
+  const color = NOTE_TYPE_COLORS[note.type] ?? ORANGE;
+  const label = NOTE_TYPE_LABELS[note.type] ?? note.type;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
-      style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden cursor-pointer"
+      style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+      onClick={() => onOpen(note)}>
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start gap-2 mb-2">
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
-            style={{ background: color }}>
-            {label}
-          </span>
+            style={{ background: color }}>{label}</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-black text-gray-900 leading-snug line-clamp-2">{note.title}</p>
           </div>
         </div>
 
-        {/* タグ */}
         {note.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {note.tags.map(t => (
               <span key={t} className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: "#FFF7ED", color: "#E85D04", border: "1px solid #FED7AA" }}>
+                style={{ background: "#FFF7ED", color: ORANGE, border: "1px solid #FED7AA" }}>
                 {t}
               </span>
             ))}
           </div>
         )}
 
-        {/* メモ */}
         {note.memo && (
-          <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 mb-2">
-            {note.memo}
-          </p>
-        )}
-
-        {/* 展開コンテンツ */}
-        {expanded && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap mb-3">
-              {note.content.slice(0, 1000)}{note.content.length > 1000 && "…"}
-            </p>
-            {note.literature.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-bold text-gray-400">参考文献</p>
-                {note.literature.map((lit, i) => (
-                  <div key={i} className="text-xs text-gray-600 leading-snug">
-                    {lit.author && <span className="font-semibold">{lit.author} </span>}
-                    {lit.title}
-                    {lit.year && <span className="text-gray-400"> ({lit.year})</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="rounded-lg px-2.5 py-2 mb-2 border-l-2" style={{ background: "#FFFDE7", borderLeftColor: ORANGE }}>
+            <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{note.memo}</p>
           </div>
         )}
 
-        {/* フッター */}
-        <div className="flex items-center justify-between mt-2.5">
+        <div className="flex items-center justify-between mt-1.5">
           <span className="text-[10px] text-gray-400">
             {new Date(note.createdAt).toLocaleDateString("ja-JP")}
           </span>
-          <div className="flex items-center gap-1.5">
-            {note.type === "literature" && note.literature.length > 0 && (
-              <button onClick={handleLiteratureSearch}
-                className="text-[10px] font-semibold px-2 py-1 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition">
-                文献検索で調べる
-              </button>
-            )}
-            <button onClick={() => setExpanded(v => !v)}
-              className="text-[10px] font-semibold px-2 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition">
-              {expanded ? "閉じる" : "展開"}
-            </button>
+          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
             <button onClick={() => onEdit(note)}
               className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-400 hover:text-gray-600">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -226,24 +533,23 @@ function NoteCard({
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function NotesDictionary() {
-  const [notes,     setNotes]     = useState<Note[]>([]);
-  const [tab,       setTab]       = useState<Tab>("all");
-  const [query,     setQuery]     = useState("");
-  const [sortKey,   setSortKey]   = useState<SortKey>("newest");
-  const [editNote,  setEditNote]  = useState<Note | null>(null);
-  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [notes,      setNotes]      = useState<Note[]>([]);
+  const [tab,        setTab]        = useState<Tab>("all");
+  const [query,      setQuery]      = useState("");
+  const [sortKey,    setSortKey]    = useState<SortKey>("newest");
+  const [editNote,   setEditNote]   = useState<Note | null>(null);
+  const [detailNote, setDetailNote] = useState<Note | null>(null);
+  const [importMsg,  setImportMsg]  = useState<string | null>(null);
 
   const reload = useCallback(() => setNotes(loadNotes()), []);
-
   useEffect(() => { reload(); }, [reload]);
 
   const handleDelete = (id: string) => {
     if (!confirm("このノートを削除しますか？")) return;
     deleteNote(id);
     reload();
+    if (detailNote?.id === id) setDetailNote(null);
   };
-
-  const handleEdit = (note: Note) => setEditNote(note);
 
   const handleEditSave = (patch: { title: string; memo: string; tags: string[] }) => {
     if (!editNote) return;
@@ -271,7 +577,6 @@ export function NotesDictionary() {
     e.target.value = "";
   };
 
-  // フィルタリング + 検索
   const filtered = notes
     .filter(n => tab === "all" || n.type === tab)
     .filter(n => {
@@ -293,6 +598,13 @@ export function NotesDictionary() {
 
   return (
     <div>
+
+      {/* 進捗統計 */}
+      <ProgressStats notes={notes} />
+
+      {/* AI学習分析 */}
+      <AiAnalysisCard notes={notes} onReload={reload} />
+
       {/* ヘッダー行 */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-base font-black text-gray-900">自分の辞書</h2>
@@ -319,19 +631,19 @@ export function NotesDictionary() {
       )}
 
       {/* タブ */}
-      <div className="flex border-b border-gray-100 mb-3">
+      <div className="flex border-b border-gray-100 mb-3 overflow-x-auto">
         {TABS.map(t => {
           const count = t.id === "all" ? notes.length : notes.filter(n => n.type === t.id).length;
           const active = tab === t.id;
           return (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-1 py-2.5 text-xs font-bold transition relative ${active ? "" : "text-gray-400 hover:text-gray-600"}`}
-              style={{ color: active ? "#E85D04" : undefined }}>
-              {active && <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full" style={{ background: "#E85D04" }} />}
+              className="shrink-0 flex-1 py-2.5 text-xs font-bold transition relative"
+              style={{ color: active ? ORANGE : "#9CA3AF" }}>
+              {active && <div className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full" style={{ background: ORANGE }} />}
               {t.label}
               {count > 0 && (
                 <span className="ml-1 text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: active ? "#E85D04" : "#E5E7EB", color: active ? "white" : "#9CA3AF" }}>
+                  style={{ background: active ? ORANGE : "#E5E7EB", color: active ? "white" : "#9CA3AF" }}>
                   {count}
                 </span>
               )}
@@ -344,22 +656,16 @@ export function NotesDictionary() {
       <div className="flex gap-2 mb-4">
         <div className="flex-1 relative">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" aria-hidden="true">
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
+          <input value={query} onChange={e => setQuery(e.target.value)}
             placeholder="タイトル・内容・タグで検索"
             className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition"
-            style={{ color: "#1A1A1A" }}
-          />
+            style={{ color: "#1A1A1A" }} />
         </div>
-        <select
-          value={sortKey}
-          onChange={e => setSortKey(e.target.value as SortKey)}
-          className="px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold outline-none text-gray-600 bg-white"
-        >
+        <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}
+          className="px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold outline-none text-gray-600 bg-white">
           <option value="newest">新しい順</option>
           <option value="type">種類別</option>
           <option value="tag">タグ別</option>
@@ -382,22 +688,27 @@ export function NotesDictionary() {
       ) : (
         <div className="space-y-3">
           {filtered.map(note => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              onEdit={handleEdit}
+            <NoteCard key={note.id} note={note}
+              onEdit={n => setEditNote(n)}
               onDelete={handleDelete}
-            />
+              onOpen={n => setDetailNote(n)} />
           ))}
         </div>
       )}
 
       {/* 編集モーダル */}
       {editNote && (
-        <EditModal
-          note={editNote}
-          onSave={handleEditSave}
-          onClose={() => setEditNote(null)}
+        <EditModal note={editNote} onSave={handleEditSave} onClose={() => setEditNote(null)} />
+      )}
+
+      {/* 詳細モーダル */}
+      {detailNote && (
+        <NoteDetail
+          note={detailNote}
+          allNotes={notes}
+          onClose={() => setDetailNote(null)}
+          onMemoSaved={reload}
+          onSelect={n => setDetailNote(n)}
         />
       )}
     </div>

@@ -9,7 +9,6 @@ import {
 } from "@/types/medical";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useSearchCache } from "@/hooks/useSearchCache";
-import { useFavorites } from "@/hooks/useFavorites";
 import type { ResolveResult } from "@/app/api/suggest/route";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -129,14 +128,6 @@ function TermPopup({ state, onClose }: { state: TermPopupState; onClose: () => v
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
-function HeartIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"} stroke={filled ? "#E85D04" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 transition-all duration-150" aria-hidden="true">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-    </svg>
-  );
-}
-
 function LoadingMessages({ disease }: { disease: string }) {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
@@ -153,23 +144,6 @@ function LoadingMessages({ disease }: { disease: string }) {
 
 function RefBlock({ refs }: { refs: ParsedRef[] }) {
   if (refs.length === 0) return null;
-  const [saved, setSaved]     = useState<Set<string>>(new Set());
-  const [toastOn, setToastOn] = useState(false);
-
-  const handleSave = (ref: ParsedRef) => {
-    if (saved.has(ref.citation)) return;
-    try {
-      const prev = JSON.parse(localStorage.getItem("pt-saved-books") ?? "[]") as Array<{ id: string }>;
-      const id = `book-${ref.citation.slice(0, 40)}`;
-      if (!prev.some(b => b.id === id)) {
-        prev.push({ id, citation: ref.citation, level: ref.level, keyword: ref.keyword, savedAt: Date.now() } as never);
-        localStorage.setItem("pt-saved-books", JSON.stringify(prev));
-      }
-    } catch { /* ignore */ }
-    setSaved(p => new Set(p).add(ref.citation));
-    setToastOn(true);
-    setTimeout(() => setToastOn(false), 2000);
-  };
 
   return (
     <div className="mt-3 rounded-xl overflow-hidden" style={{ background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
@@ -180,33 +154,13 @@ function RefBlock({ refs }: { refs: ParsedRef[] }) {
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">参考</span>
       </div>
       <div className="px-3 py-2 space-y-2">
-        {refs.map((ref, i) => {
-          const isSaved = saved.has(ref.citation);
-          return (
-            <div key={i}>
-              <p className="text-[11px] font-semibold text-gray-700 leading-snug">{ref.citation}</p>
-              {ref.level && <p className="text-[10px] text-gray-400 mt-0.5">{ref.level}</p>}
-              <button
-                type="button"
-                onClick={() => handleSave(ref)}
-                disabled={isSaved}
-                className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold transition-all"
-                style={{ color: isSaved ? "#9CA3AF" : "#E85D04", cursor: isSaved ? "default" : "pointer" }}
-              >
-                <svg viewBox="0 0 24 24" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-                {isSaved ? "保存済み" : "お気に入りに追加"}
-              </button>
-            </div>
-          );
-        })}
+        {refs.map((ref, i) => (
+          <div key={i}>
+            <p className="text-[11px] font-semibold text-gray-700 leading-snug">{ref.citation}</p>
+            {ref.level && <p className="text-[10px] text-gray-400 mt-0.5">{ref.level}</p>}
+          </div>
+        ))}
       </div>
-      {toastOn && (
-        <div className="px-3 py-1.5 text-center text-[11px] font-bold text-green-700 bg-green-50 border-t border-green-100">
-          保存しました
-        </div>
-      )}
     </div>
   );
 }
@@ -525,7 +479,6 @@ export function MedicalSearch() {
 
   const { history, addHistory, removeHistory, clearHistory } = useSearchHistory();
   const cache  = useSearchCache();
-  const { isFavorited, toggleFavorite } = useFavorites();
   const inputRef      = useRef<HTMLInputElement>(null);
   const abortRef      = useRef<AbortController | null>(null);
   const abort2Ref     = useRef<AbortController | null>(null);

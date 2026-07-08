@@ -6,7 +6,6 @@ import type { PatientExplanationResult } from "@/app/api/patient-explanation/rou
 import { PatientInfoForm, INITIAL_PATIENT_INFO } from "./PatientInfoForm";
 import type { PatientInfo, HighlightConfig } from "./PatientInfoForm";
 import { useSavedPlans } from "@/hooks/useSavedPlans";
-import { useFavorites } from "@/hooks/useFavorites";
 import { ComedicalSection } from "./ComedicalSection";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast, SaveIconButton } from "@/components/SaveNoteModal";
@@ -142,19 +141,6 @@ function ExplanationDisplay({
 
 // ── Main component ────────────────────────────────────────────────────────
 
-// ── Heart Icon ────────────────────────────────────────────────────────────
-
-function HeartIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" fill={filled ? "#E85D04" : "none"} stroke={filled ? "#E85D04" : "#9CA3AF"}
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      className="w-5 h-5 transition-all duration-150"
-      aria-hidden="true">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-    </svg>
-  );
-}
-
 // ── Save Plan Modal ───────────────────────────────────────────────────────
 
 function SavePlanModal({
@@ -212,7 +198,6 @@ export function TreatmentEvidence({
   const [patientInfo, setPatientInfo]   = useState<PatientInfo>(INITIAL_PATIENT_INFO);
 
   const { savePlan }           = useSavedPlans();
-  const { isFavorited, toggleFavorite } = useFavorites();
   const [showSaveModal,     setShowSaveModal]     = useState(false);
   const [savedMsg,          setSavedMsg]          = useState(false);
   const [showNoteModal,     setShowNoteModal]      = useState(false);
@@ -328,9 +313,6 @@ export function TreatmentEvidence({
 
   // ── 結果表示 ──────────────────────────────────────────────────────────────
 
-  // ハートID
-  const favId = disease ? `treatment-${disease}` : "";
-
   if (showResults && result) {
     return (
       <div className="w-full space-y-5">
@@ -406,20 +388,6 @@ export function TreatmentEvidence({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <SaveIconButton saved={noteSaved} onClick={() => setShowNoteModal(true)} />
-            {/* ハートボタン */}
-            <button
-              onClick={() => toggleFavorite({
-                id:            favId,
-                type:          "treatment",
-                title:         disease,
-                subtitle:      patientInfo.age ? `${patientInfo.age}歳 ${patientInfo.gender}` : undefined,
-                treatmentData: { disease, patientInfo, result },
-              })}
-              className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-white hover:border-orange-300 transition"
-              aria-label={isFavorited(favId) ? "お気に入り解除" : "お気に入りに追加"}
-            >
-              <HeartIcon filled={isFavorited(favId)} />
-            </button>
             <button
               onClick={() => { setShowResults(false); setResult(null); setExpResult(null); }}
               className="text-xs text-gray-400 hover:text-gray-600 transition"
