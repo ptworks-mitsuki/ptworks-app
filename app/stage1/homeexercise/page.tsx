@@ -504,8 +504,8 @@ function ResultPreview({
 export default function HomeExercisePage() {
   const router = useRouter();
 
-  // タブ
-  const [activeTab, setActiveTab] = useState<TabId>("linked");
+  // タブ（デフォルト：標準作成）
+  const [activeTab, setActiveTab] = useState<TabId>("standalone");
 
   // 治療考察からのデータ
   const [ctx, setCtx] = useState<TreatmentContext | null>(null);
@@ -744,23 +744,21 @@ export default function HomeExercisePage() {
         </div>
 
         {/* タブ */}
-        <div className="flex px-4 pb-0 gap-1 border-t border-gray-100 overflow-x-auto">
+        <div className="flex border-t border-gray-100">
           {([
-            { id: "linked",     label: "AI治療考察と連携", badge: false },
-            { id: "standalone", label: "単独で作成",       badge: false },
-            { id: "instant",    label: "今日の治療を即時まとめる", badge: true },
+            { id: "standalone", label: "標準作成" },
+            { id: "instant",    label: "スピード作成" },
+            { id: "linked",     label: "AI治療考察と連携" },
           ] as const).map(tab => (
             <button key={tab.id} onClick={() => handleTabChange(tab.id)}
-              className="shrink-0 flex items-center gap-1.5 py-2.5 px-1 text-sm font-bold transition border-b-2 whitespace-nowrap"
+              className="flex-1 py-2.5 transition border-b-2"
               style={{
+                fontSize:    12,
+                fontWeight:  activeTab === tab.id ? 900 : 400,
                 color:       activeTab === tab.id ? ORANGE : "#9CA3AF",
                 borderColor: activeTab === tab.id ? ORANGE : "transparent",
               }}>
               {tab.label}
-              {tab.badge && (
-                <span className="text-xs font-black px-1.5 py-0.5 rounded-full text-white"
-                  style={{ background: ORANGE, fontSize: 10 }}>NEW</span>
-              )}
             </button>
           ))}
         </div>

@@ -160,7 +160,7 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
 
             {/* ドロップダウン */}
             {notifOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden">
+              <div className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 sm:w-80 top-[3.75rem] sm:top-full sm:mt-2 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden">
 
                 {/* ヘッダー行 */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -175,7 +175,7 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
                 </div>
 
                 {/* 通知リスト */}
-                <div className="divide-y divide-gray-100 overflow-y-auto" style={{ maxHeight: "60vh" }}>
+                <div className="divide-y divide-gray-100 overflow-y-auto" style={{ maxHeight: "70vh" }}>
                   {STATIC_NOTIFS.map(n => {
                     const unread = isUnread(n);
                     const meta   = TYPE_META[n.type];
