@@ -10,6 +10,9 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { ComedicalSection } from "./ComedicalSection";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast, SaveIconButton } from "@/components/SaveNoteModal";
+import { useRouter } from "next/navigation";
+import type { TreatmentContext } from "@/app/stage1/homeexercise/page";
+import { TREATMENT_CONTEXT_KEY } from "@/app/stage1/homeexercise/page";
 
 interface TreatmentEvidenceProps {
   onSharedDiseaseChange?:     (disease: string) => void;
@@ -202,6 +205,7 @@ export function TreatmentEvidence({
   onSharedDiseaseChange,
   onSharedPatientInfoChange,
 }: TreatmentEvidenceProps = {}) {
+  const router = useRouter();
   const [showResults, setShowResults]   = useState(false);
   const [query,       setQuery]         = useState("");
   const [disease,     setDisease]       = useState("");
@@ -560,6 +564,32 @@ export function TreatmentEvidence({
           >
             この治療に関連する文献を検索する →
           </a>
+        )}
+
+        {/* 自主トレ指導書作成ボタン */}
+        {result && (
+          <button
+            onClick={() => {
+              const ctx: TreatmentContext = {
+                disease,
+                treatmentContent: [
+                  ...result.standard.points,
+                  ...result.evidence.map(e => `${e.approach}：${e.detail}`),
+                  result.synthesis,
+                ].join("\n"),
+                references: result.references,
+              };
+              try { localStorage.setItem(TREATMENT_CONTEXT_KEY, JSON.stringify(ctx)); } catch { /* ignore */ }
+              router.push("/stage1/homeexercise");
+            }}
+            className="w-full py-4 rounded-2xl font-black text-white text-base flex items-center justify-center gap-2 transition hover:opacity-90 active:scale-[0.98] shadow-md"
+            style={{ background: "linear-gradient(135deg, #E85D04, #c44b00)" }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" className="w-5 h-5">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
+            </svg>
+            自主トレ指導書を作成する →
+          </button>
         )}
 
         <div className="mt-4"><ComedicalSection disease={disease} /></div>

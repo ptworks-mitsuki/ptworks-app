@@ -259,7 +259,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <NavLink href="/stage1/treatment"    label="AI治療考察"         sub pathname={pathname} onClose={onClose} />
           <NavLink href="/stage1/slides"       label="スライド自動生成"     sub pathname={pathname} onClose={onClose} />
           <NavLink href="/learn/reimbursement" label="診療報酬・算定ガイド" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1"              label="自主トレ指導書作成"   sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/homeexercise"              label="自主トレ指導書作成"   sub pathname={pathname} onClose={onClose} />
           <NavLink href="/learn"               label="学習コンテンツ"       sub pathname={pathname} onClose={onClose} />
 
           <Divider />

@@ -26,7 +26,7 @@ const QUICK_ACCESS = [
   { id: "treatment", label: "AI治療考察",       sub: "AI個別提案",   href: "/stage1/treatment",   icon: <IconClipboard />, main: false },
   { id: "slides",    label: "スライド自動生成",   sub: "発表を10分で", href: "/stage1/slides",      icon: <IconSlides />,    main: false },
   { id: "calc",      label: "診療報酬・算定",     sub: "点数・加算",   href: "/learn/reimbursement",icon: <IconCalc />,      main: false },
-  { id: "homeex",    label: "自主トレ指導書",     sub: "患者指導に",   href: "/stage1",             icon: <IconSheet />,     main: false },
+  { id: "homeex",    label: "自主トレ指導書",     sub: "患者指導に",   href: "/stage1/homeexercise", icon: <IconSheet />,     main: false },
 ];
 
 const BOTTOM_TABS = [
