@@ -56,28 +56,28 @@ const EVIDENCE_META: Record<string, { label: string; bg: string; text: string }>
   D: { label: "Lv.D  経験則",     bg: "#D1D5DB", text: "#374151" },
 };
 
-// ─── Extract references from markdown text ────────────────────────────────
+// ─── Split markdown at 参考資料 section ──────────────────────────────────
 
-function extractReferences(text: string): string[] {
-  // 「参考文献」「文献」「References」などのセクション以降を抽出
-  const sectionRe = /(?:^|\n)(?:#{1,3}\s*)?(?:参考文献|参照した文献|文献|References?)[：:\s]*\n/im;
-  const match = sectionRe.exec(text);
-  if (!match) return [];
+function splitAtReferences(text: string): { before: string; refs: string[] } {
+  // "## 参考資料" などのセクション見出しを探す
+  const re = /\n#{1,3}\s*参考(?:資料|文献)[^\n]*\n/;
+  const match = re.exec(text);
+  if (!match) return { before: text, refs: [] };
 
-  const afterSection = text.slice(match.index + match[0].length);
+  const before    = text.slice(0, match.index);
+  const afterHead = text.slice(match.index + match[0].length);
   const refs: string[] = [];
 
-  for (const line of afterSection.split("\n")) {
-    // セクション終端（次の見出し）で停止
+  for (const line of afterHead.split("\n")) {
+    // 次の見出しで停止
     if (/^#{1,3}\s/.test(line)) break;
-    const clean = line.replace(/^[\s\-\*\d\.）)\]]+/, "").trim();
-    // 空行 or 短すぎる行はスキップ
-    if (clean.length < 8) continue;
-    // 文献らしい行（年度・著者・誌名パターン）を採用
+    const clean = line.replace(/^[\s\-\*\d\.）)\]・]+/, "").trim();
+    if (clean.length < 5) continue;
     refs.push(clean);
     if (refs.length >= 10) break;
   }
-  return refs;
+
+  return { before, refs };
 }
 
 // ─── LiteratureDetailCard ─────────────────────────────────────────────────
@@ -375,7 +375,7 @@ function AssistantBubble({
   }
 
   const defaultTitle = (userQuery ?? msg.content).slice(0, 20);
-  const refs = !msg.loading ? extractReferences(msg.content) : [];
+  const { before, refs } = !msg.loading ? splitAtReferences(msg.content) : { before: msg.content, refs: [] };
 
   return (
     <>
@@ -408,8 +408,10 @@ function AssistantBubble({
               {!msg.loading && <SaveIconButton saved={saved} onClick={() => setShowModal(true)} />}
             </div>
           )}
+
+          {/* 本文（参考資料セクション前まで） */}
           <div className="px-4 py-4">
-            <MdBody text={msg.content} />
+            <MdBody text={before} />
             {msg.loading && <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />}
             {!msg.loading && !msg.intent && (
               <div className="flex justify-end mt-3">
@@ -418,13 +420,15 @@ function AssistantBubble({
             )}
           </div>
 
-          {/* 文献詳細カード */}
+          {/* 参考資料セクション（文献カード） */}
           {refs.length > 0 && (
-            <div className="px-4 pb-4 space-y-2">
-              <p className="text-xs font-bold text-gray-400">文献を詳しく見る</p>
-              {refs.map((ref, i) => (
-                <LiteratureDetailCard key={i} citation={ref} />
-              ))}
+            <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+              <p className="text-sm font-black text-gray-900 mb-2">参考資料</p>
+              <div className="space-y-2">
+                {refs.map((ref, i) => (
+                  <LiteratureDetailCard key={i} citation={ref} />
+                ))}
+              </div>
             </div>
           )}
         </div>
