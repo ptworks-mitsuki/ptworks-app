@@ -77,43 +77,37 @@ export async function POST(req: NextRequest) {
 
   const {
     disease,
+    mode,
     treatmentContent,
     references: treatmentRefs,
+    symptoms,
+    contraindications,
+    goals,
     level,
     patientName,
     ptName,
     notes,
   } = await req.json() as {
-    disease:          string;
-    treatmentContent: string;
-    references:       string[];
-    level:            string;
-    patientName?:     string;
-    ptName?:          string;
-    notes?:           string;
+    mode?:              "linked" | "standalone";
+    disease:            string;
+    treatmentContent?:  string;
+    references?:        string[];
+    symptoms?:          string;
+    contraindications?: string;
+    goals?:             string[];
+    level:              string;
+    patientName?:       string;
+    ptName?:            string;
+    notes?:             string;
   };
 
-  const refList = treatmentRefs.length > 0
-    ? treatmentRefs.map((r, i) => `${i + 1}. ${r}`).join("\n")
+  const isStandalone = mode === "standalone";
+
+  const refList = (treatmentRefs ?? []).length > 0
+    ? (treatmentRefs ?? []).map((r, i) => `${i + 1}. ${r}`).join("\n")
     : "（文献情報なし）";
 
-  const prompt = `以下の治療内容をもとに患者さんが自宅で行う自主トレーニング指導書を作成してください。
-
-疾患名：${disease}
-治療内容：${treatmentContent}
-運動レベル：${level}
-AI治療考察で参照した文献・参考書：
-${refList}
-${notes ? `特記事項：${notes}` : ""}
-
-【重要】
-全ての運動メニューは必ず以下に基づいて作成してください：
-・AI治療考察で使用した文献・参考書を最優先で参照する
-・該当する文献・参考書がない場合は理学療法ガイドライン・標準理学療法学シリーズ・各疾患の最新エビデンスに基づいて作成する
-・根拠のないメニューは絶対に含めない
-・3〜5種類の運動メニューを作成する
-
-各運動メニューを以下の形式で厳密に作成してください（この形式を崩さないこと）：
+  const MENU_FORMAT = `各運動メニューを以下の形式で厳密に作成してください（この形式を崩さないこと）：
 
 運動名：（わかりやすい名前）
 目的：（なぜこの運動をするか・1行）
@@ -139,6 +133,41 @@ ${notes ? `特記事項：${notes}` : ""}
 ・（文献名2）
 
 専門用語は使わず患者さんが理解できる言葉で書いてください。指示文・説明文・前置きは出力しないでください。最初の運動名から直接始めてください。`;
+
+  const prompt = isStandalone ? `以下の情報をもとに患者さんが自宅で行う自主トレーニング指導書を作成してください。
+
+疾患名：${disease}
+${symptoms          ? `主な症状・問題点：${symptoms}` : ""}
+${contraindications ? `禁忌・注意事項：${contraindications}` : ""}
+運動レベル：${level}
+${(goals ?? []).length > 0 ? `自主トレの目的：${(goals ?? []).join("、")}` : ""}
+${notes ? `特記事項：${notes}` : ""}
+
+【重要】
+全ての運動メニューは必ず以下に基づいて作成してください：
+・理学療法ガイドライン
+・標準理学療法学シリーズ
+・各疾患の最新エビデンス
+・根拠のないメニューは絶対に含めない
+・3〜5種類の運動メニューを作成する
+
+${MENU_FORMAT}` : `以下の治療内容をもとに患者さんが自宅で行う自主トレーニング指導書を作成してください。
+
+疾患名：${disease}
+治療内容：${treatmentContent ?? ""}
+運動レベル：${level}
+AI治療考察で参照した文献・参考書：
+${refList}
+${notes ? `特記事項：${notes}` : ""}
+
+【重要】
+全ての運動メニューは必ず以下に基づいて作成してください：
+・AI治療考察で使用した文献・参考書を最優先で参照する
+・該当する文献・参考書がない場合は理学療法ガイドライン・標準理学療法学シリーズ・各疾患の最新エビデンスに基づいて作成する
+・根拠のないメニューは絶対に含めない
+・3〜5種類の運動メニューを作成する
+
+${MENU_FORMAT}`;
 
   const client = createClient();
 
