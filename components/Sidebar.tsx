@@ -256,7 +256,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           {/* 専用サービス */}
           <SubLabel label="専用サービス" />
-          <NavLink href="/stage1/treatment"    label="治療を考える"         sub pathname={pathname} onClose={onClose} />
+          <NavLink href="/stage1/treatment"    label="AI治療考察"         sub pathname={pathname} onClose={onClose} />
           <NavLink href="/stage1/slides"       label="スライド自動生成"     sub pathname={pathname} onClose={onClose} />
           <NavLink href="/learn/reimbursement" label="診療報酬・算定ガイド" sub pathname={pathname} onClose={onClose} />
           <NavLink href="/stage1"              label="自主トレ指導書作成"   sub pathname={pathname} onClose={onClose} />

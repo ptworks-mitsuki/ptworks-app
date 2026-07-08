@@ -78,7 +78,7 @@ export default function AboutPage() {
               思考を、加速させる
             </h2>
             <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
-              <p>疾患を調べる。治療を考える。論文を読む。算定ルールを確認する。</p>
+              <p>疾患を調べる。AI治療考察。論文を読む。算定ルールを確認する。</p>
               <p>
                 理学療法士の仕事は、臨床の時間と同じくらい「考える時間」で成り立っています。
               </p>

@@ -237,9 +237,11 @@ export default function LearnPage() {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-6">
-      <div className="mb-5">
-        <h1 className="text-xl font-black text-gray-900">学習コンテンツ</h1>
-        <p className="text-sm text-gray-500 mt-0.5">最新論文・PTコラム・疾患別まとめ・勉強会情報を一箇所に</p>
+      <div className="mb-4">
+        <div style={{ borderLeft: "4px solid #E85D04", paddingLeft: 14 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: "#111", margin: 0, lineHeight: 1.25 }}>学習コンテンツ</h1>
+          <p style={{ fontSize: 14, color: "#6B7280", margin: "4px 0 0" }}>最新論文・PTコラム・疾患別まとめ・勉強会情報を一箇所に</p>
+        </div>
       </div>
 
       {/* Tab bar */}

@@ -27,11 +27,11 @@ function PtGptInner() {
                 <path d="M15 18l-6-6 6-6"/>
               </svg>
             </button>
-            <div>
-              <p className="text-base font-black leading-tight">
+            <div style={{ borderLeft: "4px solid #E85D04", paddingLeft: 12 }}>
+              <p style={{ fontSize: 20, fontWeight: 900, color: "#111", margin: 0, lineHeight: 1.25 }}>
                 PT<span style={{ color: "#E85D04" }}>専用GPT</span>
               </p>
-              <p className="text-[10px] text-gray-400 leading-none">疾患・臨床・キャリアまで何でも</p>
+              <p style={{ fontSize: 12, color: "#6B7280", margin: "2px 0 0" }}>疾患・臨床・キャリアまで何でも</p>
             </div>
           </div>
         </div>

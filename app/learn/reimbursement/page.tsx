@@ -1377,14 +1377,16 @@ export default function ReimbursementPage() {
     <main className="max-w-4xl mx-auto px-4 py-6">
 
       {/* ── ヘッダー ── */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <a href="/learn" className="text-xs text-gray-400 hover:text-gray-600 transition">学習コンテンツ</a>
           <span className="text-gray-300 text-xs">›</span>
           <span className="text-xs text-gray-600 font-semibold">診療報酬・算定ガイド</span>
         </div>
-        <h1 className="text-2xl font-black text-gray-900">診療報酬・算定ガイド</h1>
-        <p className="text-sm text-gray-500 mt-1">算定日数計算・加算確認・減算チェック・計画書期限を一箇所で管理できます</p>
+        <div style={{ borderLeft: "4px solid #E85D04", paddingLeft: 14 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: "#111", margin: 0, lineHeight: 1.25 }}>診療報酬・算定ガイド</h1>
+          <p style={{ fontSize: 14, color: "#6B7280", margin: "4px 0 0" }}>算定日数計算・加算確認・減算チェック・計画書期限を一箇所で管理できます</p>
+        </div>
       </div>
 
       {/* ── ツールタブ ── */}

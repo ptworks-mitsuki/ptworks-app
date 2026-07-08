@@ -17,7 +17,7 @@ export const categories: Category[] = [
     id: "patient",
     label: "担当患者のこと",
     subcategories: [
-      { id: "treatment",      label: "治療方針が決まらない",         service: "治療を考える",         url: "/stage1",              tab: "treatment" },
+      { id: "treatment",      label: "治療方針が決まらない",         service: "AI治療考察",         url: "/stage1",              tab: "treatment" },
       { id: "evaluation",     label: "評価の解釈がわからない",       service: "何でも相談する",        url: "/stage1",              tab: "consult"   },
       { id: "contraindication",label: "禁忌・リスクを確認したい",   service: "疾患を調べる",          url: "/stage1",              tab: "search"    },
       { id: "explanation",    label: "患者への説明方法を知りたい",   service: "何でも相談する",        url: "/stage1",              tab: "consult"   },
@@ -77,7 +77,7 @@ export interface ServiceRoute {
 const ROUTING_RULES: Array<{ pattern: RegExp; route: (q: string) => ServiceRoute }> = [
   { pattern: /禁忌|注意事項|リスク|危険|合併症/,             route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の禁忌・注意事項を教科書ベースで確認できます` }) },
   { pattern: /基本情報|定義|概要|術式|手術内容|病態|症状/,   route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の詳細情報を教科書・ガイドライン基準で整理します` }) },
-  { pattern: /リハビリ方針|治療方針|アプローチ|プログラム/,  route: q => ({ service: "治療を考える",           url: "/stage1",                    desc: `${q}の個別リハビリ方針をAIが提案します` }) },
+  { pattern: /リハビリ方針|治療方針|アプローチ|プログラム/,  route: q => ({ service: "AI治療考察",           url: "/stage1",                    desc: `${q}の個別リハビリ方針をAIが提案します` }) },
   { pattern: /評価方法|スケール|判定基準|評価指標/,          route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の評価方法・スケールを確認できます` }) },
   { pattern: /予後|回復|ゴール|ADL|転帰|目標/,              route: q => ({ service: "疾患を調べる",          url: "/stage1",                    desc: `${q}の予後予測・ゴール設定の指標を整理します` }) },
   { pattern: /論文|文献|根拠|エビデンス|研究|参考書|教科書/, route: q => ({ service: "文献検索",              url: "/stage1/literature",         desc: `${q}に関連する文献・参考書を検索できます` }) },

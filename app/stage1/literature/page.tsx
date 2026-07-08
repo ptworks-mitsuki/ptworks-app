@@ -524,9 +524,12 @@ function LiteratureSearchInner() {
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb" }}>
       <NoteToast visible={savedToast} />
-      <div style={{ background: BRAND_GREEN, padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
-        <Link href="/stage1" style={{ color: "#fff", fontSize: 20, textDecoration: "none" }}>←</Link>
-        <h1 style={{ margin: 0, color: "#fff", fontSize: 18, fontWeight: 700 }}>文献・参考書検索</h1>
+      <div style={{ background: "#fff", borderBottom: "1px solid #E5E7EB", padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+        <Link href="/stage1" style={{ color: "#6B7280", fontSize: 20, textDecoration: "none", lineHeight: 1, flexShrink: 0 }}>←</Link>
+        <div style={{ borderLeft: "4px solid #E85D04", paddingLeft: 12 }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: "#111", lineHeight: 1.25 }}>文献・参考書検索</h1>
+          <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6B7280" }}>論文・教科書を日本語で検索</p>
+        </div>
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "20px 16px" }}>

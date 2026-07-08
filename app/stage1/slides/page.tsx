@@ -666,11 +666,11 @@ export default function SlidesPage() {
     <main className="max-w-5xl mx-auto px-4 py-6">
 
       {/* ── ヘッダー ── */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/stage1" className="text-gray-400 hover:text-gray-600 transition text-lg">←</Link>
-        <div>
-          <h1 className="text-xl font-black text-gray-900">発表スライド自動生成</h1>
-          <p className="text-xs text-gray-500 mt-0.5">症例発表・研究発表・勉強会資料をAIが自動作成</p>
+      <div className="flex items-center gap-3 mb-4">
+        <Link href="/stage1" className="text-gray-400 hover:text-gray-600 transition text-lg shrink-0">←</Link>
+        <div style={{ borderLeft: "4px solid #E85D04", paddingLeft: 12 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: "#111", margin: 0, lineHeight: 1.25 }}>発表スライド自動生成</h1>
+          <p style={{ fontSize: 14, color: "#6B7280", margin: "4px 0 0" }}>症例発表・研究発表・勉強会資料をAIが自動作成</p>
         </div>
       </div>
 

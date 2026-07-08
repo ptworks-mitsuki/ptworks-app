@@ -487,7 +487,7 @@ export function CaseConsultation({ sharedDisease = "", sharedPatientInfo }: Case
               </button>
             </div>
             <div className="px-5 pb-4">
-              <p className="text-[10px] text-white/40">「治療を考える」タブで入力した情報を自動取得しています</p>
+              <p className="text-[10px] text-white/40">「AI治療考察」タブで入力した情報を自動取得しています</p>
             </div>
           </div>
         )}

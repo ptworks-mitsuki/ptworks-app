@@ -220,7 +220,7 @@ function FavoriteAccordionItem({ item, onRemove }: { item: FavoriteItem; onRemov
             </div>
           )}
 
-          {/* ── 治療を考える ── */}
+          {/* ── AI治療考察 ── */}
           {item.type === "treatment" && item.treatmentData && (
             <div className="space-y-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -548,7 +548,7 @@ export default function MyPage() {
                   "文献検索 無制限",
                   "スライド自動生成",
                   "診療報酬・算定ガイド",
-                  "治療を考える",
+                  "AI治療考察",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-xs text-white/80">
                     <span className="text-green-400 font-bold shrink-0">✓</span>
@@ -602,7 +602,7 @@ export default function MyPage() {
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
           {plans.length === 0 ? (
             <p className="text-xs text-gray-400 py-4 text-center">
-              治療プランを保存するには、「治療を考える」タブで提案後に「この内容を保存する」を押してください
+              治療プランを保存するには、「AI治療考察」タブで提案後に「この内容を保存する」を押してください
             </p>
           ) : (
             <ul className="space-y-2">
@@ -677,7 +677,7 @@ export default function MyPage() {
             {favorites.filter(f => f.type === favTab).length === 0 ? (
               <p className="text-xs text-gray-400 py-6 text-center px-4">
                 {favTab === "disease" && "疾患の検索結果画面でハートアイコンをタップすると保存されます"}
-                {favTab === "treatment" && "治療を考えるの結果画面でハートアイコンをタップすると保存されます"}
+                {favTab === "treatment" && "AI治療考察の結果画面でハートアイコンをタップすると保存されます"}
                 {favTab === "literature" && "文献検索の各文献でハートアイコンをタップすると保存されます"}
                 {favTab === "book" && "参考書検索の各書籍でハートアイコンをタップすると保存されます"}
               </p>

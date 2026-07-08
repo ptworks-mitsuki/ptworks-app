@@ -14,7 +14,7 @@ interface MatchResult {
 }
 
 const KEYWORD_MAP: Array<{ keywords: string[]; service: string; url: string; reason: string }> = [
-  { keywords: ["治療","リハビリ","方針","アプローチ","プログラム"],          service: "治療を考える",         url: "/stage1", reason: "治療方針・リハビリアプローチの提案に最適です" },
+  { keywords: ["治療","リハビリ","方針","アプローチ","プログラム"],          service: "AI治療考察",         url: "/stage1", reason: "治療方針・リハビリアプローチの提案に最適です" },
   { keywords: ["疾患","病気","診断","定義","概要","症状"],                   service: "疾患を調べる",          url: "/stage1", reason: "疾患情報を教科書・ガイドライン基準で確認できます" },
   { keywords: ["評価","スケール","MMT","FIM","BI","NRS","テスト","検査"],    service: "疾患を調べる",          url: "/stage1", reason: "評価・検査項目を疾患別に確認できます" },
   { keywords: ["禁忌","リスク","注意","危険","禁止"],                        service: "疾患を調べる",          url: "/stage1", reason: "禁忌・リスク管理の情報を確認できます" },
