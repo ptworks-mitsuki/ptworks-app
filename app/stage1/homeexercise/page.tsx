@@ -18,7 +18,7 @@ export interface TreatmentContext {
 }
 export const TREATMENT_CONTEXT_KEY = "ptworks_treatment_for_exercise";
 
-type TabId = "linked" | "standalone";
+type TabId = "linked" | "standalone" | "instant";
 
 const GOAL_OPTIONS = [
   "筋力強化", "ROM改善", "バランス・転倒予防",
@@ -38,6 +38,39 @@ async function getPdfDownload(): Promise<DownloadFn> {
   const mod = await import("@/components/HomeExercisePdf");
   cachedDownload = mod.downloadExercisePdf;
   return cachedDownload;
+}
+
+// ─── Web Speech API types ─────────────────────────────────────────────────
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult;
+  length: number;
+}
+interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+interface SpeechRecognitionAlternative {
+  transcript: string;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  lang:          string;
+  continuous:    boolean;
+  interimResults: boolean;
+  start():  void;
+  stop():   void;
+  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onerror:  ((e: Event) => void) | null;
+  onend:    (() => void) | null;
+}
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  }
 }
 
 // ─── Shared UI components ─────────────────────────────────────────────────
@@ -73,11 +106,106 @@ function TextInput({ value, onChange, placeholder }: { value: string; onChange: 
   );
 }
 
-function TextArea({ value, onChange, placeholder, rows = 2 }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
+function TextArea({ value, onChange, placeholder, rows = 2, inputRef }: { value: string; onChange: (v: string) => void; placeholder?: string; rows?: number; inputRef?: React.RefObject<HTMLTextAreaElement | null> }) {
   return (
-    <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+    <textarea ref={inputRef} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
       className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition resize-none"
       style={{ color: "#1A1A1A" }} />
+  );
+}
+
+// ─── VoiceInputButton ─────────────────────────────────────────────────────
+
+type VoiceStatus = "idle" | "listening" | "done" | "error";
+
+function VoiceInputButton({
+  onAppend,
+}: {
+  onAppend: (text: string) => void;
+}) {
+  const [status, setStatus]   = useState<VoiceStatus>("idle");
+  const recognizerRef         = useRef<SpeechRecognitionInstance | null>(null);
+  const listeningRef          = useRef(false);
+
+  const toggle = useCallback(() => {
+    if (listeningRef.current) {
+      recognizerRef.current?.stop();
+      return;
+    }
+
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!SR) {
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 2500);
+      return;
+    }
+
+    const rec        = new SR();
+    rec.lang          = "ja-JP";
+    rec.continuous    = true;
+    rec.interimResults = false;
+
+    rec.onresult = (e: SpeechRecognitionEvent) => {
+      const finals = Array.from({ length: e.results.length }, (_, i) => e.results[i])
+        .filter(r => r.isFinal)
+        .map(r => r[0].transcript)
+        .join("");
+      if (finals) onAppend(finals);
+    };
+
+    rec.onerror = () => {
+      listeningRef.current = false;
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 2500);
+    };
+
+    rec.onend = () => {
+      listeningRef.current = false;
+      if (status !== "error") {
+        setStatus("done");
+        setTimeout(() => setStatus("idle"), 2000);
+      }
+    };
+
+    rec.start();
+    recognizerRef.current  = rec;
+    listeningRef.current   = true;
+    setStatus("listening");
+  }, [onAppend, status]);
+
+  const isListening = status === "listening";
+
+  const label =
+    status === "listening" ? "音声を認識中..." :
+    status === "done"      ? "認識完了" :
+    status === "error"     ? "音声を認識できませんでした。もう一度お試しください。" :
+    "音声入力";
+
+  return (
+    <button onClick={toggle}
+      className="flex items-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm transition border-2 w-full justify-center"
+      style={{
+        background:  isListening ? "#FEF2F2" : "#fff",
+        borderColor: isListening ? "#EF4444" : "#E5E7EB",
+        color:       isListening ? "#EF4444" : "#374151",
+      }}>
+      {/* Mic icon */}
+      <span className="relative shrink-0">
+        {isListening && (
+          <span className="absolute inset-0 rounded-full animate-ping"
+            style={{ background: "#EF4444", opacity: 0.3 }} />
+        )}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+          className="w-5 h-5 relative z-10"
+          style={{ color: isListening ? "#EF4444" : "#374151" }}>
+          <rect x="9" y="1" width="6" height="11" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8"  y1="23" x2="16" y2="23"/>
+        </svg>
+      </span>
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -130,7 +258,7 @@ function ExerciseCard({
         ))}
         {([
           { label: "やり方（1行ずつ）", val: steps,  set: setSteps,  rows: 4 },
-          { label: "ポイント",          val: points, set: setPoints, rows: 2 },
+          { label: "ポイント・患者への指示", val: points, set: setPoints, rows: 2 },
           { label: "やめるべき時",      val: stop,   set: setStop,   rows: 2 },
           { label: "根拠",              val: evid,   set: setEvid,   rows: 2 },
         ] as const).map(({ label, val, set, rows }) => (
@@ -228,7 +356,7 @@ function ExerciseCard({
         {item.points && (
           <div className="rounded-xl px-3 py-3 border-l-4"
             style={{ background: "#FFFBEB", borderLeftColor: ORANGE }}>
-            <p className="text-xs font-bold mb-1" style={{ color: "#92400E" }}>ポイント</p>
+            <p className="text-xs font-bold mb-1" style={{ color: "#92400E" }}>ポイント・患者への指示</p>
             <p className="text-base leading-relaxed" style={{ color: "#92400E" }}>{item.points}</p>
           </div>
         )}
@@ -299,7 +427,7 @@ function ResultPreview({
         {patientName && <p className="text-sm text-white/80">お名前：{patientName}</p>}
         {ptName      && <p className="text-sm text-white/80">担当PT：{ptName}</p>}
         <p className="text-sm text-white/80">作成日：{date}</p>
-        <p className="text-sm text-white/80">疾患：{disease}</p>
+        {disease     && <p className="text-sm text-white/80">疾患：{disease}</p>}
       </div>
 
       {/* 運動メニュー */}
@@ -395,13 +523,17 @@ export default function HomeExercisePage() {
   const [message,     setMessage]     = useState("");
 
   // 単独作成フォーム
-  const [soDisease,          setSoDisease]          = useState("");
-  const [soSymptoms,         setSoSymptoms]         = useState("");
+  const [soDisease,           setSoDisease]           = useState("");
+  const [soSymptoms,          setSoSymptoms]          = useState("");
   const [soContraindications, setSoContraindications] = useState("");
-  const [soGoals,            setSoGoals]            = useState<string[]>([]);
-  const [soOtherGoal,        setSoOtherGoal]        = useState("");
+  const [soGoals,             setSoGoals]             = useState<string[]>([]);
+  const [soOtherGoal,         setSoOtherGoal]         = useState("");
 
-  // 生成状態（linked / standalone 共有）
+  // 即時まとめフォーム
+  const [instInput,  setInstInput]  = useState("");
+  const instTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // 生成状態（全タブ共有）
   const [generating, setGenerating] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [result,     setResult]     = useState<HomeExerciseResult | null>(null);
@@ -422,6 +554,13 @@ export default function HomeExercisePage() {
       if (raw) setCtx(JSON.parse(raw) as TreatmentContext);
     } catch { /* ignore */ }
   }, []);
+
+  // 即時まとめタブに切り替えたらテキストエリアをフォーカス
+  useEffect(() => {
+    if (activeTab === "instant" && !result) {
+      setTimeout(() => instTextareaRef.current?.focus(), 100);
+    }
+  }, [activeTab, result]);
 
   // タブ切り替え時はリセット
   const handleTabChange = (tab: TabId) => {
@@ -506,6 +645,15 @@ export default function HomeExercisePage() {
     }, "standalone");
   }, [soDisease, soSymptoms, soContraindications, soGoals, soOtherGoal, level, patientName, ptName, notes, runGenerate]);
 
+  const handleGenerateInstant = useCallback(() => {
+    if (!instInput.trim()) return;
+    runGenerate({
+      mode:         "instant",
+      instantInput: instInput.trim(),
+      patientName, ptName,
+    }, "instant");
+  }, [instInput, patientName, ptName, runGenerate]);
+
   // ─── アイテム操作 ──────────────────────────────────────────────────────
 
   const updateItem = useCallback((id: string, patch: Partial<ExerciseItem>) => {
@@ -538,7 +686,10 @@ export default function HomeExercisePage() {
 
   // ─── PDF / ノート ──────────────────────────────────────────────────────
 
-  const currentDisease = resultMode === "linked" ? (ctx?.disease ?? "") : soDisease;
+  const currentDisease =
+    resultMode === "linked"     ? (ctx?.disease ?? "") :
+    resultMode === "standalone" ? soDisease :
+    ""; // instant: 疾患名なし
 
   const handlePdf = useCallback(async () => {
     if (!result) return;
@@ -557,9 +708,11 @@ export default function HomeExercisePage() {
     const content = result.items.map((item, i) =>
       `【${i + 1}. ${item.name}】\n目的：${item.purpose}\nやり方：\n${item.steps.map((s, si) => `${si + 1}. ${s}`).join("\n")}\n回数：${item.reps}\n頻度：${item.frequency}\nポイント：${item.points}\n根拠：${item.evidence}`
     ).join("\n\n");
+    const titleBase = patientName ? `${patientName}の自主トレ指導書` : "自主トレ指導書";
+    const titleSuffix = currentDisease ? `（${currentDisease}）` : "";
     saveNewNote({
       type:       "gpt",
-      title:      `${patientName ? patientName + "の" : ""}自主トレ指導書（${currentDisease}）`,
+      title:      `${titleBase}${titleSuffix}`,
       content, memo: message,
       tags:       ["自主トレ指導書", currentDisease].filter(Boolean),
       literature: result.references.map(r => ({ title: r, author: "", year: "" })),
@@ -568,32 +721,6 @@ export default function HomeExercisePage() {
     setNoteToast(true);
     setTimeout(() => setNoteToast(false), 2000);
   }, [result, noteSaved, patientName, currentDisease, message]);
-
-  // ─── Shared form fields (patient / level) ────────────────────────────
-
-  const SharedForm = (
-    <div className="space-y-4">
-      <p className="text-sm font-black text-gray-900">患者情報・設定</p>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="患者名（任意）">
-          <TextInput value={patientName} onChange={setPatientName} placeholder="例：田中様" />
-        </Field>
-        <Field label="担当PT名">
-          <TextInput value={ptName} onChange={setPtName} placeholder="例：藤 充輝 PT" />
-        </Field>
-      </div>
-      <Field label="作成日">
-        <TextInput value={date} onChange={setDate} />
-      </Field>
-      <Field label="運動レベル">
-        <div className="flex gap-2">
-          {(["軽度", "中等度", "高度"] as const).map(l => (
-            <LevelButton key={l} label={l} active={level === l} onClick={() => setLevel(l)} />
-          ))}
-        </div>
-      </Field>
-    </div>
-  );
 
   // ─── JSX ──────────────────────────────────────────────────────────────
 
@@ -617,31 +744,37 @@ export default function HomeExercisePage() {
         </div>
 
         {/* タブ */}
-        <div className="flex px-4 pb-0 gap-1 border-t border-gray-100">
+        <div className="flex px-4 pb-0 gap-1 border-t border-gray-100 overflow-x-auto">
           {([
-            { id: "linked",     label: "AI治療考察と連携" },
-            { id: "standalone", label: "単独で作成" },
+            { id: "linked",     label: "AI治療考察と連携", badge: false },
+            { id: "standalone", label: "単独で作成",       badge: false },
+            { id: "instant",    label: "今日の治療を即時まとめる", badge: true },
           ] as const).map(tab => (
             <button key={tab.id} onClick={() => handleTabChange(tab.id)}
-              className="flex-1 py-2.5 text-sm font-bold transition border-b-2"
+              className="shrink-0 flex items-center gap-1.5 py-2.5 px-1 text-sm font-bold transition border-b-2 whitespace-nowrap"
               style={{
                 color:       activeTab === tab.id ? ORANGE : "#9CA3AF",
                 borderColor: activeTab === tab.id ? ORANGE : "transparent",
               }}>
               {tab.label}
+              {tab.badge && (
+                <span className="text-xs font-black px-1.5 py-0.5 rounded-full text-white"
+                  style={{ background: ORANGE, fontSize: 10 }}>NEW</span>
+              )}
             </button>
           ))}
         </div>
       </div>
 
+      {/* スクロールエリア */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
+        <div className="max-w-2xl mx-auto px-4 py-5 space-y-5"
+          style={{ paddingBottom: activeTab === "instant" && !result && !generating ? "6rem" : undefined }}>
 
           {/* ─── AI治療考察と連携タブ ─────────────────────────────────────── */}
           {activeTab === "linked" && (
             <>
               {!ctx ? (
-                /* 治療考察データなし */
                 <div className="flex flex-col items-center text-center gap-4 py-10">
                   <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "#FFF7ED" }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="1.5" strokeLinecap="round" className="w-7 h-7">
@@ -676,7 +809,6 @@ export default function HomeExercisePage() {
                 />
               ) : (
                 <>
-                  {/* 連携元情報 */}
                   <div className="rounded-2xl border border-green-200 px-4 py-3"
                     style={{ background: "#F0FDF4" }}>
                     <p className="text-xs font-bold text-green-700 mb-1">AI治療考察から引き継ぎ</p>
@@ -686,20 +818,36 @@ export default function HomeExercisePage() {
                     )}
                   </div>
 
-                  <div className="rounded-2xl bg-white border border-gray-200 p-5">
-                    {SharedForm}
-                    <div className="mt-4">
-                      <Field label="特記事項（任意）">
-                        <TextArea value={notes} onChange={setNotes} placeholder="例：膝の術後3週間、杖歩行中" />
+                  <div className="rounded-2xl bg-white border border-gray-200 p-5 space-y-4">
+                    <p className="text-sm font-black text-gray-900">患者情報・設定</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="患者名（任意）">
+                        <TextInput value={patientName} onChange={setPatientName} placeholder="例：田中様" />
+                      </Field>
+                      <Field label="担当PT名">
+                        <TextInput value={ptName} onChange={setPtName} placeholder="例：藤 充輝 PT" />
                       </Field>
                     </div>
+                    <Field label="作成日">
+                      <TextInput value={date} onChange={setDate} />
+                    </Field>
+                    <Field label="運動レベル">
+                      <div className="flex gap-2">
+                        {(["軽度", "中等度", "高度"] as const).map(l => (
+                          <LevelButton key={l} label={l} active={level === l} onClick={() => setLevel(l)} />
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label="特記事項（任意）">
+                      <TextArea value={notes} onChange={setNotes} placeholder="例：膝の術後3週間、杖歩行中" />
+                    </Field>
                     {error && (
-                      <div className="mt-4 rounded-xl px-4 py-3 bg-red-50 border border-red-200">
+                      <div className="rounded-xl px-4 py-3 bg-red-50 border border-red-200">
                         <p className="text-sm text-red-600">{error}</p>
                       </div>
                     )}
                     <button onClick={handleGenerateLinked} disabled={generating}
-                      className="mt-5 w-full py-4 rounded-2xl text-base font-black text-white transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full py-4 rounded-2xl text-base font-black text-white transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                       style={{ background: `linear-gradient(135deg, ${ORANGE}, #c44b00)` }}>
                       {generating
                         ? <><span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />生成中…</>
@@ -727,7 +875,6 @@ export default function HomeExercisePage() {
               ) : (
                 <div className="rounded-2xl bg-white border border-gray-200 p-5 space-y-5">
 
-                  {/* 基本情報 */}
                   <div className="space-y-4">
                     <p className="text-sm font-black text-gray-900">基本情報</p>
                     <div className="grid grid-cols-2 gap-3">
@@ -745,7 +892,6 @@ export default function HomeExercisePage() {
 
                   <div className="border-t border-gray-100" />
 
-                  {/* 疾患・状態 */}
                   <div className="space-y-4">
                     <p className="text-sm font-black text-gray-900">疾患・状態</p>
                     <Field label="疾患名（必須）">
@@ -763,7 +909,6 @@ export default function HomeExercisePage() {
 
                   <div className="border-t border-gray-100" />
 
-                  {/* 運動レベル */}
                   <div className="space-y-2">
                     <p className="text-sm font-black text-gray-900">運動レベル</p>
                     <div className="flex gap-2">
@@ -775,7 +920,6 @@ export default function HomeExercisePage() {
 
                   <div className="border-t border-gray-100" />
 
-                  {/* 自主トレの目的 */}
                   <div className="space-y-3">
                     <p className="text-sm font-black text-gray-900">自主トレの目的（複数選択可）</p>
                     <div className="flex flex-wrap gap-2">
@@ -799,7 +943,6 @@ export default function HomeExercisePage() {
 
                   <div className="border-t border-gray-100" />
 
-                  {/* 特記事項 */}
                   <div className="space-y-2">
                     <p className="text-sm font-black text-gray-900">特記事項（任意）</p>
                     <TextArea value={notes} onChange={setNotes}
@@ -812,15 +955,102 @@ export default function HomeExercisePage() {
                     </div>
                   )}
 
-                  <button
-                    onClick={handleGenerateStandalone}
-                    disabled={generating || !soDisease.trim()}
+                  <button onClick={handleGenerateStandalone} disabled={generating || !soDisease.trim()}
                     className="w-full py-4 rounded-2xl text-base font-black text-white transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                     style={{ background: `linear-gradient(135deg, ${ORANGE}, #c44b00)` }}>
                     {generating
                       ? <><span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />生成中…</>
                       : "指導書を生成する →"}
                   </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ─── 今日の治療を即時まとめるタブ ───────────────────────────────── */}
+          {activeTab === "instant" && (
+            <>
+              {result && resultMode === "instant" ? (
+                <ResultPreview
+                  disease="" patientName={patientName} ptName={ptName} date={date}
+                  result={result} message={message} pdfLoading={pdfLoading} noteSaved={noteSaved}
+                  onUpdate={updateItem} onDelete={deleteItem}
+                  onMoveUp={id => moveItem(id, -1)} onMoveDown={id => moveItem(id, 1)}
+                  onAddItem={addItem} onPdf={handlePdf} onSaveNote={handleSaveNote}
+                  onRegenerate={() => { setResult(null); setStreamText(""); }}
+                  onMessageChange={setMessage}
+                />
+              ) : (
+                <div className="space-y-4">
+                  {/* 強調バナー */}
+                  <div className="rounded-2xl p-4 flex items-start gap-3"
+                    style={{ background: `linear-gradient(135deg, ${ORANGE}18, ${ORANGE}08)`, border: `1.5px solid ${ORANGE}40` }}>
+                    <div className="w-8 h-8 shrink-0 rounded-xl flex items-center justify-center mt-0.5"
+                      style={{ background: ORANGE }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black" style={{ color: ORANGE }}>スピード入力モード</p>
+                      <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                        今日行ったトレーニングを入力するだけで<br/>
+                        すぐに指導書を作成します
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-white border border-gray-200 p-5 space-y-4">
+                    {/* 基本情報 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="患者名（任意）">
+                        <TextInput value={patientName} onChange={setPatientName} placeholder="例：田中様" />
+                      </Field>
+                      <Field label="担当PT名">
+                        <TextInput value={ptName} onChange={setPtName} placeholder="例：藤 充輝 PT" />
+                      </Field>
+                    </div>
+                    <Field label="作成日">
+                      <TextInput value={date} onChange={setDate} />
+                    </Field>
+                  </div>
+
+                  <div className="rounded-2xl bg-white border border-gray-200 p-5 space-y-4">
+                    <div>
+                      <p className="text-sm font-black text-gray-900 mb-1">今日行ったトレーニングの入力</p>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        今日行ったトレーニングと実施条件・患者への指示内容を入力してください
+                      </p>
+                    </div>
+
+                    {/* 音声入力 */}
+                    <VoiceInputButton onAppend={text => setInstInput(prev => prev ? prev + "\n" + text : text)} />
+
+                    {/* テキスト入力 */}
+                    <textarea
+                      ref={instTextareaRef}
+                      value={instInput}
+                      onChange={e => setInstInput(e.target.value)}
+                      rows={8}
+                      placeholder={`例：
+大腿四頭筋訓練・痛みのない範囲で・5秒かけてゆっくり・10回3セット
+SLR・30度まで・息を止めないように・20回2セット
+股関節外転・側臥位で・骨盤が動かないように・15回3セット`}
+                      className="w-full px-3 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition resize-none leading-relaxed"
+                      style={{ color: "#1A1A1A" }}
+                    />
+
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      トレーニング名と一緒に実施条件・患者への指示内容・注意点も入力すると
+                      より正確な指導書が作成されます
+                    </p>
+
+                    {error && (
+                      <div className="rounded-xl px-4 py-3 bg-red-50 border border-red-200">
+                        <p className="text-sm text-red-600">{error}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </>
@@ -837,6 +1067,21 @@ export default function HomeExercisePage() {
 
         </div>
       </div>
+
+      {/* 即時まとめタブ：固定ボタン */}
+      {activeTab === "instant" && !result && (
+        <div className="shrink-0 px-4 py-3 bg-white border-t border-gray-200 shadow-lg">
+          <button
+            onClick={handleGenerateInstant}
+            disabled={generating || !instInput.trim()}
+            className="w-full py-4 rounded-2xl text-base font-black text-white transition hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ background: `linear-gradient(135deg, ${ORANGE}, #c44b00)` }}>
+            {generating
+              ? <><span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />指導書を生成中…</>
+              : "指導書を生成する →"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

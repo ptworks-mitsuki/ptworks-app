@@ -83,25 +83,28 @@ export async function POST(req: NextRequest) {
     symptoms,
     contraindications,
     goals,
+    instantInput,
     level,
     patientName,
     ptName,
     notes,
   } = await req.json() as {
-    mode?:              "linked" | "standalone";
-    disease:            string;
+    mode?:              "linked" | "standalone" | "instant";
+    disease?:           string;
     treatmentContent?:  string;
     references?:        string[];
     symptoms?:          string;
     contraindications?: string;
     goals?:             string[];
-    level:              string;
+    instantInput?:      string;
+    level?:             string;
     patientName?:       string;
     ptName?:            string;
     notes?:             string;
   };
 
   const isStandalone = mode === "standalone";
+  const isInstant    = mode === "instant";
 
   const refList = (treatmentRefs ?? []).length > 0
     ? (treatmentRefs ?? []).map((r, i) => `${i + 1}. ${r}`).join("\n")
@@ -134,7 +137,45 @@ export async function POST(req: NextRequest) {
 
 専門用語は使わず患者さんが理解できる言葉で書いてください。指示文・説明文・前置きは出力しないでください。最初の運動名から直接始めてください。`;
 
-  const prompt = isStandalone ? `以下の情報をもとに患者さんが自宅で行う自主トレーニング指導書を作成してください。
+  const INSTANT_FORMAT = `各トレーニングを以下の形式で厳密に作成してください（この形式を崩さないこと）：
+
+運動名：（わかりやすい名前）
+目的：（なぜこのトレーニングをするか・1行）
+やり方：
+1. （PTの指示を反映したステップ1）
+2. （PTの指示を反映したステップ2）
+3. （PTの指示を反映したステップ3）
+回数：（PTの指示の回数・セット数を優先）
+頻度：1日○回
+ポイント：（PTが入力した指示内容・注意点を反映）
+やめるべき時：（痛みなどの基準）
+根拠：（参照した文献・参考書名）
+
+全メニュー出力後に以下を追加：
+
+注意事項：
+・（注意事項1）
+・（注意事項2）
+・（注意事項3）
+
+参照した文献・参考書：
+・（文献名1）
+・（文献名2）
+
+専門用語は使わず患者さんが理解できる言葉で書いてください。指示文・説明文・前置きは出力しないでください。最初の運動名から直接始めてください。`;
+
+  const prompt = isInstant ? `以下のPTが実施したトレーニング内容をもとに患者さんが自宅で行う自主トレーニング指導書を作成してください。
+
+PTが入力した内容：
+${instantInput ?? ""}
+
+【重要な指示】
+・PTが入力した実施条件・患者への指示内容・注意点を最優先で反映してください
+・PTの指示内容がある場合はその内容を指導書に正確に反映してください
+・PTの指示内容がない部分は理学療法ガイドライン・標準理学療法学シリーズ・各疾患の最新エビデンスに基づいて補完してください
+・根拠のない内容は絶対に追加しないでください
+
+${INSTANT_FORMAT}` : isStandalone ? `以下の情報をもとに患者さんが自宅で行う自主トレーニング指導書を作成してください。
 
 疾患名：${disease}
 ${symptoms          ? `主な症状・問題点：${symptoms}` : ""}
