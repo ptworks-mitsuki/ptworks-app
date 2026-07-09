@@ -56,6 +56,61 @@ const EVIDENCE_META: Record<string, { label: string; bg: string; text: string }>
   D: { label: "Lv.D  経験則",     bg: "#D1D5DB", text: "#374151" },
 };
 
+// ─── Split at 関連機能 suggestions section ────────────────────────────────
+
+interface Suggestion { label: string; url: string; }
+
+function splitAtSuggestions(text: string, userQuery: string): { body: string; suggestions: Suggestion[] } {
+  const re = /\n---\n💡\s*PT\s*Works[^\n]*\n/;
+  const match = re.exec(text);
+  if (!match) return { body: text, suggestions: [] };
+
+  const body  = text.slice(0, match.index).trimEnd();
+  const after = text.slice(match.index + match[0].length);
+  const suggestions: Suggestion[] = [];
+
+  for (const line of after.split("\n")) {
+    const trimmed = line.replace(/^[・\-\*\[\s]+/, "").replace(/[\]\s]+$/, "").trim();
+    const sep = trimmed.indexOf(":::");
+    if (sep === -1) continue;
+    const label = trimmed.slice(0, sep).trim();
+    const rawUrl = trimmed.slice(sep + 3).trim();
+    if (!label || !rawUrl) continue;
+    const url = rawUrl.replace(/QUERY/g, encodeURIComponent(userQuery));
+    suggestions.push({ label, url });
+    if (suggestions.length >= 3) break;
+  }
+
+  return { body, suggestions };
+}
+
+// ─── SuggestionsBlock ─────────────────────────────────────────────────────
+
+function SuggestionsBlock({ suggestions }: { suggestions: Suggestion[] }) {
+  const router = useRouter();
+  if (suggestions.length === 0) return null;
+  return (
+    <div className="border-t border-gray-100 px-4 pb-4 pt-3" style={{ background: "#FFF5F0" }}>
+      <p className="text-xs font-bold text-gray-500 mb-2">関連機能でさらに活用する</p>
+      <div className="flex flex-col gap-2">
+        {suggestions.map((s, i) => (
+          <button
+            key={i}
+            onClick={() => router.push(s.url)}
+            className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-sm font-bold text-left transition hover:opacity-90 active:scale-95"
+            style={{ background: "#E85D04", color: "#fff" }}
+          >
+            <span>{s.label}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 shrink-0 ml-2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Split markdown at 参考資料 section ──────────────────────────────────
 
 function splitAtReferences(text: string): { before: string; refs: string[] } {
@@ -375,7 +430,14 @@ function AssistantBubble({
   }
 
   const defaultTitle = (userQuery ?? msg.content).slice(0, 20);
-  const { before, refs } = !msg.loading ? splitAtReferences(msg.content) : { before: msg.content, refs: [] };
+  const query = userQuery ?? "";
+  // ストリーミング中は参考資料・関連機能を分割しない
+  const { body: bodyWithRefs, suggestions } = !msg.loading
+    ? splitAtSuggestions(msg.content, query)
+    : { body: msg.content, suggestions: [] };
+  const { before, refs } = !msg.loading
+    ? splitAtReferences(bodyWithRefs)
+    : { before: bodyWithRefs, refs: [] };
 
   return (
     <>
@@ -430,6 +492,11 @@ function AssistantBubble({
                 ))}
               </div>
             </div>
+          )}
+
+          {/* 関連機能への誘導 */}
+          {!msg.loading && suggestions.length > 0 && (
+            <SuggestionsBlock suggestions={suggestions} />
           )}
         </div>
       </div>
