@@ -160,7 +160,17 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
 
             {/* ドロップダウン */}
             {notifOpen && (
-              <div className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 sm:w-80 top-[3.75rem] sm:top-full sm:mt-2 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden">
+              <div
+                className="bg-white rounded-2xl border border-gray-200 z-50 overflow-hidden"
+                style={{
+                  position: "fixed",
+                  left: 16,
+                  right: 16,
+                  top: "calc(3.5rem + 8px)",
+                  width: "auto",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                }}
+              >
 
                 {/* ヘッダー行 */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -193,16 +203,16 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
                           >
                             {meta.label}
                           </span>
-                          <span className="text-xs text-gray-400">{n.date}</span>
+                          <span className="text-xs text-gray-400 shrink-0 ml-2">{n.date}</span>
                         </div>
 
                         {/* タイトル */}
-                        <p className="text-sm font-black text-gray-900 leading-snug mb-0.5">
+                        <p className="text-sm font-black text-gray-900 leading-snug mb-0.5" style={{ wordBreak: "break-word" }}>
                           {n.title}
                         </p>
 
-                        {/* 本文2行 */}
-                        <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">
+                        {/* 本文 */}
+                        <p className="text-xs text-gray-500 leading-relaxed" style={{ wordBreak: "break-word" }}>
                           {n.body}
                         </p>
                       </div>
