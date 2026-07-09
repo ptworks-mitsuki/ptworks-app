@@ -602,11 +602,65 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
 
   const canSend = input.trim().length > 0 && !sending;
 
+  const hasMessages = messages.length > 0;
+
+  // 検索欄（空状態・下部共通）
+  const inputField = (
+    <div className="flex items-end gap-2">
+      <div
+        className="flex-1 flex items-end rounded-2xl bg-white overflow-hidden transition"
+        style={{
+          border: "2px solid #E85D04",
+          boxShadow: "0 0 0 0px rgba(232,93,4,0)",
+          minHeight: 56,
+        }}
+        onFocus={() => {}}
+        onBlur={() => {}}
+      >
+        <style>{`
+          .ptgpt-focus-wrap:focus-within {
+            box-shadow: 0 0 0 3px rgba(232,93,4,0.18) !important;
+          }
+        `}</style>
+        <textarea
+          ref={textaRef}
+          value={input}
+          onChange={e => handleInputChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey && canSend) {
+              e.preventDefault();
+              void handleSend(input);
+            }
+          }}
+          placeholder="疾患名・術式・症状・臨床の疑問を入力"
+          rows={1}
+          disabled={sending}
+          className="w-full px-4 py-4 text-sm bg-transparent resize-none outline-none placeholder-gray-400 max-h-40"
+          style={{ color: "#1A1A1A" }}
+        />
+      </div>
+      <button
+        onClick={() => canSend && void handleSend(input)} disabled={!canSend}
+        className="shrink-0 rounded-xl flex items-center justify-center transition hover:opacity-90 active:scale-95 disabled:opacity-30"
+        style={{ background: "#E85D04", width: 56, height: 56 }}
+        aria-label="送信"
+      >
+        {sending ? (
+          <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full bg-gray-50">
 
       {/* 履歴クリアボタン（メッセージがある場合） */}
-      {messages.length > 0 && (
+      {hasMessages && (
         <div className="shrink-0 flex justify-end px-4 py-1.5 bg-white border-b border-gray-100">
           <button onClick={handleClear}
             className="text-xs text-gray-400 hover:text-gray-600 transition px-2 py-1 rounded-lg hover:bg-gray-100">
@@ -619,22 +673,31 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
       <div ref={scrollAreaRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 pb-4 max-w-2xl mx-auto w-full">
 
         {/* 空状態 */}
-        {messages.length === 0 && (
+        {!hasMessages && (
           <div className="pt-8 pb-4">
-            <div className="text-center mb-6">
+            {/* 1. アイコン・タイトル */}
+            <div className="text-center mb-5">
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3"
                 style={{ background: "linear-gradient(135deg,#E85D04,#c44b00)" }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
               </div>
+              {/* 2. タイトル・サブタイトル */}
               <h1 className="text-xl font-black text-gray-900 mb-1">PT専用GPT</h1>
               <p className="text-xs text-gray-500 leading-relaxed">
-                疾患・術式・臨床・キャリアまで何でも答えます
+                疾患・術式・臨床・キャリアまで<br />何でも答えます
               </p>
             </div>
 
-            <div className="mb-5">
+            {/* 3. 検索欄 */}
+            <div className="mb-1">
+              {inputField}
+              <p className="text-[10px] text-gray-300 text-center mt-1.5">Enter で送信 / Shift+Enter で改行</p>
+            </div>
+
+            {/* 4. よく使う質問タグ */}
+            <div className="mb-5 mt-5">
               <p className="text-xs font-bold text-gray-400 mb-2 text-center">よく使う質問</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {QUICK_TAGS.map(tag => (
@@ -647,12 +710,13 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
               </div>
             </div>
 
+            {/* 5. カテゴリカード */}
             <div className="grid grid-cols-2 gap-2">
               {([
-                { label: "疾患・医療知識",  desc: "教科書・ガイドラインベースで回答" },
-                { label: "臨床の相談",      desc: "先輩PTとして具体的にアドバイス" },
+                { label: "疾患・医療知識",   desc: "教科書・ガイドラインベースで回答" },
+                { label: "臨床の相談",       desc: "先輩PTとして具体的にアドバイス" },
                 { label: "専用サービス誘導", desc: "スライド・文献・指導書など" },
-                { label: "キャリア・副業",  desc: "PTの働き方・収入アップ" },
+                { label: "キャリア・副業",   desc: "PTの働き方・収入アップ" },
               ]).map(item => (
                 <div key={item.label} className="rounded-2xl p-3 border border-gray-100" style={{ background: "#F9FAFB" }}>
                   <p className="text-xs font-black text-gray-900 mb-0.5">{item.label}</p>
@@ -663,7 +727,7 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
           </div>
         )}
 
-        {/* メッセージ一覧 */}
+        {/* 6. メッセージ一覧（過去の会話履歴） */}
         <div className="pt-4">
           {messages.map((msg, i) => {
             const isLatestAssistant = msg.role === "assistant" && i === messages.length - 1;
@@ -698,13 +762,11 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
         </button>
       )}
 
-      {/* 入力エリア */}
-      <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3"
-        style={{ boxShadow: "0 -2px 12px rgba(0,0,0,0.04)" }}>
-        <div className="max-w-2xl mx-auto">
-
-          {/* クイックタグ（メッセージがある場合） */}
-          {messages.length > 0 && (
+      {/* 入力エリア（メッセージがある場合のみ下部に表示） */}
+      {hasMessages && (
+        <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3"
+          style={{ boxShadow: "0 -2px 12px rgba(0,0,0,0.04)" }}>
+          <div className="max-w-2xl mx-auto">
             <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
               {QUICK_TAGS.map(tag => (
                 <button key={tag} onClick={() => void handleSend(tag)} disabled={sending}
@@ -714,45 +776,11 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
                 </button>
               ))}
             </div>
-          )}
-
-          <div className="flex items-end gap-2">
-            <div className="flex-1 rounded-2xl border border-gray-200 bg-gray-50 focus-within:border-orange-400 focus-within:bg-white transition overflow-hidden"
-              style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-              <textarea
-                ref={textaRef}
-                value={input}
-                onChange={e => handleInputChange(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === "Enter" && !e.shiftKey && canSend) {
-                    e.preventDefault();
-                    void handleSend(input);
-                  }
-                }}
-                placeholder="疾患名・術式・症状・臨床の疑問を入力"
-                rows={1}
-                disabled={sending}
-                className="w-full px-4 py-3 text-sm bg-transparent resize-none outline-none placeholder-gray-400 max-h-40"
-                style={{ color: "#1A1A1A" }}
-              />
-            </div>
-
-            <button onClick={() => canSend && void handleSend(input)} disabled={!canSend}
-              className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition hover:opacity-90 active:scale-95 disabled:opacity-30"
-              style={{ background: "#E85D04" }} aria-label="送信">
-              {sending ? (
-                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              )}
-            </button>
+            {inputField}
+            <p className="text-[10px] text-gray-300 text-center mt-1">Enter で送信 / Shift+Enter で改行</p>
           </div>
-
-          <p className="text-[10px] text-gray-300 text-center mt-1">Enter で送信 / Shift+Enter で改行</p>
         </div>
-      </div>
+      )}
 
     </div>
   );
