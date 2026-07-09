@@ -694,6 +694,13 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
             <div className="mb-1">
               {inputField}
               <p className="text-[10px] text-gray-300 text-center mt-1.5">Enter で送信 / Shift+Enter で改行</p>
+              {/* 注意書き */}
+              <div className="mt-2 px-3 py-2 rounded-xl border-l-4"
+                style={{ background: "#FFF5F0", borderLeftColor: "#E85D04" }}>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  現在プレビュー版のため、長い回答が途中で止まる場合があります。正式リリース後は全文が表示されるようになります。
+                </p>
+              </div>
             </div>
 
             {/* 4. よく使う質問タグ */}

@@ -1120,9 +1120,9 @@ export function MedicalSearch() {
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
             <div>
-              <p className="text-xs font-bold text-white leading-snug">現在プレビュー版です。</p>
+              <p className="text-xs font-bold text-white leading-snug">現在プレビュー版のため長い回答が途中で止まる場合があります。</p>
               <p className="text-xs text-white/75 leading-snug mt-0.5">
-                正式リリース後は全項目が詳しく表示されるようになります。定義・概要は詳細版をお試しいただけます。
+                正式リリース後は全項目が即座に表示されるようになります。
               </p>
             </div>
             <button onClick={handleClear}

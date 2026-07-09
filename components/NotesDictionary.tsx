@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   loadNotes, updateNote, updateMemo, deleteNote, exportNotes, importNotes,
   type Note, type NoteType,
@@ -325,9 +327,40 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
           {/* 保存内容 */}
           <div className="rounded-xl border border-gray-200 px-4 py-3" style={{ background: "#F9FAFB" }}>
             <p className="text-xs font-bold text-gray-400 mb-2">AIの回答内容</p>
-            <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
-              {note.content.slice(0, 1500)}{note.content.length > 1500 && "…"}
-            </p>
+            <div className="text-xs text-gray-700 leading-relaxed note-md">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  p:      ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+                  strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+                  em:     ({ children }) => <em className="italic">{children}</em>,
+                  h2:     ({ children }) => <h2 className="font-black text-gray-900 text-sm mt-3 mb-1 first:mt-0">{children}</h2>,
+                  h3:     ({ children }) => <h3 className="font-bold text-gray-800 mt-2 mb-0.5">{children}</h3>,
+                  hr:     () => <hr className="my-2 border-gray-300" />,
+                  ul:     ({ children }) => <ul className="space-y-0.5 my-1 pl-0">{children}</ul>,
+                  ol:     ({ children }) => <ol className="space-y-0.5 my-1 pl-4 list-decimal">{children}</ol>,
+                  li:     ({ children }) => (
+                    <li className="flex items-start gap-1.5 leading-relaxed">
+                      <span className="mt-1.5 w-1 h-1 rounded-full bg-gray-400 shrink-0" />
+                      <span>{children}</span>
+                    </li>
+                  ),
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto my-2 rounded-lg border border-gray-200">
+                      <table className="w-full text-xs border-collapse">{children}</table>
+                    </div>
+                  ),
+                  thead: ({ children }) => <thead style={{ background: "#1B4332" }}>{children}</thead>,
+                  th:    ({ children }) => <th className="px-2 py-1.5 text-left text-white font-bold border-r border-white/20 last:border-r-0">{children}</th>,
+                  tbody: ({ children }) => <tbody>{children}</tbody>,
+                  tr:    ({ children }) => <tr className="even:bg-gray-50 odd:bg-white">{children}</tr>,
+                  td:    ({ children }) => <td className="px-2 py-1.5 border-t border-gray-200 border-r border-gray-100 last:border-r-0">{children}</td>,
+                }}
+              >
+                {note.content.slice(0, 2000)}
+              </ReactMarkdown>
+              {note.content.length > 2000 && <p className="text-gray-400 mt-1">…（続きはノートで確認）</p>}
+            </div>
           </div>
 
           {/* 参考文献 */}
