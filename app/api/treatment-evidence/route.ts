@@ -132,34 +132,10 @@ function buildPatientContext(disease: string, p: PatientInfo): string {
 
 // ── System prompt ─────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `あなたは日本の理学療法士向け医療情報専門AIです。
-入力された疾患名と患者情報をもとに、治療・リハビリアプローチを3段階で提案してください。
-
-① 日本の標準的アプローチ（教科書・ガイドライン準拠）
-② 海外の最新エビデンス（RCT・系統的レビュー）
-③ この患者さんに特化した具体的な提案（患者の状態・目標・生活背景を踏まえた個別提案）
-
-必ず以下のJSON形式のみで回答してください：
-
-{
-  "standard": {
-    "points": ["・日本標準のアプローチ1（5〜7項目）", "・アプローチ2"],
-    "references": ["日本語の教科書/ガイドライン名"]
-  },
-  "evidence": [
-    {
-      "approach": "エビデンスベースのアプローチ名",
-      "detail": "具体的な内容と効果を1〜2文で",
-      "source": "第一著者 et al., 年, 雑誌名",
-      "studyType": "RCT" または "系統的レビュー" または "メタ解析" または "コホート研究"
-    }
-  ],
-  "personalized": "この患者さんの状態・目標・生活背景を踏まえた個別の具体的提案を5〜7項目の箇条書きで。一般論ではなく、この患者さんに特化した内容にする。",
-  "synthesis": "日本の標準と海外エビデンスの違い・共通点・最新トレンドを2〜3文で。",
-  "references": ["全参考文献（重複不可）"]
-}
-
-evidenceは3〜5件。患者情報が少ない場合も疾患の一般的な情報で回答すること。`;
+const SYSTEM_PROMPT = `PTの治療提案AI。疾患名と患者情報をもとに文献・ガイドライン基準で提案。前置き・指示文は出力しない。
+以下のJSON形式のみで回答：
+{"standard":{"points":["・アプローチ（5〜7項目）"],"references":["教科書/ガイドライン名"]},"evidence":[{"approach":"アプローチ名","detail":"内容と効果1〜2文","source":"著者 et al., 年, 雑誌","studyType":"RCT|系統的レビュー|メタ解析|コホート研究"}],"personalized":"患者個別提案5〜7項目箇条書き","synthesis":"標準と海外の違い・共通点2〜3文","references":["全参考文献"]}
+evidence3〜5件。患者情報が少ない場合も疾患一般情報で回答。`;
 
 // ── Response types ────────────────────────────────────────────────────────
 
@@ -208,7 +184,7 @@ export async function POST(req: NextRequest) {
       client.messages.create({
         model:      "claude-sonnet-4-6",
         max_tokens: 3500,
-        system:     SYSTEM_PROMPT,
+        system:     [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages:   [{ role: "user", content: userMessage }],
       }),
     );

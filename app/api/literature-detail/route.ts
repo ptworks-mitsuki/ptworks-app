@@ -37,32 +37,14 @@ export async function POST(req: NextRequest) {
           summary  ? `既存の要約：${summary}` : "",
         ].filter(Boolean).join("\n");
 
+    const LITDETAIL_SYSTEM = `PT向け文献解説AI。JSON形式のみで回答。前置き・指示文は出力しない。エビデンスレベル：A=RCT・メタ解析・SR、B=コホート・前後比較、C=専門家意見・GL、D=症例報告・経験則。`;
     const message = await client.messages.create({
       model:      "claude-sonnet-4-6",
       max_tokens: 1000,
+      system:     [{ type: "text", text: LITDETAIL_SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{
         role: "user",
-        content: `以下の文献について日本語で詳しく説明してください。
-
-${citationText}
-
-以下のJSON形式のみで回答してください（前置き・指示文は出力しないでください）：
-{
-  "summaryJa": "研究目的・方法・結果・結論を3〜4行でわかりやすくまとめた日本語要約",
-  "clinicalPoints": [
-    "PTが臨床で活かせるポイント1",
-    "PTが臨床で活かせるポイント2",
-    "PTが臨床で活かせるポイント3"
-  ],
-  "evidenceLevel": "A" or "B" or "C" or "D",
-  "evidenceLevelReason": "エビデンスレベルの判定根拠（1文）"
-}
-
-エビデンスレベル判定基準：
-A = RCT・メタ解析・システマティックレビュー（強い根拠）
-B = コホート研究・前後比較研究（根拠あり）
-C = 専門家意見・ガイドライン（専門家意見）
-D = 症例報告・経験則（経験則）`,
+        content: `以下の文献を日本語で説明してください。\n\n${citationText}\n\n以下のJSON形式のみで回答：\n{"summaryJa":"目的・方法・結果・結論を3〜4行でまとめた日本語要約","clinicalPoints":["PTが臨床で活かせるポイント1","ポイント2","ポイント3"],"evidenceLevel":"A|B|C|D","evidenceLevelReason":"判定根拠1文"}`,
       }],
     });
 

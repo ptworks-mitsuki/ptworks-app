@@ -255,10 +255,12 @@ export async function POST(req: NextRequest) {
 
       const prompt = buildOutlinePrompt(type, form, contentSlides);
 
+      const SLIDES_SYSTEM = `PT向けスライド生成AI。指示通りのJSON形式のみ出力。前置き・指示文は出力しない。`;
       const msg = await withRetry(() =>
         client.messages.create({
           model:      "claude-haiku-4-5-20251001",
           max_tokens: 1200,
+          system:     [{ type: "text", text: SLIDES_SYSTEM, cache_control: { type: "ephemeral" } }],
           messages:   [{ role: "user", content: prompt }],
         })
       );
@@ -309,10 +311,12 @@ export async function POST(req: NextRequest) {
 
       const prompt = buildExpandPrompt(type, form, outline, index, totalSlides, charPerSlide, references);
 
+      const SLIDES_EXPAND_SYSTEM = `PT向けスライド生成AI。指示通りのJSON形式のみ出力。前置き・指示文は出力しない。`;
       const msg = await withRetry(() =>
         client.messages.create({
           model:      "claude-haiku-4-5-20251001",
           max_tokens: 1500,
+          system:     [{ type: "text", text: SLIDES_EXPAND_SYSTEM, cache_control: { type: "ephemeral" } }],
           messages:   [{ role: "user", content: prompt }],
         })
       );

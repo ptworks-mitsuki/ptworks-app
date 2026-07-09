@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
           const anthropicStream = client.messages.stream({
             model:      "claude-sonnet-4-6",
             max_tokens: 2000,
-            system:     DEFINITION_SYSTEM,
+            system:     [{ type: "text", text: DEFINITION_SYSTEM, cache_control: { type: "ephemeral" } }],
             messages:   [{ role: "user", content: buildDefinitionPrompt(disease) }],
           });
 
@@ -309,7 +309,7 @@ export async function POST(req: NextRequest) {
           const anthropicStream = client.messages.stream({
             model:      "claude-sonnet-4-6",
             max_tokens: 800,
-            system:     BRIEF_SYSTEM,
+            system:     [{ type: "text", text: BRIEF_SYSTEM, cache_control: { type: "ephemeral" } }],
             messages:   [{ role: "user", content: buildBriefPrompt(disease) }],
           });
 
@@ -409,7 +409,7 @@ export async function POST(req: NextRequest) {
         const anthropicStream = client.messages.stream({
           model:      "claude-sonnet-4-6",
           max_tokens: maxTokens,
-          system:     systemPrompt,
+          system:     [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
           messages:   [{ role: "user", content: `疾患名：${disease}` }],
         });
 

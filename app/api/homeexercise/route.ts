@@ -219,11 +219,13 @@ ${MENU_FORMAT}`;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
       try {
+        const HOMEEX_SYSTEM = `PT専門の指導書作成AI。文献・ガイドライン基準のメニューのみ作成。患者にわかりやすい言葉で記載。前置き・指示文は出力しない。`;
         let fullText = "";
         const response = await client.messages.create({
           model:      "claude-sonnet-4-6",
           max_tokens: 3000,
           stream:     true,
+          system:     [{ type: "text", text: HOMEEX_SYSTEM, cache_control: { type: "ephemeral" } }],
           messages:   [{ role: "user", content: prompt }],
         });
 
