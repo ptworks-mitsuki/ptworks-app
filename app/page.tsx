@@ -261,7 +261,7 @@ export default function HomePage() {
 
   const unread  = NOTIFICATIONS.filter(n => !n.read).length;
   const isLow   = remaining <= 2;
-  const greeting = getGreeting();
+  const [greeting] = useState(() => getGreeting());
 
   // ── localStorage 読み込み ──
   useEffect(() => {
