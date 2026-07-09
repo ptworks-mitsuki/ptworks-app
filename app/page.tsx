@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
 
@@ -29,13 +29,6 @@ const QUICK_ACCESS = [
   { id: "homeex",    label: "自主トレ指導書",     sub: "患者指導に",   href: "/stage1/homeexercise", icon: <IconSheet />,     main: false },
 ];
 
-const BOTTOM_TABS = [
-  { label: "ホーム",  emoji: "🏠", href: "/"                  },
-  { label: "PT-GPT", emoji: "🤖", href: "/pt-gpt"            },
-  { label: "文献",    emoji: "📚", href: "/stage1/literature" },
-  { label: "治療",    emoji: "🩺", href: "/stage1/treatment"  },
-  { label: "MY",      emoji: "👤", href: "/mypage"            },
-];
 
 // ─── アイコン ─────────────────────────────────────────────────────────────
 
@@ -252,8 +245,7 @@ interface GptMessage { id: string; role: string; content: string; }
 interface SavedPlan  { id: string; name: string; disease: string; savedAt: number; }
 
 export default function HomePage() {
-  const router   = useRouter();
-  const pathname = usePathname();
+  const router = useRouter();
   const { used, total, remaining, isExhausted, percentage } = useFreeQuota();
 
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
@@ -586,29 +578,6 @@ export default function HomePage() {
 
       </div>{/* /max-w-xl */}
 
-      {/* ⑦ 下部ナビゲーションバー */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t"
-        style={{ borderColor: "#F3F4F6", boxShadow: "0 -2px 12px rgba(0,0,0,0.06)" }}>
-        <div className="flex max-w-xl mx-auto">
-          {BOTTOM_TABS.map(tab => {
-            const isActive = tab.href ? pathname === tab.href : false;
-            return (
-              <button
-                key={tab.label}
-                onClick={() => router.push(tab.href)}
-                className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors"
-                style={{ color: isActive ? "#E85D04" : "#888", background: "none", border: "none", cursor: "pointer" }}
-              >
-                <span className="text-lg leading-none">{tab.emoji}</span>
-                <span className="text-[10px] font-semibold leading-none"
-                  style={{ color: isActive ? "#E85D04" : "#888" }}>
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
     </div>
   );
