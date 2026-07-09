@@ -135,7 +135,7 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
 
         {/* ── 中央：タグライン ── */}
         <div className="hidden md:block flex-1 max-w-xs">
-          <p className="text-xs text-gray-400 text-center truncate">現役PTが作る、臨床準備のためのAIツール</p>
+          <p className="text-[14px] text-center truncate" style={{ color: "#1B4332", fontWeight: 400 }}>理学療法士の考えを育てるAI</p>
         </div>
 
         {/* ── 右：アクション ── */}

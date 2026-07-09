@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "PT Works — 理学療法士のキャリアをAIで広げる",
-  description: "副業入門から整体院独立まで。PTのキャリア全ステージを1つのAIツールで一気通貫サポート。",
+  description: "PT Worksは理学療法士の考えを育てるAIです。臨床思考を加速し、より深く考えられる理学療法士をサポートします。",
 };
 
 export const viewport: Viewport = {

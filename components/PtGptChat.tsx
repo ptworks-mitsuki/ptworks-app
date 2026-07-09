@@ -329,10 +329,13 @@ function injectBadges(text: string): React.ReactNode[] {
 }
 
 function pWithBadges(children: React.ReactNode): React.ReactNode {
-  const flat = Array.isArray(children) ? children : [children];
+  const flat = Array.isArray(children) ? (children as React.ReactNode[]) : [children];
   const hasBadge = flat.some(c => typeof c === "string" && /\[Lv\.[ABCD]\]/.test(c));
   if (!hasBadge) return children;
-  return flat.flatMap((c, i) => typeof c === "string" ? injectBadges(c) : [<span key={`n${i}`}>{c}</span>]);
+  const result: React.ReactNode[] = flat.flatMap((c, i) =>
+    typeof c === "string" ? injectBadges(c) : [<span key={`n${i}`}>{c as React.ReactNode}</span>]
+  );
+  return <>{result}</>;
 }
 
 function MdBody({ text }: { text: string }) {
@@ -825,7 +828,8 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
               {/* 2. タイトル・サブタイトル */}
               <h1 className="text-xl font-black text-gray-900 mb-1">PT専用GPT</h1>
               <p className="text-xs text-gray-500 leading-relaxed">
-                PT Worksは答えを出すAIではなく<br />あなたの臨床思考を加速するAIです。<br />一緒に考えていきましょう。
+                PT Worksはあなたの考えを育てるAIです。
+                <br />答えを出すだけでなく、一緒に考えていきましょう。
               </p>
             </div>
 

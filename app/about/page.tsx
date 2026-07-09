@@ -37,6 +37,19 @@ export default function AboutPage() {
           </h2>
           <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
             <p>
+              AIの発展が思考力を奪うことへの恐怖から
+              <br />
+              私たちはあえて「理学療法士の考えを育てるAI」を選びました。
+              <br />
+              答えを出すだけのAIではなく
+              <br />
+              あなたの臨床思考を加速し
+              <br />
+              より深く考えられる理学療法士を育てることが
+              <br />
+              PT Worksの目指す姿です。
+            </p>
+            <p>
               AIは道具です。
               <br />
               しかし使い方次第で、
