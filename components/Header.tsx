@@ -45,6 +45,7 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [notifOpen,  setNotifOpen]  = useState(false);
   const [readIds,    setReadIds]    = useState<Set<string>>(new Set());
+  const [isDesktop,  setIsDesktop]  = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
   // 初期化
@@ -53,6 +54,11 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
     if (visited) setIsReturningUser(true);
     else         localStorage.setItem("pt-visited", "1");
     setReadIds(loadReadIds());
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
   // ドロップダウン外クリックで閉じる
@@ -161,14 +167,31 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
             {/* ドロップダウン */}
             {notifOpen && (
               <div
-                className="bg-white rounded-2xl border border-gray-200 z-50 overflow-hidden"
-                style={{
+                className="bg-white border border-gray-200 overflow-hidden"
+                style={isDesktop ? {
                   position: "fixed",
-                  left: 16,
-                  right: 16,
-                  top: "calc(3.5rem + 8px)",
-                  width: "auto",
+                  top: 60,
+                  right: 20,
+                  left: "auto",
+                  transform: "none",
+                  width: 380,
+                  maxHeight: "70vh",
+                  overflowY: "auto",
+                  zIndex: 9999,
                   boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                  borderRadius: 16,
+                } : {
+                  position: "fixed",
+                  top: 60,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: "calc(100vw - 32px)",
+                  maxWidth: 420,
+                  maxHeight: "70vh",
+                  overflowY: "auto",
+                  zIndex: 9999,
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                  borderRadius: 16,
                 }}
               >
 
@@ -185,7 +208,7 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
                 </div>
 
                 {/* 通知リスト */}
-                <div className="divide-y divide-gray-100 overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                <div className="divide-y divide-gray-100">
                   {STATIC_NOTIFS.map(n => {
                     const unread = isUnread(n);
                     const meta   = TYPE_META[n.type];
@@ -207,12 +230,14 @@ export function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
                         </div>
 
                         {/* タイトル */}
-                        <p className="text-sm font-black text-gray-900 leading-snug mb-0.5" style={{ wordBreak: "break-word" }}>
+                        <p className="text-sm font-black text-gray-900 leading-snug mb-0.5"
+                          style={{ wordBreak: "break-word", whiteSpace: "normal", overflowWrap: "break-word" }}>
                           {n.title}
                         </p>
 
                         {/* 本文 */}
-                        <p className="text-xs text-gray-500 leading-relaxed" style={{ wordBreak: "break-word" }}>
+                        <p className="text-xs text-gray-500 leading-relaxed"
+                          style={{ wordBreak: "break-word", whiteSpace: "normal", overflowWrap: "break-word" }}>
                           {n.body}
                         </p>
                       </div>
