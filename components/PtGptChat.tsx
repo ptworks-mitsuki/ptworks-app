@@ -303,12 +303,48 @@ function cleanMarkdown(text: string): string {
     .replace(/^\s*\*\*\s*$/gm, "");
 }
 
+// Evidence level badge inline rendering ④
+const LV_COLORS: Record<string, { bg: string; color: string }> = {
+  A: { bg: "#1B4332", color: "#fff" },
+  B: { bg: "#1D4ED8", color: "#fff" },
+  C: { bg: "#E85D04", color: "#fff" },
+  D: { bg: "#9CA3AF", color: "#fff" },
+};
+
+function injectBadges(text: string): React.ReactNode[] {
+  const parts   = text.split(/(\[Lv\.[ABCD]\])/g);
+  return parts.map((part, i) => {
+    const m = part.match(/^\[Lv\.([ABCD])\]$/);
+    if (m) {
+      const c = LV_COLORS[m[1]] ?? { bg: "#9CA3AF", color: "#fff" };
+      return (
+        <span key={i} className="inline-block text-[9px] font-black px-1.5 py-0.5 rounded align-middle ml-1"
+          style={{ background: c.bg, color: c.color }}>
+          Lv.{m[1]}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+function pWithBadges(children: React.ReactNode): React.ReactNode {
+  const flat = Array.isArray(children) ? children : [children];
+  const hasBadge = flat.some(c => typeof c === "string" && /\[Lv\.[ABCD]\]/.test(c));
+  if (!hasBadge) return children;
+  return flat.flatMap((c, i) => typeof c === "string" ? injectBadges(c) : [<span key={`n${i}`}>{c}</span>]);
+}
+
 function MdBody({ text }: { text: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        p:          ({ children }) => <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">{children}</p>,
+        p: ({ children }) => (
+          <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
+            {pWithBadges(children)}
+          </p>
+        ),
         strong:     ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
         em:         ({ children }) => <em className="italic text-gray-700">{children}</em>,
         h2:         ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-4 mb-1.5 first:mt-0">{children}</h2>,
@@ -352,6 +388,36 @@ function MdBody({ text }: { text: string }) {
   );
 }
 
+// ─── Thinking buttons ②  ─────────────────────────────────────────────────
+
+function ThinkingButtons({ userQuery, onAsk }: { userQuery: string; onAsk: (q: string) => void }) {
+  const router = useRouter();
+  const BUTTONS = [
+    { label: "この治療を選ぶ根拠は？",    q: `「${userQuery}」について、このアプローチを選ぶ臨床的根拠と理由をさらに深掘りして教えてください。` },
+    { label: "デメリット・リスクは？",    q: `「${userQuery}」の治療アプローチに関して、デメリット・リスク・反対意見を詳しく教えてください。` },
+    { label: "別のアプローチは？",        q: `「${userQuery}」について、先ほど紹介されたアプローチ以外の代替アプローチを追加で提示してください。` },
+  ];
+  return (
+    <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+      <p className="text-[10px] font-bold text-gray-400 mb-2">思考を深める（任意）</p>
+      <div className="flex flex-wrap gap-2">
+        {BUTTONS.map(b => (
+          <button key={b.label} onClick={() => onAsk(b.q)}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition hover:opacity-80 active:scale-95"
+            style={{ background: "#FFF5F0", color: "#E85D04", borderColor: "#FECAA0" }}>
+            {b.label}
+          </button>
+        ))}
+        <button onClick={() => router.push(`/stage1/literature?q=${encodeURIComponent(userQuery)}`)}
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition hover:opacity-80 active:scale-95"
+          style={{ background: "#FFF5F0", color: "#E85D04", borderColor: "#FECAA0" }}>
+          文献で根拠を確認
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Bubbles ──────────────────────────────────────────────────────────────
 
 function UserBubble({ content }: { content: string }) {
@@ -366,12 +432,13 @@ function UserBubble({ content }: { content: string }) {
 }
 
 function AssistantBubble({
-  msg, onRetry, userQuery, onSaved,
+  msg, onRetry, userQuery, onSaved, isLatest,
 }: {
   msg: Message;
   onRetry: (q: string) => void;
   userQuery?: string;
   onSaved: () => void;
+  isLatest?: boolean;
 }) {
   const router  = useRouter();
   const [showModal, setShowModal] = useState(false);
@@ -497,6 +564,11 @@ function AssistantBubble({
           {/* 関連機能への誘導 */}
           {!msg.loading && suggestions.length > 0 && (
             <SuggestionsBlock suggestions={suggestions} />
+          )}
+
+          {/* 思考を深めるボタン ② */}
+          {isLatest && !msg.loading && !msg.error && msg.intent && msg.intent !== "service" && userQuery && (
+            <ThinkingButtons userQuery={userQuery} onAsk={onRetry} />
           )}
         </div>
       </div>
@@ -753,7 +825,7 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
               {/* 2. タイトル・サブタイトル */}
               <h1 className="text-xl font-black text-gray-900 mb-1">PT専用GPT</h1>
               <p className="text-xs text-gray-500 leading-relaxed">
-                疾患・術式・臨床・キャリアまで<br />何でも答えます
+                PT Worksは答えを出すAIではなく<br />あなたの臨床思考を加速するAIです。<br />一緒に考えていきましょう。
               </p>
             </div>
 
@@ -814,6 +886,7 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
                   onRetry={handleRetry}
                   userQuery={prevUser?.content}
                   onSaved={() => { setSavedToast(true); setTimeout(() => setSavedToast(false), 2000); }}
+                  isLatest={isLatestAssistant}
                 />
               </div>
             );

@@ -480,6 +480,32 @@ export function TreatmentEvidence({
           </details>
         )}
 
+        {/* 思考を深める ⑤ */}
+        <div className="rounded-xl border border-orange-200 bg-orange-50/60 px-4 py-4">
+          <p className="text-[11px] font-bold text-orange-700 mb-3">思考を深める（任意）</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "この治療を選ぶ根拠は？",  q: `${disease}の治療アプローチを選ぶ臨床的根拠と理由を詳しく教えてください。` },
+              { label: "デメリット・リスクは？",  q: `${disease}の治療で想定されるデメリット・リスク・反対意見を教えてください。` },
+              { label: "別のアプローチは？",      q: `${disease}について、標準的アプローチ以外の代替治療法を教えてください。` },
+            ].map(b => (
+              <button key={b.label}
+                onClick={() => router.push(`/stage1?q=${encodeURIComponent(b.q)}`)}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition hover:opacity-80 active:scale-95"
+                style={{ background: "#FFF5F0", color: "#E85D04", borderColor: "#FECAA0" }}>
+                {b.label}
+              </button>
+            ))}
+            <button
+              onClick={() => router.push(`/stage1/literature?q=${encodeURIComponent(disease)}`)}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition hover:opacity-80 active:scale-95"
+              style={{ background: "#FFF5F0", color: "#E85D04", borderColor: "#FECAA0" }}>
+              文献で根拠を確認
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-3">最終的な臨床判断は担当PTであるあなたが行ってください。</p>
+        </div>
+
         {/* 患者説明文 */}
         {!expResult && (
           <div className="rounded-2xl border-2 border-green-200 bg-green-50 p-5">
