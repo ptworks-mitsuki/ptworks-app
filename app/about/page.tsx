@@ -111,7 +111,131 @@ export default function AboutPage() {
 
       <SectionDivider />
 
-      {/* ── ④ PROBLEMS ─────────────────────────────────────────── */}
+      {/* ── ④ PHILOSOPHY ──────────────────────────────────────────── */}
+      <section className="bg-white">
+        <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20 relative overflow-hidden">
+          {/* 装飾：右下に薄いダークグリーン */}
+          <div
+            className="absolute bottom-0 right-0 w-64 h-64 rounded-full pointer-events-none select-none"
+            style={{ background: "#1B4332", opacity: 0.04, transform: "translate(30%, 30%)" }}
+            aria-hidden="true"
+          />
+
+          <div className="relative z-10">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.22em] mb-4">Philosophy</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-8">
+              PT Worksに込めた想い
+            </h2>
+
+            <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
+              <p>
+                私はAIで理学療法士の仕事を
+                <br />
+                奪いたいわけではありません。
+              </p>
+              <p>
+                目指しているのは、AIによって
+                <br />
+                理学療法士一人ひとりの思考を加速・拡張し、
+                <br />
+                臨床の質を高めることです。
+              </p>
+              <p>
+                理学療法には唯一の正解がありません。
+                <br />
+                だからこそ、臨床では常に
+                <br />
+                「なぜこの評価をするのか」
+                <br />
+                「なぜこの治療を選ぶのか」を
+                <br />
+                考え続ける姿勢が重要だと考えています。
+              </p>
+              <p>
+                一方で、AIは非常に便利である反面、
+                <br />
+                使い方を誤れば思考を止め、
+                <br />
+                依存を生む可能性もあります。
+              </p>
+              <p>
+                そのためPT Worksは、
+                <br />
+                「AIが答えを与えるサービス」ではなく、
+                <br />
+                「AIとの対話を通して
+                <br />
+                理学療法士の考えを育てること」を目指します。
+              </p>
+              <p>
+                AIは答えを押し付ける存在ではなく、
+                <br />
+                新たな視点を提示し、見落としを減らし、
+                <br />
+                臨床推論を支えるパートナーです。
+                <br />
+                最終的な判断は常に
+                <br />
+                理学療法士自身が行うという考えを
+                <br />
+                大切にしています。
+              </p>
+              <p>
+                また、日々増え続ける論文やガイドラインを
+                <br />
+                一人ですべて追い続けることは容易ではありません。
+                <br />
+                PT Worksは最新の知見へアクセスしやすくし、
+                <br />
+                エビデンスと現場経験を結び付けることで、
+                <br />
+                患者さんにより良い医療を届けられる環境を
+                <br />
+                つくりたいと考えています。
+              </p>
+              <p>
+                私が本当に実現したいのは、
+                <br />
+                「便利なAIサービス」を作ることではありません。
+              </p>
+              <p>
+                理学療法士が生涯学び続け、
+                <br />
+                考え続ける文化を支え、
+                <br />
+                業界全体の臨床力を高めること。
+              </p>
+              <p>
+                そして、その先にいる患者さんが、
+                <br />
+                より質の高いリハビリテーションを
+                <br />
+                受けられる未来をつくることです。
+              </p>
+              <p>
+                PT Worksは、理学療法士の代わりに考えるAIではなく、
+                <br />
+                理学療法士と共に考え、共に成長するAIで
+                <br />
+                あり続けたいと考えています。
+              </p>
+            </div>
+
+            {/* 締めの文章 */}
+            <div className="mt-10 pt-8 border-t border-gray-100">
+              <p className="text-xl sm:text-2xl font-black leading-snug" style={{ color: "#1B4332" }}>
+                理学療法士の考えを育てるAI。
+                <br />
+                それがPT Worksです。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <SectionDivider />
+
+      {/* ── ⑤ PROBLEMS ─────────────────────────────────────────── */}
       <section style={{ background: "#F9FAFB" }}>
         <div className="max-w-5xl mx-auto px-6 py-14 sm:py-20">
           <div className="text-center mb-10">
