@@ -7,10 +7,11 @@ import { useFreeQuota } from "@/hooks/useFreeQuota";
 
 // ─── 定数 ─────────────────────────────────────────────────────────────────
 
-const BANNER_KEY  = "pt-banner-closed-v2";
-const STREAK_KEY  = "pt-streak-days";
-const GPT_HISTORY_KEY = "pt-gpt-history";
-const PLANS_KEY   = "pt-saved-plans";
+const BANNER_KEY       = "pt-banner-closed-v2";
+const STREAK_KEY       = "pt-streak-days";
+const GPT_HISTORY_KEY  = "pt-gpt-history";   // legacy fallback
+const GPT_SESSIONS_KEY = "pt-gpt-sessions";
+const PLANS_KEY        = "pt-saved-plans";
 
 const QUICK_TAGS = [
   "変形性膝関節症",
@@ -241,8 +242,9 @@ const NOTIFICATIONS = [
 
 // ─── ホームページ ─────────────────────────────────────────────────────────
 
-interface GptMessage { id: string; role: string; content: string; }
-interface SavedPlan  { id: string; name: string; disease: string; savedAt: number; }
+interface GptMessage  { id: string; role: string; content: string; }
+interface GptSession  { id: string; title: string; messages: GptMessage[]; createdAt: string; updatedAt: string; }
+interface SavedPlan   { id: string; name: string; disease: string; savedAt: number; }
 
 export default function HomePage() {
   const router = useRouter();
@@ -270,20 +272,45 @@ export default function HomePage() {
       const s = localStorage.getItem(STREAK_KEY);
       if (s) setStreak(Number(s));
 
-      // PT-GPT 履歴
-      const gh = localStorage.getItem(GPT_HISTORY_KEY);
-      const gptItems = gh
-        ? (JSON.parse(gh) as GptMessage[])
-            .filter(m => m.role === "user")
-            .slice(-3)
-            .reverse()
-            .map(m => ({
-              id:    m.id,
-              title: m.content.slice(0, 40) + (m.content.length > 40 ? "..." : ""),
-              sub:   "PT専用GPT",
-              href:  `/pt-gpt?q=${encodeURIComponent(m.content)}`,
-            }))
-        : [];
+      // PT-GPT 会話セッション一覧
+      const sessRaw = localStorage.getItem(GPT_SESSIONS_KEY);
+      const sessions: GptSession[] = sessRaw ? (JSON.parse(sessRaw) as GptSession[]) : [];
+
+      // セッションがない場合は旧形式(GPT_HISTORY_KEY)からフォールバック
+      const gptItems = sessions.length > 0
+        ? sessions.slice(0, 3).map(s => {
+            const msgCount = s.messages.length;
+            const updatedAt = new Date(s.updatedAt);
+            const now = new Date();
+            const diffMs = now.getTime() - updatedAt.getTime();
+            const diffMin = Math.floor(diffMs / 60000);
+            const timeStr = diffMin < 60
+              ? `${diffMin}分前`
+              : diffMin < 1440
+              ? `${Math.floor(diffMin / 60)}時間前`
+              : `${Math.floor(diffMin / 1440)}日前`;
+            return {
+              id:    s.id,
+              title: s.title,
+              sub:   `${Math.floor(msgCount / 2)}件のやり取り・${timeStr}`,
+              href:  `/pt-gpt?session=${encodeURIComponent(s.id)}`,
+            };
+          })
+        : (() => {
+            const gh = localStorage.getItem(GPT_HISTORY_KEY);
+            return gh
+              ? (JSON.parse(gh) as GptMessage[])
+                  .filter(m => m.role === "user")
+                  .slice(-3)
+                  .reverse()
+                  .map(m => ({
+                    id:    m.id,
+                    title: m.content.slice(0, 40) + (m.content.length > 40 ? "..." : ""),
+                    sub:   "PT専用GPT",
+                    href:  `/pt-gpt?q=${encodeURIComponent(m.content)}`,
+                  }))
+              : [];
+          })();
 
       // 保存プラン
       const pp = localStorage.getItem(PLANS_KEY);

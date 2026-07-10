@@ -23,7 +23,37 @@ export interface Message {
   error?:   boolean;
 }
 
-export const GPT_STORAGE_KEY = "pt-gpt-history";
+export const GPT_STORAGE_KEY   = "pt-gpt-history";
+export const GPT_SESSIONS_KEY  = "pt-gpt-sessions";
+export const GPT_SESSIONS_MAX  = 20;
+
+export interface GptSession {
+  id:        string;
+  title:     string;
+  messages:  Message[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+function loadSessions(): GptSession[] {
+  try {
+    const raw = localStorage.getItem(GPT_SESSIONS_KEY);
+    return raw ? (JSON.parse(raw) as GptSession[]) : [];
+  } catch { return []; }
+}
+
+function saveSessions(sessions: GptSession[]): void {
+  try {
+    localStorage.setItem(GPT_SESSIONS_KEY, JSON.stringify(sessions.slice(0, GPT_SESSIONS_MAX)));
+  } catch { /* ignore */ }
+}
+
+function upsertSession(session: GptSession): void {
+  const all     = loadSessions();
+  const idx     = all.findIndex(s => s.id === session.id);
+  if (idx >= 0) { all[idx] = session; saveSessions(all); }
+  else          { saveSessions([session, ...all]); }
+}
 
 const QUICK_TAGS = [
   "変形性膝関節症",
@@ -588,25 +618,39 @@ function AssistantBubble({
 
 interface PtGptChatProps {
   initialQuery?: string;
-  onClear?: () => void;   // called when history is cleared (for parent to react)
+  sessionId?:    string;   // load saved session without re-querying AI
+  onClear?:      () => void;
 }
 
-export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
+export function PtGptChat({ initialQuery, sessionId, onClear }: PtGptChatProps) {
   const [messages,    setMessages]    = useState<Message[]>([]);
   const [input,       setInput]       = useState("");
   const [sending,     setSending]     = useState(false);
   const [retryMsg,    setRetryMsg]    = useState<string | null>(null);
   const [savedToast,  setSavedToast]  = useState(false);
 
-  const abortRef      = useRef<AbortController | null>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const latestAnsRef  = useRef<HTMLDivElement>(null);
-  const textaRef      = useRef<HTMLTextAreaElement>(null);
-  const initialised   = useRef(false);
+  const abortRef         = useRef<AbortController | null>(null);
+  const scrollAreaRef    = useRef<HTMLDivElement>(null);
+  const latestAnsRef     = useRef<HTMLDivElement>(null);
+  const textaRef         = useRef<HTMLTextAreaElement>(null);
+  const initialised      = useRef(false);
+  const currentSessionId = useRef<string | null>(null);
+  const sessionCreatedAt = useRef<string | null>(null);
   const [showTopBtn, setShowTopBtn] = useState(false);
 
-  // localStorage 復元
+  // セッション復元 or 通常の localStorage 復元
   useEffect(() => {
+    if (sessionId) {
+      // 指定されたセッションを読み込む（AI再生成なし）
+      const session = loadSessions().find(s => s.id === sessionId);
+      if (session) {
+        setMessages(session.messages.map(m => ({ ...m, loading: false })));
+        currentSessionId.current = session.id;
+        sessionCreatedAt.current = session.createdAt;
+      }
+      return;
+    }
+    // 通常起動：前回の会話を復元
     try {
       const saved = localStorage.getItem(GPT_STORAGE_KEY);
       if (saved) {
@@ -614,11 +658,12 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
         setMessages(parsed.map(m => ({ ...m, loading: false })));
       }
     } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // initialQuery を自動送信（1回のみ）
   useEffect(() => {
-    if (initialised.current || !initialQuery) return;
+    if (initialised.current || !initialQuery || sessionId) return;
     initialised.current = true;
     void handleSend(initialQuery);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -631,18 +676,41 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
     setShowTopBtn(el.scrollTop > 80);
   }, []);
 
-  // 履歴保存
+  // メッセージ変化時：現在セッション保存 + sessions リスト更新
   useEffect(() => {
     if (messages.length === 0) return;
+    const completed = messages.filter(m => !m.loading);
+    if (completed.length === 0) return;
+
+    // GPT_STORAGE_KEY（現在の会話バックアップ）
     try {
-      const toSave = messages.filter(m => !m.loading).slice(-40);
-      localStorage.setItem(GPT_STORAGE_KEY, JSON.stringify(toSave));
+      localStorage.setItem(GPT_STORAGE_KEY, JSON.stringify(completed.slice(-40)));
     } catch { /* ignore */ }
+
+    // sessions リストへの upsert
+    if (!currentSessionId.current) return;
+    const firstUser = completed.find(m => m.role === "user");
+    if (!firstUser) return;
+    const session: GptSession = {
+      id:        currentSessionId.current,
+      title:     firstUser.content.slice(0, 20) + (firstUser.content.length > 20 ? "…" : ""),
+      messages:  completed,
+      createdAt: sessionCreatedAt.current ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    upsertSession(session);
   }, [messages]);
 
   const handleSend = useCallback(async (query: string) => {
     const q = query.trim();
     if (!q || sending) return;
+
+    // 初回メッセージ送信時にセッションIDを生成
+    if (!currentSessionId.current) {
+      const newId = `gpt-${Date.now()}`;
+      currentSessionId.current = newId;
+      sessionCreatedAt.current = new Date().toISOString();
+    }
 
     setSending(true);
     setRetryMsg(null);
@@ -735,6 +803,8 @@ export function PtGptChat({ initialQuery, onClear }: PtGptChatProps) {
   const handleClear = () => {
     abortRef.current?.abort();
     setMessages([]);
+    currentSessionId.current = null;
+    sessionCreatedAt.current = null;
     try { localStorage.removeItem(GPT_STORAGE_KEY); } catch { /* ignore */ }
     onClear?.();
   };

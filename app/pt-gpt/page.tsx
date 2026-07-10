@@ -11,7 +11,8 @@ function PtGptInner() {
   const searchParams = useSearchParams();
   const [hasMessages, setHasMessages] = useState(false);
 
-  const initialQuery = searchParams.get("q") ?? undefined;
+  const initialQuery = searchParams.get("q")       ?? undefined;
+  const sessionId    = searchParams.get("session")  ?? undefined;
 
   return (
     <div className="flex flex-col bg-white" style={{ height: "100dvh" }}>
@@ -41,6 +42,7 @@ function PtGptInner() {
       <div className="flex-1 min-h-0">
         <PtGptChat
           initialQuery={initialQuery}
+          sessionId={sessionId}
           onClear={() => setHasMessages(false)}
         />
       </div>
