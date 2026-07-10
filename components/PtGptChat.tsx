@@ -332,9 +332,14 @@ function pWithBadges(children: React.ReactNode): React.ReactNode {
   const flat = Array.isArray(children) ? (children as React.ReactNode[]) : [children];
   const hasBadge = flat.some(c => typeof c === "string" && /\[Lv\.[ABCD]\]/.test(c));
   if (!hasBadge) return children;
-  const result: React.ReactNode[] = flat.flatMap((c, i) =>
-    typeof c === "string" ? injectBadges(c) : [<span key={`n${i}`}>{c as React.ReactNode}</span>]
-  );
+  const result: React.ReactNode[] = [];
+  flat.forEach((c, i) => {
+    if (typeof c === "string") {
+      injectBadges(c).forEach(node => result.push(node));
+    } else {
+      result.push(<span key={`n${i}`}>{c}</span>);
+    }
+  });
   return <>{result}</>;
 }
 
