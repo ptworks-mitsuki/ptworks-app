@@ -108,8 +108,9 @@ function parseSuggestionLine(line: string, userQuery: string): Suggestion | null
 function splitAtSuggestions(text: string, userQuery: string): { body: string; suggestions: Suggestion[] } {
   const suggestions: Suggestion[] = [];
 
-  // ① セクションマーカーを探す（パターンを広めに）
-  const markerRe = /\n(?:---+|━{3,})\n?(?:💡\s*)?(?:PT\s*Works[^\n]*)?\n?/;
+  // ① PT Works関連機能セクションのマーカーのみ検索（━━━は絶対に含めない）
+  // SUGGEST_RULES で指定されたフォーマット: ---\n💡 PT Works...
+  const markerRe = /\n---+\s*\n(?:[^\S\n]*💡[^\n]*\n)?/;
   const markerMatch = markerRe.exec(text);
 
   let body      = text;
@@ -464,31 +465,21 @@ function MdBody({ text }: { text: string }) {
   );
 }
 
-// ─── Thinking buttons ②  ─────────────────────────────────────────────────
+// ─── Dynamic thinking buttons ②  ─────────────────────────────────────────
 
-function ThinkingButtons({ userQuery, onAsk }: { userQuery: string; onAsk: (q: string) => void }) {
-  const router = useRouter();
-  const BUTTONS = [
-    { label: "この治療を選ぶ根拠は？",    q: `「${userQuery}」について、このアプローチを選ぶ臨床的根拠と理由をさらに深掘りして教えてください。` },
-    { label: "デメリット・リスクは？",    q: `「${userQuery}」の治療アプローチに関して、デメリット・リスク・反対意見を詳しく教えてください。` },
-    { label: "別のアプローチは？",        q: `「${userQuery}」について、先ほど紹介されたアプローチ以外の代替アプローチを追加で提示してください。` },
-  ];
+function DynamicThinkingButtons({ buttons, onAsk }: { buttons: string[]; onAsk: (q: string) => void }) {
+  if (buttons.length === 0) return null;
   return (
     <div className="border-t border-gray-100 px-4 pb-4 pt-3">
-      <p className="text-[10px] font-bold text-gray-400 mb-2">思考を深める（任意）</p>
-      <div className="flex flex-wrap gap-2">
-        {BUTTONS.map(b => (
-          <button key={b.label} onClick={() => onAsk(b.q)}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition hover:opacity-80 active:scale-95"
-            style={{ background: "#FFF5F0", color: "#E85D04", borderColor: "#FECAA0" }}>
-            {b.label}
+      <p className="text-[10px] font-bold text-gray-400 mb-2.5">思考を深める（任意）</p>
+      <div className="grid grid-cols-2 gap-2">
+        {buttons.map((b, i) => (
+          <button key={i} onClick={() => onAsk(b)}
+            className="px-3 py-2.5 rounded-xl text-xs font-semibold border text-left transition hover:opacity-80 active:scale-95 leading-snug"
+            style={{ background: "#fff", color: "#E85D04", borderColor: "#E85D04" }}>
+            {b}
           </button>
         ))}
-        <button onClick={() => router.push(`/stage1/literature?q=${encodeURIComponent(userQuery)}`)}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition hover:opacity-80 active:scale-95"
-          style={{ background: "#FFF5F0", color: "#E85D04", borderColor: "#FECAA0" }}>
-          文献で根拠を確認
-        </button>
       </div>
     </div>
   );
@@ -517,8 +508,33 @@ function AssistantBubble({
   isLatest?: boolean;
 }) {
   const router  = useRouter();
-  const [showModal, setShowModal] = useState(false);
-  const [saved,     setSaved]     = useState(false);
+  const [showModal,    setShowModal]    = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [thinkButtons, setThinkButtons] = useState<string[]>([]);
+  const [thinkLoading, setThinkLoading] = useState(false);
+  const fetchedMsgId = useRef<string | null>(null);
+
+  // 回答完了後に思考ボタンを動的生成
+  useEffect(() => {
+    if (
+      !isLatest || msg.loading || msg.error ||
+      msg.intent === "service" || !msg.content ||
+      fetchedMsgId.current === msg.id
+    ) return;
+
+    fetchedMsgId.current = msg.id;
+    setThinkLoading(true);
+
+    fetch("/api/gpt-think", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ content: msg.content }),
+    })
+      .then(r => r.json())
+      .then((data: { buttons?: string[] }) => setThinkButtons(data.buttons ?? []))
+      .catch(() => setThinkButtons([]))
+      .finally(() => setThinkLoading(false));
+  }, [isLatest, msg.loading, msg.error, msg.intent, msg.content, msg.id]);
 
   if (msg.intent === "service" && msg.service) {
     return (
@@ -642,9 +658,15 @@ function AssistantBubble({
             <SuggestionsBlock suggestions={suggestions} />
           )}
 
-          {/* 思考を深めるボタン ② */}
-          {isLatest && !msg.loading && !msg.error && msg.intent && msg.intent !== "service" && userQuery && (
-            <ThinkingButtons userQuery={userQuery} onAsk={onRetry} />
+          {/* 思考を深めるボタン（動的生成） */}
+          {isLatest && !msg.loading && !msg.error && msg.intent && msg.intent !== "service" && (
+            thinkLoading ? (
+              <div className="border-t border-gray-100 px-4 py-3">
+                <p className="text-xs text-gray-400">思考を深める質問を準備中...</p>
+              </div>
+            ) : (
+              <DynamicThinkingButtons buttons={thinkButtons} onAsk={onRetry} />
+            )
           )}
         </div>
       </div>
