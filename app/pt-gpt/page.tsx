@@ -1,19 +1,25 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PtGptChat } from "@/components/PtGptChat";
+import { PtGptTopicView } from "@/components/PtGptTopicView";
 
 // ─── Inner (uses useSearchParams) ─────────────────────────────────────────
 
 function PtGptInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const [hasMessages, setHasMessages] = useState(false);
 
   const initialQuery = searchParams.get("q")       ?? undefined;
   const sessionId    = searchParams.get("session")  ?? undefined;
 
+  // Fresh query → topic-document view
+  if (initialQuery) {
+    return <PtGptTopicView initialQuery={initialQuery} onBack={() => router.back()} />;
+  }
+
+  // Session / direct open → legacy chat view
   return (
     <div className="flex flex-col bg-white" style={{ height: "100dvh" }}>
 
@@ -41,9 +47,9 @@ function PtGptInner() {
       {/* チャット本体 */}
       <div className="flex-1 min-h-0">
         <PtGptChat
-          initialQuery={initialQuery}
+          initialQuery={undefined}
           sessionId={sessionId}
-          onClear={() => setHasMessages(false)}
+          onClear={() => {}}
         />
       </div>
 
