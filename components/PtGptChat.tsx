@@ -499,7 +499,7 @@ function ThinkingButtons({ userQuery, onAsk }: { userQuery: string; onAsk: (q: s
 function UserBubble({ content }: { content: string }) {
   return (
     <div className="flex justify-end mb-4">
-      <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-tr-md text-sm text-white leading-relaxed"
+      <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-md text-sm text-white leading-relaxed"
         style={{ background: "#E85D04" }}>
         {content}
       </div>
@@ -523,7 +523,7 @@ function AssistantBubble({
   if (msg.intent === "service" && msg.service) {
     return (
       <div className="flex justify-start mb-4">
-        <div className="max-w-[92%] w-full bg-white rounded-2xl rounded-tl-md border border-gray-200 shadow-sm overflow-hidden">
+        <div className="w-full bg-white rounded-2xl rounded-tl-md border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100" style={{ background: "#FFF7ED" }}>
             <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "#E85D04" }}>
               専用サービスで解決できます
@@ -546,7 +546,7 @@ function AssistantBubble({
   if (msg.error) {
     return (
       <div className="flex justify-start mb-4">
-        <div className="max-w-[92%] bg-white rounded-2xl rounded-tl-md border border-gray-200 px-4 py-4 text-center">
+        <div className="w-full bg-white rounded-2xl rounded-tl-md border border-gray-200 px-4 py-4 text-center">
           <button onClick={() => onRetry(msg.content)}
             className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition hover:opacity-90"
             style={{ background: "#E85D04" }}>
@@ -600,7 +600,7 @@ function AssistantBubble({
       )}
 
       <div className="flex justify-start mb-4">
-        <div className="max-w-[92%] w-full bg-white rounded-2xl rounded-tl-md border border-gray-200 shadow-sm overflow-hidden">
+        <div className="w-full bg-white rounded-2xl rounded-tl-md border border-gray-200 shadow-sm overflow-hidden">
           {msg.intent && (
             <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between"
               style={{ background: `${INTENT_COLORS[msg.intent]}12` }}>
@@ -925,7 +925,7 @@ export function PtGptChat({ initialQuery, sessionId, onClear }: PtGptChatProps) 
       )}
 
       {/* メッセージエリア */}
-      <div ref={scrollAreaRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 pb-4 max-w-2xl mx-auto w-full">
+      <div ref={scrollAreaRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-2 pb-4 w-full">
 
         {/* 空状態 */}
         {!hasMessages && (
@@ -1030,7 +1030,7 @@ export function PtGptChat({ initialQuery, sessionId, onClear }: PtGptChatProps) 
       {hasMessages && (
         <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3"
           style={{ boxShadow: "0 -2px 12px rgba(0,0,0,0.04)" }}>
-          <div className="max-w-2xl mx-auto">
+          <div className="w-full">
             <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
               {QUICK_TAGS.map(tag => (
                 <button key={tag} onClick={() => void handleSend(tag)} disabled={sending}
