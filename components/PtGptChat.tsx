@@ -90,26 +90,56 @@ const EVIDENCE_META: Record<string, { label: string; bg: string; text: string }>
 
 interface Suggestion { label: string; url: string; }
 
-function splitAtSuggestions(text: string, userQuery: string): { body: string; suggestions: Suggestion[] } {
-  const re = /\n---\n💡\s*PT\s*Works[^\n]*\n/;
-  const match = re.exec(text);
-  if (!match) return { body: text, suggestions: [] };
+function parseSuggestionLine(line: string, userQuery: string): Suggestion | null {
+  // 先頭の記号・括弧を除去
+  const trimmed = line
+    .replace(/^[\s　・\-\*\[\]（()\d.]+/, "")
+    .replace(/[\]\s　）)]+$/, "")
+    .trim();
+  const sep = trimmed.indexOf(":::");
+  if (sep === -1) return null;
+  const label  = trimmed.slice(0, sep).trim();
+  const rawUrl = trimmed.slice(sep + 3).trim();
+  if (!label || !rawUrl.startsWith("/")) return null;
+  const url = rawUrl.replace(/QUERY/g, encodeURIComponent(userQuery));
+  return { label, url };
+}
 
-  const body  = text.slice(0, match.index).trimEnd();
-  const after = text.slice(match.index + match[0].length);
+function splitAtSuggestions(text: string, userQuery: string): { body: string; suggestions: Suggestion[] } {
   const suggestions: Suggestion[] = [];
 
-  for (const line of after.split("\n")) {
-    const trimmed = line.replace(/^[・\-\*\[\s]+/, "").replace(/[\]\s]+$/, "").trim();
-    const sep = trimmed.indexOf(":::");
-    if (sep === -1) continue;
-    const label = trimmed.slice(0, sep).trim();
-    const rawUrl = trimmed.slice(sep + 3).trim();
-    if (!label || !rawUrl) continue;
-    const url = rawUrl.replace(/QUERY/g, encodeURIComponent(userQuery));
-    suggestions.push({ label, url });
-    if (suggestions.length >= 3) break;
+  // ① セクションマーカーを探す（パターンを広めに）
+  const markerRe = /\n(?:---+|━{3,})\n?(?:💡\s*)?(?:PT\s*Works[^\n]*)?\n?/;
+  const markerMatch = markerRe.exec(text);
+
+  let body      = text;
+  let afterPart = "";
+
+  if (markerMatch) {
+    body      = text.slice(0, markerMatch.index).trimEnd();
+    afterPart = text.slice(markerMatch.index + markerMatch[0].length);
+
+    // マーカー以降から提案を抽出
+    for (const line of afterPart.split("\n")) {
+      const s = parseSuggestionLine(line, userQuery);
+      if (s) { suggestions.push(s); if (suggestions.length >= 3) break; }
+    }
   }
+
+  // ② body 中に残った `:::URL` 行をスキャンして除去・提案に追加
+  const cleanLines: string[] = [];
+  for (const line of body.split("\n")) {
+    if (line.includes(":::")) {
+      if (suggestions.length < 3) {
+        const s = parseSuggestionLine(line, userQuery);
+        if (s) { suggestions.push(s); continue; } // body から除去
+      } else {
+        continue; // body から除去（提案上限）
+      }
+    }
+    cleanLines.push(line);
+  }
+  body = cleanLines.join("\n").trimEnd();
 
   return { body, suggestions };
 }
@@ -120,15 +150,23 @@ function SuggestionsBlock({ suggestions }: { suggestions: Suggestion[] }) {
   const router = useRouter();
   if (suggestions.length === 0) return null;
   return (
-    <div className="border-t border-gray-100 px-4 pb-4 pt-3" style={{ background: "#FFF5F0" }}>
-      <p className="text-xs font-bold text-gray-500 mb-2">関連機能でさらに活用する</p>
-      <div className="flex flex-col gap-2">
+    <div style={{ borderTop: "1px solid #F3F4F6" }}>
+      {/* セパレーターライン */}
+      <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+        <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+        <p className="text-[10px] font-bold uppercase tracking-widest shrink-0" style={{ color: "#9CA3AF" }}>
+          関連機能でさらに活用する
+        </p>
+        <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+      </div>
+
+      <div className="px-4 pb-4 flex flex-col gap-2">
         {suggestions.map((s, i) => (
           <button
             key={i}
             onClick={() => router.push(s.url)}
-            className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-sm font-bold text-left transition hover:opacity-90 active:scale-95"
-            style={{ background: "#E85D04", color: "#fff" }}
+            className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl text-sm font-bold text-left transition hover:opacity-90 active:scale-95"
+            style={{ background: "#FFF5F0", color: "#E85D04", border: "1.5px solid #FECAA0" }}
           >
             <span>{s.label}</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 shrink-0 ml-2">
