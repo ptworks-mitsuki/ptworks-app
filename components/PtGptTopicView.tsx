@@ -228,6 +228,9 @@ interface PtGptTopicViewProps {
 export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
   const router = useRouter();
 
+  // Lock the query on mount — never changes even if parent re-renders with different props
+  const queryRef = useRef(initialQuery);
+
   // Main answer state
   const [mainRaw,     setMainRaw]     = useState("");        // raw text including suggestions
   const [mainLoading, setMainLoading] = useState(true);
@@ -265,7 +268,7 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
     fetchedThink.current = false;
 
     streamGptResponse({
-      query: initialQuery,
+      query: queryRef.current,
       history: [],
       onChunk: text => setMainRaw(prev => prev + text),
       onIntent: intent => setMainIntent(intent),
@@ -280,7 +283,7 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
     });
 
     return () => ctrl.abort();
-  }, [initialQuery]);
+  }, []); // empty deps — runs once on mount, query is locked in ref
 
   // ── Fetch think buttons after main answer completes ─────────────────────
 
@@ -331,7 +334,7 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
     setSubmitting(true);
 
     const history: Array<{ role: "user" | "assistant"; content: string }> = [
-      { role: "user",      content: initialQuery },
+      { role: "user",      content: queryRef.current },
       { role: "assistant", content: stripSuggestions(mainRaw) },
       ...followUps.filter(f => !f.loading && !f.error).flatMap(f => ([
         { role: "user" as const,      content: f.sectionContext ? `【${f.sectionContext}について】${f.question}` : f.question },
@@ -375,7 +378,7 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
   // ── Build note content ──────────────────────────────────────────────────
 
   const buildContent = () => {
-    let out = `# ${initialQuery}\n\n${stripSuggestions(mainRaw)}`;
+    let out = `# ${queryRef.current}\n\n${stripSuggestions(mainRaw)}`;
     for (const fu of followUps.filter(f => !f.loading && !f.error)) {
       const prefix = fu.sectionContext ? `【${fu.sectionContext}について】` : "";
       out += `\n\n---\n\n**Q: ${prefix}${fu.question}**\n\n${fu.answer}`;
@@ -436,7 +439,7 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
           <div className="mb-4">
             <div className="bg-orange-50 border border-orange-100 rounded-2xl px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#E85D04" }}>あなたの質問</p>
-              <p className="text-sm font-semibold text-gray-900 leading-relaxed">{initialQuery}</p>
+              <p className="text-sm font-semibold text-gray-900 leading-relaxed">{queryRef.current}</p>
             </div>
           </div>
 
@@ -659,7 +662,7 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
       {showSave && (
         <SaveNoteModal
           type="gpt"
-          defaultTitle={initialQuery.slice(0, 40)}
+          defaultTitle={queryRef.current.slice(0, 40)}
           content={buildContent()}
           onSave={({ title, memo, tags }) => {
             saveNewNote({

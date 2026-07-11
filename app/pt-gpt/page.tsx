@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PtGptChat } from "@/components/PtGptChat";
 import { PtGptTopicView } from "@/components/PtGptTopicView";
@@ -11,12 +11,23 @@ function PtGptInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
-  const initialQuery = searchParams.get("q")       ?? undefined;
-  const sessionId    = searchParams.get("session")  ?? undefined;
+  const urlQuery  = searchParams.get("q")       ?? undefined;
+  const sessionId = searchParams.get("session")  ?? undefined;
 
-  // Fresh query → topic-document view
-  if (initialQuery) {
-    return <PtGptTopicView initialQuery={initialQuery} onBack={() => router.back()} />;
+  // Lock the query at first render so URL changes never reset the view.
+  // Also check sessionStorage as a fallback (set by home page before navigation).
+  const [topicQuery] = useState<string | undefined>(() => {
+    if (urlQuery) return urlQuery;
+    try {
+      const stored = sessionStorage.getItem("ptgpt_pending_query");
+      if (stored) { sessionStorage.removeItem("ptgpt_pending_query"); return stored; }
+    } catch { /* ignore */ }
+    return undefined;
+  });
+
+  // Fresh query → topic-document view (locked — never unmounts due to URL change)
+  if (topicQuery) {
+    return <PtGptTopicView initialQuery={topicQuery} onBack={() => router.back()} />;
   }
 
   // Session / direct open → legacy chat view

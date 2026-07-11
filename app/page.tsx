@@ -354,10 +354,12 @@ export default function HomePage() {
   const handleSend = () => {
     const q = query.trim();
     if (!q) return;
+    try { sessionStorage.setItem("ptgpt_pending_query", q); } catch { /* ignore */ }
     router.push(`/pt-gpt?q=${encodeURIComponent(q)}`);
   };
 
   const handleTag = (tag: string) => {
+    try { sessionStorage.setItem("ptgpt_pending_query", tag); } catch { /* ignore */ }
     router.push(`/pt-gpt?q=${encodeURIComponent(tag)}`);
   };
 
