@@ -108,34 +108,32 @@ function parseSuggestionLine(line: string, userQuery: string): Suggestion | null
 function splitAtSuggestions(text: string, userQuery: string): { body: string; suggestions: Suggestion[] } {
   const suggestions: Suggestion[] = [];
 
-  // ① PT Works関連機能セクションのマーカーのみ検索（━━━は絶対に含めない）
-  // SUGGEST_RULES で指定されたフォーマット: ---\n💡 PT Works...
-  const markerRe = /\n---+\s*\n(?:[^\S\n]*💡[^\n]*\n)?/;
+  // SUGGEST_RULES の形式: ---\n💡 PT Works...
+  // 💡を必須にすることで markdown HR (---) と絶対に混同しない
+  const markerRe = /\n---+\s*\n\s*💡[^\n]*/;
   const markerMatch = markerRe.exec(text);
 
-  let body      = text;
-  let afterPart = "";
+  let body = text;
 
   if (markerMatch) {
-    body      = text.slice(0, markerMatch.index).trimEnd();
-    afterPart = text.slice(markerMatch.index + markerMatch[0].length);
+    body = text.slice(0, markerMatch.index).trimEnd();
+    const afterPart = text.slice(markerMatch.index + markerMatch[0].length);
 
-    // マーカー以降から提案を抽出
     for (const line of afterPart.split("\n")) {
       const s = parseSuggestionLine(line, userQuery);
       if (s) { suggestions.push(s); if (suggestions.length >= 3) break; }
     }
   }
 
-  // ② body 中に残った `:::URL` 行をスキャンして除去・提案に追加
+  // body 中に残った `:::` 行のみを除去・提案に追加（マーカーが出なかった場合のフォールバック）
   const cleanLines: string[] = [];
   for (const line of body.split("\n")) {
     if (line.includes(":::")) {
       if (suggestions.length < 3) {
         const s = parseSuggestionLine(line, userQuery);
-        if (s) { suggestions.push(s); continue; } // body から除去
+        if (s) { suggestions.push(s); continue; }
       } else {
-        continue; // body から除去（提案上限）
+        continue;
       }
     }
     cleanLines.push(line);
