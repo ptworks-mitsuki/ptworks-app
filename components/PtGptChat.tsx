@@ -8,6 +8,7 @@ import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import type { LiteratureDetailResponse } from "@/app/api/literature-detail/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast, SaveIconButton } from "@/components/SaveNoteModal";
+import { withBadges, EvidenceLevelAccordion } from "@/components/EvidenceBadges";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -370,45 +371,6 @@ function cleanMarkdown(text: string): string {
     .replace(/^\s*\*\*\s*$/gm, "");
 }
 
-// Evidence level badge inline rendering ④
-const LV_COLORS: Record<string, { bg: string; color: string }> = {
-  A: { bg: "#1B4332", color: "#fff" },
-  B: { bg: "#1D4ED8", color: "#fff" },
-  C: { bg: "#E85D04", color: "#fff" },
-  D: { bg: "#9CA3AF", color: "#fff" },
-};
-
-function injectBadges(text: string): React.ReactNode[] {
-  const parts   = text.split(/(\[Lv\.[ABCD]\])/g);
-  return parts.map((part, i) => {
-    const m = part.match(/^\[Lv\.([ABCD])\]$/);
-    if (m) {
-      const c = LV_COLORS[m[1]] ?? { bg: "#9CA3AF", color: "#fff" };
-      return (
-        <span key={i} className="inline-block text-[9px] font-black px-1.5 py-0.5 rounded align-middle ml-1"
-          style={{ background: c.bg, color: c.color }}>
-          Lv.{m[1]}
-        </span>
-      );
-    }
-    return part;
-  });
-}
-
-function pWithBadges(children: React.ReactNode): React.ReactNode {
-  const flat = Array.isArray(children) ? (children as React.ReactNode[]) : [children];
-  const hasBadge = flat.some(c => typeof c === "string" && /\[Lv\.[ABCD]\]/.test(c));
-  if (!hasBadge) return children;
-  const result: React.ReactNode[] = [];
-  flat.forEach((c, i) => {
-    if (typeof c === "string") {
-      injectBadges(c).forEach(node => result.push(node));
-    } else {
-      result.push(<span key={`n${i}`}>{c}</span>);
-    }
-  });
-  return <>{result}</>;
-}
 
 function MdBody({ text }: { text: string }) {
   return (
@@ -417,7 +379,7 @@ function MdBody({ text }: { text: string }) {
       components={{
         p: ({ children }) => (
           <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
-            {pWithBadges(children)}
+            {withBadges(children)}
           </p>
         ),
         strong:     ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
@@ -430,7 +392,7 @@ function MdBody({ text }: { text: string }) {
         li:         ({ children }) => (
           <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed">
             <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
-            <span>{children}</span>
+            <span>{withBadges(children)}</span>
           </li>
         ),
         blockquote: ({ children }) => (
@@ -632,6 +594,9 @@ function AssistantBubble({
           <div className="px-4 py-4">
             <MdBody text={before} />
             {msg.loading && <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />}
+            {!msg.loading && msg.intent !== "service" && (
+              <EvidenceLevelAccordion />
+            )}
             {!msg.loading && !msg.intent && (
               <div className="flex justify-end mt-3">
                 <SaveIconButton saved={saved} onClick={() => setShowModal(true)} />

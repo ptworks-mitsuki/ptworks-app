@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast } from "@/components/SaveNoteModal";
+import { withBadges, EvidenceLevelAccordion } from "@/components/EvidenceBadges";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -19,45 +20,6 @@ interface FollowUp {
   error: boolean;
 }
 
-// ── Evidence badge rendering ───────────────────────────────────────────────
-
-const LV_COLORS: Record<string, { bg: string; text: string }> = {
-  A: { bg: "#1B4332", text: "#fff" },
-  B: { bg: "#1d4ed8", text: "#fff" },
-  C: { bg: "#b45309", text: "#fff" },
-  D: { bg: "#6B7280", text: "#fff" },
-};
-
-function injectBadges(str: string): React.ReactNode[] {
-  const parts = str.split(/(\[Lv\.[ABCD]\])/g);
-  return parts.map((p, i) => {
-    const m = p.match(/^\[Lv\.([ABCD])\]$/);
-    if (!m) return p;
-    const c = LV_COLORS[m[1]];
-    return (
-      <span key={i} style={{ background: c.bg, color: c.text }}
-        className="inline-block text-[9px] font-black px-1.5 py-0.5 rounded-sm align-middle mx-0.5 leading-none tracking-wide">
-        Lv.{m[1]}
-      </span>
-    );
-  });
-}
-
-function pWithBadges(children: React.ReactNode): React.ReactNode {
-  const flat = Array.isArray(children) ? (children as React.ReactNode[]) : [children];
-  const hasBadge = flat.some(c => typeof c === "string" && /\[Lv\.[ABCD]\]/.test(c));
-  if (!hasBadge) return children;
-  const result: React.ReactNode[] = [];
-  flat.forEach((c, i) => {
-    if (typeof c === "string") {
-      injectBadges(c).forEach(node => result.push(node));
-    } else {
-      result.push(<span key={`n${i}`}>{c}</span>);
-    }
-  });
-  return <>{result}</>;
-}
-
 // ── Markdown renderer ──────────────────────────────────────────────────────
 
 function MdBody({ text }: { text: string }) {
@@ -67,7 +29,7 @@ function MdBody({ text }: { text: string }) {
       components={{
         p: ({ children }) => (
           <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
-            {pWithBadges(children)}
+            {withBadges(children)}
           </p>
         ),
         strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
@@ -80,7 +42,7 @@ function MdBody({ text }: { text: string }) {
         li: ({ children }) => (
           <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed">
             <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
-            <span>{children}</span>
+            <span>{withBadges(children)}</span>
           </li>
         ),
         blockquote: ({ children }) => (
@@ -517,6 +479,13 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
               </div>
             )}
           </div>
+
+          {/* Evidence level accordion */}
+          {!mainLoading && !mainError && (
+            <div className="px-4 pb-4">
+              <EvidenceLevelAccordion />
+            </div>
+          )}
 
           {/* Think buttons (after main answer) */}
           {!mainLoading && !mainError && (
