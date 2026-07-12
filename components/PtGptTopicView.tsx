@@ -8,7 +8,7 @@ import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast } from "@/components/SaveNoteModal";
 import { withBadges, EvidenceLevelAccordion } from "@/components/EvidenceBadges";
-import { saveRecentTopic } from "@/lib/recent-topics";
+import { saveRecentTopic, updateRecentTopic, type SavedFollowUp } from "@/lib/recent-topics";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -168,15 +168,26 @@ interface PtGptTopicViewProps {
   initialQuery: string;
   preloadedAnswer?: string;
   preloadedIntent?: GptIntent;
+  preloadedFollowUps?: SavedFollowUp[];
+  preloadedId?: string;
   onBack?: () => void;
 }
 
-export function PtGptTopicView({ initialQuery, preloadedAnswer, preloadedIntent, onBack }: PtGptTopicViewProps) {
+export function PtGptTopicView({
+  initialQuery,
+  preloadedAnswer,
+  preloadedIntent,
+  preloadedFollowUps,
+  preloadedId,
+  onBack,
+}: PtGptTopicViewProps) {
   const router = useRouter();
 
   // Lock all props permanently on mount
   const queryRef     = useRef(initialQuery);
-  const preloadedRef = useRef({ answer: preloadedAnswer, intent: preloadedIntent });
+  const preloadedRef = useRef({ answer: preloadedAnswer, intent: preloadedIntent, followUps: preloadedFollowUps });
+  // If restoring from cache, we already have a saved ID — skip re-saving
+  const savedTopicIdRef = useRef<string | null>(preloadedId ?? null);
 
   // Main answer
   const [mainRaw,     setMainRaw]     = useState("");
@@ -189,8 +200,10 @@ export function PtGptTopicView({ initialQuery, preloadedAnswer, preloadedIntent,
   const [thinkLoading, setThinkLoading] = useState(false);
   const fetchedThink = useRef(false);
 
-  // Follow-up Q&As
-  const [followUps,  setFollowUps]  = useState<FollowUp[]>([]);
+  // Follow-up Q&As（キャッシュから復元する場合は初期値を設定）
+  const [followUps, setFollowUps] = useState<FollowUp[]>(() =>
+    (preloadedFollowUps ?? []).map(f => ({ ...f, loading: false, error: false }))
+  );
   const [inputValue, setInputValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -198,9 +211,8 @@ export function PtGptTopicView({ initialQuery, preloadedAnswer, preloadedIntent,
   const [showSave,   setShowSave]   = useState(false);
   const [savedToast, setSavedToast] = useState(false);
 
-  const inputRef      = useRef<HTMLTextAreaElement>(null);
-  const bottomRef     = useRef<HTMLDivElement>(null);
-  const savedTopicRef = useRef(false);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // ── Fetch main answer (once on mount) ─────────────────────────────────
 
@@ -231,20 +243,35 @@ export function PtGptTopicView({ initialQuery, preloadedAnswer, preloadedIntent,
     return () => ctrl.abort();
   }, []);
 
-  // ── Save to recent topics when answer finishes ────────────────────────
+  // ── 回答完了時にローカルストレージへ保存（新規のみ） ────────────────────
 
   useEffect(() => {
-    if (mainLoading || !mainRaw || mainError || savedTopicRef.current) return;
-    savedTopicRef.current = true;
+    if (mainLoading || !mainRaw || mainError) return;
+    if (savedTopicIdRef.current) return; // 復元時はスキップ
+    const id = `topic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    savedTopicIdRef.current = id;
     saveRecentTopic({
-      id:      `topic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      title:   queryRef.current.slice(0, 20),
-      query:   queryRef.current,
-      answer:  mainRaw,
-      intent:  mainIntent,
-      savedAt: new Date().toISOString(),
+      id,
+      title:     queryRef.current.slice(0, 20),
+      query:     queryRef.current,
+      answer:    mainRaw,
+      intent:    mainIntent,
+      followUps: [],
+      memo:      "",
+      savedAt:   new Date().toISOString(),
     });
   }, [mainLoading, mainRaw, mainError, mainIntent]);
+
+  // ── フォローアップ完了時に保存データを更新 ──────────────────────────────
+
+  useEffect(() => {
+    if (!savedTopicIdRef.current) return;
+    const completed: SavedFollowUp[] = followUps
+      .filter(f => !f.loading && !f.error && f.answer)
+      .map(({ id, question, answer }) => ({ id, question, answer }));
+    if (completed.length === 0) return;
+    updateRecentTopic(savedTopicIdRef.current, { followUps: completed });
+  }, [followUps]);
 
   // ── Think buttons after answer completes ──────────────────────────────
 

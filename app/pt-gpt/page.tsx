@@ -18,11 +18,17 @@ function PtGptInner() {
   const sessionId = searchParams.get("session")  ?? undefined;
 
   // Load preloaded topic from localStorage (when navigating from 続きから始める)
-  const [preloaded] = useState<{ answer: string; intent: GptIntent | null; query: string } | undefined>(() => {
+  const [preloaded] = useState<{
+    id: string;
+    answer: string;
+    intent: GptIntent | null;
+    query: string;
+    followUps: import("@/lib/recent-topics").SavedFollowUp[];
+  } | undefined>(() => {
     if (!topicId) return undefined;
     try {
       const t = getRecentTopic(topicId);
-      if (t) return { answer: t.answer, intent: t.intent, query: t.query };
+      if (t) return { id: t.id, answer: t.answer, intent: t.intent, query: t.query, followUps: t.followUps ?? [] };
     } catch { /* ignore */ }
     return undefined;
   });
@@ -60,6 +66,8 @@ function PtGptInner() {
         initialQuery={topicQuery}
         preloadedAnswer={preloaded?.answer}
         preloadedIntent={preloaded?.intent ?? undefined}
+        preloadedFollowUps={preloaded?.followUps}
+        preloadedId={preloaded?.id}
         onBack={() => router.back()}
       />
     );

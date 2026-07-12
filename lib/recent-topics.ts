@@ -1,12 +1,20 @@
 import type { GptIntent } from "@/app/api/pt-gpt/route";
 
+export interface SavedFollowUp {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 export interface RecentTopic {
   id: string;
-  title: string;      // query先頭20文字
-  query: string;      // 元の質問（全文）
-  answer: string;     // AIの回答（raw）
+  title: string;           // query先頭20文字
+  query: string;           // 元の質問（全文）
+  answer: string;          // AIの回答（raw）
   intent: GptIntent | null;
-  savedAt: string;    // ISO timestamp
+  followUps: SavedFollowUp[];
+  memo: string;
+  savedAt: string;         // ISO timestamp
 }
 
 const KEY = "ptgpt_recent_topics";
@@ -24,6 +32,13 @@ export function saveRecentTopic(topic: RecentTopic): void {
     // 同じクエリは上書き（重複排除）
     const topics = load().filter(t => t.query !== topic.query);
     localStorage.setItem(KEY, JSON.stringify([topic, ...topics].slice(0, MAX)));
+  } catch { /* ignore */ }
+}
+
+export function updateRecentTopic(id: string, updates: Partial<RecentTopic>): void {
+  try {
+    const topics = load().map(t => t.id === id ? { ...t, ...updates } : t);
+    localStorage.setItem(KEY, JSON.stringify(topics));
   } catch { /* ignore */ }
 }
 
