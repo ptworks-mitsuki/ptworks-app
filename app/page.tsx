@@ -20,13 +20,17 @@ const QUICK_TAGS = [
   "副業の始め方",
 ];
 
-const QUICK_ACCESS = [
-  { id: "gpt",       label: "PT専用GPT",          sub: "AI何でも相談", href: "/pt-gpt",              icon: <IconChat />,      main: true  },
-  { id: "lit",       label: "文献検索",           sub: "論文・書籍",   href: "/stage1/literature",  icon: <IconBook />,      main: true  },
-  { id: "treatment", label: "AI治療考察",       sub: "AI個別提案",   href: "/stage1/treatment",   icon: <IconClipboard />, main: false },
-  { id: "slides",    label: "スライド自動生成",   sub: "発表を10分で", href: "/stage1/slides",      icon: <IconSlides />,    main: false },
-  { id: "calc",      label: "診療報酬・算定",     sub: "点数・加算",   href: "/learn/reimbursement",icon: <IconCalc />,      main: false },
-  { id: "homeex",    label: "自主トレ指導書",     sub: "患者指導に",   href: "/stage1/homeexercise", icon: <IconSheet />,     main: false },
+const QUICK_ACCESS_TOP = [
+  { id: "gpt",  label: "PT専用GPT", sub: "AI何でも相談", href: "/pt-gpt",             icon: <IconChat />,  },
+  { id: "lit",  label: "文献検索",  sub: "論文・書籍",   href: "/stage1/literature", icon: <IconBook />,  },
+  { id: "myp",  label: "マイページ", sub: "ノート・履歴",  href: "/mypage",            icon: <IconGraduate /> },
+];
+
+const QUICK_ACCESS_SUB = [
+  { id: "treatment", label: "AI治療考察", sub: "AI個別提案", href: "/stage1/treatment",    icon: <IconClipboard size={18} /> },
+  { id: "slides",    label: "スライド",   sub: "発表資料",   href: "/stage1/slides",       icon: <IconSlides    size={18} /> },
+  { id: "calc",      label: "診療報酬",   sub: "点数・加算", href: "/learn/reimbursement", icon: <IconCalc      size={18} /> },
+  { id: "homeex",    label: "自主トレ",   sub: "患者指導",   href: "/stage1/homeexercise", icon: <IconSheet     size={18} /> },
 ];
 
 
@@ -543,19 +547,37 @@ export default function HomePage() {
         {/* ⑤ クイックアクセス */}
         <section className="mb-6">
           <h2 className="text-base font-black mb-3" style={{ color: "#1A1A1A" }}>クイックアクセス</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {QUICK_ACCESS.map(item => (
+
+          {/* 上段：大 3列 */}
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            {QUICK_ACCESS_TOP.map(item => (
               <a key={item.id} href={item.href}
                 className="flex flex-col items-center text-center py-4 px-2 rounded-2xl border transition active:scale-95"
                 style={{
-                  background:   item.main ? "#FFF7ED" : "#F9FAFB",
-                  borderColor:  item.main ? "#FED7AA" : "#F3F4F6",
-                  boxShadow:    "0 2px 8px rgba(0,0,0,0.04)",
-                  borderRadius: "16px",
+                  background:  "#FFF7ED",
+                  borderColor: "#FED7AA",
+                  boxShadow:   "0 2px 8px rgba(0,0,0,0.04)",
                 }}>
-                <span className="mb-2" style={{ color: item.main ? "#E85D04" : "#888" }}>{item.icon}</span>
+                <span className="mb-2" style={{ color: "#E85D04" }}>{item.icon}</span>
                 <p className="text-xs font-black leading-snug" style={{ color: "#1A1A1A" }}>{item.label}</p>
                 <p className="text-[10px] mt-0.5" style={{ color: "#888" }}>{item.sub}</p>
+              </a>
+            ))}
+          </div>
+
+          {/* 下段：小 4列 */}
+          <div className="grid grid-cols-4 gap-2">
+            {QUICK_ACCESS_SUB.map(item => (
+              <a key={item.id} href={item.href}
+                className="flex flex-col items-center text-center py-3 px-1 rounded-xl border transition active:scale-95"
+                style={{
+                  background:  "#F9FAFB",
+                  borderColor: "#F3F4F6",
+                  boxShadow:   "0 2px 8px rgba(0,0,0,0.04)",
+                }}>
+                <span className="mb-1.5" style={{ color: "#888" }}>{item.icon}</span>
+                <p className="text-[10px] font-black leading-snug" style={{ color: "#1A1A1A" }}>{item.label}</p>
+                <p className="text-[9px] mt-0.5" style={{ color: "#aaa" }}>{item.sub}</p>
               </a>
             ))}
           </div>
