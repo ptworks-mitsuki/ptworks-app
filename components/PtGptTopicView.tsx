@@ -153,6 +153,66 @@ function MdBody({ text }: { text: string }) {
   );
 }
 
+// ── References section ────────────────────────────────────────────────────
+
+function ReferencesSection({ content }: { content: string }) {
+  const lines = content
+    .split("\n")
+    .map(l => l.replace(/^[-*\d+.]+\s*/, "").trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return <MdBody text={content} />;
+
+  return (
+    <div className="space-y-2.5">
+      {lines.map((ref, i) => (
+        <div key={i} className="flex items-start gap-2">
+          <span className="text-xs text-gray-400 mt-0.5 shrink-0 w-4">{i + 1}.</span>
+          <p className="flex-1 text-xs text-gray-700 leading-relaxed min-w-0">{ref}</p>
+          <a
+            href={`/stage1/literature?q=${encodeURIComponent(ref.slice(0, 50))}`}
+            className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition hover:opacity-80 active:scale-95"
+            style={{ color: "#E85D04", borderColor: "#FED7AA", background: "#FFF7ED" }}
+          >
+            詳しく見る
+          </a>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const IS_REFS_TITLE = (title: string) => /^参考/.test(title);
+
+// ── Follow-up answer (parses sections, treats 参考資料 specially) ──────────
+
+function FollowUpAnswer({ text }: { text: string }) {
+  const sections = parseMarkdownSections(text);
+  const hasRefs  = sections.some(s => IS_REFS_TITLE(s.title));
+
+  if (!hasRefs) return <MdBody text={text} />;
+
+  return (
+    <>
+      {sections.map((sec, i) => (
+        <div key={i} className="mb-3 last:mb-0">
+          {sec.title && (
+            <h2 className="text-sm font-black text-gray-900 mb-2 mt-3 first:mt-0 flex items-center gap-2">
+              <span className="w-1 h-4 rounded-full shrink-0" style={{ background: "#E85D04" }} />
+              {sec.title}
+            </h2>
+          )}
+          {IS_REFS_TITLE(sec.title) ? (
+            <ReferencesSection content={sec.content} />
+          ) : (
+            <MdBody text={sec.content} />
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
 // ── Intent label ──────────────────────────────────────────────────────────
 
 const INTENT_LABELS: Record<GptIntent, string> = {
@@ -451,7 +511,11 @@ export function PtGptTopicView({
                         {sec.title}
                       </h2>
                     )}
-                    <MdBody text={sec.content} />
+                    {IS_REFS_TITLE(sec.title) ? (
+                      <ReferencesSection content={sec.content} />
+                    ) : (
+                      <MdBody text={sec.content} />
+                    )}
                   </div>
                 ))}
 
@@ -523,7 +587,7 @@ export function PtGptTopicView({
                   <p className="text-sm text-red-500">{fu.answer || "エラーが発生しました。"}</p>
                 ) : (
                   <>
-                    <MdBody text={stripSuggestions(fu.answer)} />
+                    <FollowUpAnswer text={stripSuggestions(fu.answer)} />
                     {fu.loading && (
                       <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />
                     )}

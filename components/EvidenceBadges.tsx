@@ -13,42 +13,52 @@ export const LV_COLORS: Record<string, { bg: string; text: string }> = {
 
 // ── Inline badge ──────────────────────────────────────────────────────────
 
-export function EvidenceBadge({ level }: { level: string }) {
-  const c = LV_COLORS[level] ?? { bg: "#9CA3AF", text: "#fff" };
+export function EvidenceBadge({ level, refName }: { level: string; refName?: string }) {
+  const c           = LV_COLORS[level] ?? { bg: "#9CA3AF", text: "#fff" };
+  const displayRef  = refName
+    ? (refName.length > 20 ? refName.slice(0, 20) + "…" : refName)
+    : undefined;
+
   return (
-    <span
-      style={{
-        display: "inline-block",
-        background: c.bg,
-        color: c.text,
-        borderRadius: 4,
-        padding: "2px 6px",
-        fontSize: 11,
-        fontWeight: 700,
-        lineHeight: 1.4,
-        verticalAlign: "middle",
-        margin: "0 2px",
-      }}
-    >
-      Lv.{level}
+    <span style={{ display: "inline", verticalAlign: "middle", margin: "0 2px" }}>
+      <span
+        style={{
+          display: "inline-block",
+          background: c.bg,
+          color: c.text,
+          borderRadius: 4,
+          padding: "2px 6px",
+          fontSize: 11,
+          fontWeight: 700,
+          lineHeight: 1.4,
+        }}
+      >
+        Lv.{level}
+      </span>
+      {displayRef && (
+        <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: 4 }}>
+          {displayRef}
+        </span>
+      )}
     </span>
   );
 }
 
-// ── Text → React nodes (replaces [Lv.X] with badges) ─────────────────────
+// ── Text → React nodes (replaces [Lv.X] or [Lv.X 文献名] with badges) ────
 
 export function injectBadges(str: string): React.ReactNode[] {
-  const parts = str.split(/(\[Lv\.[ABCD]\])/g);
+  // Match [Lv.X] or [Lv.X text] — text can include spaces but not ]
+  const parts = str.split(/(\[Lv\.[ABCD](?:\s+[^\]]+)?\])/g);
   return parts.map((p, i) => {
-    const m = p.match(/^\[Lv\.([ABCD])\]$/);
-    return m ? <EvidenceBadge key={i} level={m[1]} /> : p;
+    const m = p.match(/^\[Lv\.([ABCD])(?:\s+([^\]]+))?\]$/);
+    return m ? <EvidenceBadge key={i} level={m[1]} refName={m[2]} /> : p;
   });
 }
 
 // Applies badge injection to arbitrary ReactNode children
 export function withBadges(children: React.ReactNode): React.ReactNode {
   const flat = Array.isArray(children) ? (children as React.ReactNode[]) : [children];
-  const hasBadge = flat.some(c => typeof c === "string" && /\[Lv\.[ABCD]\]/.test(c));
+  const hasBadge = flat.some(c => typeof c === "string" && /\[Lv\.[ABCD]/.test(c));
   if (!hasBadge) return children;
   const result: React.ReactNode[] = [];
   flat.forEach((c, idx) => {
