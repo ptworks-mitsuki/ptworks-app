@@ -1,431 +1,149 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
-import { useSavedPlans } from "@/hooks/useSavedPlans";
-import type { SavedPlan } from "@/hooks/useSavedPlans";
 import dynamic from "next/dynamic";
 const NotesDictionary = dynamic(() => import("@/components/NotesDictionary").then(m => m.NotesDictionary), { ssr: false });
 
 // モック：実認証が実装されたら差し替える
-const MOCK_USER = { name: "田中 優子" };
+const MOCK_USER    = { name: "田中 優子" };
 const CURRENT_PLAN = "free" as "free" | "stage1" | "stage2" | "stage3" | "stage4";
 
-const PLAN_LABELS: Record<typeof CURRENT_PLAN, string> = {
-  free:   "無料プラン",
-  stage1: "臨床サポートパック",
-  stage2: "副業支援パック",
-  stage3: "開業・院運営パック",
-  stage4: "全部入りパック",
-};
-
-// ── ゾーン2：今すぐ使うカードの定義 ────────────────────────────
+// ── クイックアクセス ──────────────────────────────────────────────
 
 const QUICK_ACTIONS = [
   {
     id:    "pt-gpt",
     label: "PT専用GPT",
-    desc:  "疾患・術式・臨床の疑問を何でも解決",
+    sub:   "AI何でも相談",
     href:  "/pt-gpt",
-    color: "#E85D04",
-    bg:    "#FFF7ED",
-    icon:  (
-      <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10" aria-hidden="true">
-        <rect x="4" y="8" width="24" height="18" rx="4" fill="#E85D04" fillOpacity="0.1" stroke="#E85D04" strokeWidth="1.5"/>
-        <path d="M8 26 L6 34 L16 29" fill="#E85D04" fillOpacity="0.1" stroke="#E85D04" strokeWidth="1.2" strokeLinejoin="round"/>
-        <circle cx="11" cy="17" r="1.5" fill="#E85D04"/>
-        <circle cx="16" cy="17" r="1.5" fill="#E85D04" fillOpacity="0.6"/>
-        <circle cx="21" cy="17" r="1.5" fill="#E85D04" fillOpacity="0.35"/>
-        <circle cx="31" cy="12" r="6" fill="#E85D04" fillOpacity="0.15" stroke="#E85D04" strokeWidth="1.5"/>
-        <path d="M29 12h4M31 10v4" stroke="#E85D04" strokeWidth="1.5" strokeLinecap="round"/>
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="#E85D04" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
     ),
   },
   {
     id:    "literature",
     label: "文献検索",
-    desc:  "論文・教科書を日本語で検索",
+    sub:   "論文・書籍",
     href:  "/stage1/literature",
-    color: "#1B4332",
-    bg:    "#F0FDF4",
-    icon:  (
-      <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10" aria-hidden="true">
-        <circle cx="17" cy="17" r="10" stroke="#1B4332" strokeWidth="2" fill="#1B4332" fillOpacity="0.1"/>
-        <line x1="24" y1="24" x2="34" y2="34" stroke="#1B4332" strokeWidth="2.5" strokeLinecap="round"/>
-        <line x1="13" y1="17" x2="21" y2="17" stroke="#1B4332" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6"/>
-        <line x1="13" y1="13" x2="21" y2="13" stroke="#1B4332" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.4"/>
-        <line x1="13" y1="21" x2="18" y2="21" stroke="#1B4332" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.4"/>
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="#E85D04" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+    ),
+  },
+  {
+    id:    "treatment",
+    label: "AI治療考察",
+    sub:   "AI個別提案",
+    href:  "/stage1/treatment",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="#E85D04" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        <rect x="8" y="2" width="8" height="4" rx="1"/>
+      </svg>
+    ),
+  },
+  {
+    id:    "slides",
+    label: "スライド",
+    sub:   "発表資料を10分で",
+    href:  "/stage1/slides",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="#E85D04" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="2" y="3" width="20" height="14" rx="2"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <line x1="12" y1="17" x2="12" y2="21"/>
       </svg>
     ),
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────
-
-// ── 保存プラン詳細モーダル ──────────────────────────────────────────────────
-
-function PlanDetailModal({ plan, onClose }: { plan: SavedPlan; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 bg-black/50 overflow-y-auto">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="px-5 py-4 flex items-start justify-between gap-3 border-b border-gray-100"
-          style={{ background: "linear-gradient(135deg, #1B4332, #2D6A4F)" }}>
-          <div>
-            <p className="text-white font-black text-base leading-tight">{plan.name}</p>
-            <p className="text-green-200 text-xs mt-0.5">
-              {plan.disease}　·　{new Date(plan.savedAt).toLocaleDateString("ja-JP")}
-            </p>
-          </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white text-sm mt-0.5">✕</button>
-        </div>
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          {plan.patientInfo.age && (
-            <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">患者情報</p>
-              <p className="text-xs text-gray-700">
-                {[
-                  plan.patientInfo.age && `${plan.patientInfo.age}歳`,
-                  plan.patientInfo.gender,
-                  plan.patientInfo.goal && `「${plan.patientInfo.goal}」`,
-                ].filter(Boolean).join("　·　")}
-              </p>
-            </div>
-          )}
-          <div>
-            <p className="text-xs font-bold text-green-700 mb-2">日本の標準的アプローチ</p>
-            <div className="space-y-1">
-              {plan.result.standard.points.map((p, i) => (
-                <p key={i} className="text-xs text-gray-700 leading-relaxed">{p}</p>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-blue-700 mb-2">海外エビデンス（{plan.result.evidence.length}件）</p>
-            <div className="space-y-2">
-              {plan.result.evidence.map((e, i) => (
-                <div key={i} className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
-                  <p className="text-xs font-semibold text-blue-900">{e.approach}</p>
-                  <p className="text-xs text-gray-600 mt-0.5">{e.detail}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-orange-700 mb-2">個別提案</p>
-            <div className="space-y-1">
-              {plan.result.personalized.split("\n").filter(Boolean).map((line, i) => (
-                <p key={i} className="text-xs text-gray-700 leading-relaxed">{line}</p>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Favorite accordion item ───────────────────────────────────────────────
-
-const SECTION_COLOR_MAP: Record<string, string> = {
-  blue:   "#1d4ed8",
-  purple: "#7c3aed",
-  red:    "#dc2626",
-  orange: "#ea580c",
-  green:  "#15803d",
-  teal:   "#0f766e",
-  yellow: "#b45309",
-};
-
 // ── Main page ─────────────────────────────────────────────────────────────
 
 export default function MyPage() {
-  const router = useRouter();
-  const { history } = useSearchHistory();
   const { used, total, remaining, isExhausted, percentage } = useFreeQuota();
-  const { plans, removePlan }               = useSavedPlans();
-  const [detailPlan, setDetailPlan]         = useState<SavedPlan | null>(null);
-
-  const isLow     = remaining <= 2 && !isExhausted;
-  const isFree    = CURRENT_PLAN === "free";
-  const planLabel = PLAN_LABELS[CURRENT_PLAN];
-
-  // ステータスバーの背景色
-  const statusBg = isExhausted
-    ? "#1B4332"
-    : isLow
-      ? "#E85D04"
-      : "#1B4332";
-
-  // 直近3件の検索履歴
-  const recentHistory = history.slice(0, 3);
+  const isFree = CURRENT_PLAN === "free";
+  const isLow  = remaining <= 2 && !isExhausted;
 
   return (
-    <>
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-xl mx-auto px-4 pb-12 space-y-5">
 
-      {/* ══════════════════════════════════════════════════════════
-          ZONE 1：ステータスバー
-      ══════════════════════════════════════════════════════════ */}
-      <div
-        className="rounded-2xl px-5 py-4 text-white shadow-sm"
-        style={{ background: statusBg }}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-
-          {/* 左：あいさつ＋プラン */}
-          <div>
-            <p className="text-sm font-bold text-white/80 mb-0.5">
-              こんにちは、{MOCK_USER.name}さん
-            </p>
-            <div className="flex items-center gap-2">
-              <span
-                className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
-                style={{ background: "rgba(255,255,255,0.2)" }}
-              >
-                {planLabel}
-              </span>
-              {isFree && (
-                <Link
-                  href="/pricing"
-                  className="text-[11px] font-bold text-white/70 hover:text-white underline underline-offset-2 transition"
-                >
-                  アップグレード →
-                </Link>
-              )}
-            </div>
+      {/* ① 簡易ヘッダー */}
+      <div className="pt-4">
+        <p className="text-base font-bold text-gray-900 mb-2">
+          こんにちは、{MOCK_USER.name}さん
+        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-gray-500 shrink-0">
+            今月の残り検索：
+            <span className="font-black" style={{ color: isLow ? "#E85D04" : "#1A1A1A" }}>
+              {remaining}回
+            </span>
+          </p>
+          <div className="flex-1 h-1 rounded-full overflow-hidden max-w-[100px]"
+            style={{ background: "#F3F4F6" }}>
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{
+                width:      `${percentage}%`,
+                background: isLow ? "#E85D04" : "#9CA3AF",
+              }} />
           </div>
-
-          {/* 右：残り回数＋進捗バー */}
-          <div className="sm:min-w-[180px]">
-            {isExhausted ? (
-              <p className="text-sm font-bold text-white/90 text-center sm:text-right">
-                今月の上限に達しました
-              </p>
-            ) : (
-              <>
-                <div className="flex items-baseline justify-between mb-1.5">
-                  <p className="text-[11px] text-white/70">今月の残り検索回数</p>
-                  <p className="text-lg font-black text-white">
-                    残り <span className="text-2xl">{remaining}</span> 回
-                  </p>
-                </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.2)" }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${percentage}%`,
-                      background: isLow ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.7)",
-                    }}
-                  />
-                </div>
-                <p className="text-[10px] text-white/50 mt-1 text-right">
-                  {used} / {total} 回使用済み
-                </p>
-              </>
-            )}
-          </div>
+          <p className="text-[10px] text-gray-400 shrink-0">{used}/{total}</p>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          ZONE 2：今すぐ使う
-      ══════════════════════════════════════════════════════════ */}
-      <div>
-        <h2 className="text-base font-black text-gray-900 mb-3">今すぐ使う</h2>
+      {/* ② マイノート（最優先） */}
+      <NotesDictionary />
 
-        <div className="grid grid-cols-2 gap-3">
-          {QUICK_ACTIONS.map((action) => (
-            <Link
-              key={action.id}
-              href={action.href}
-              className="flex flex-col items-start gap-3 bg-white rounded-2xl border p-4 hover:shadow-md transition group"
-              style={{ borderColor: action.color + "33" }}
-            >
-              {/* アイコン */}
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: action.bg }}
-              >
+      {/* ⑦ クイックアクセス */}
+      <div>
+        <h2 className="text-sm font-black text-gray-900 mb-3">今すぐ使う</h2>
+        <div className="grid grid-cols-2 gap-2.5">
+          {QUICK_ACTIONS.map(action => (
+            <Link key={action.id} href={action.href}
+              className="flex items-center gap-3 px-3.5 py-3 rounded-2xl border border-gray-100 bg-white transition hover:border-orange-200 hover:bg-orange-50 active:scale-95"
+              style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <div className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: "#FFF7ED" }}>
                 {action.icon}
               </div>
-
-              {/* テキスト */}
-              <div>
-                <p
-                  className="font-black text-sm leading-tight mb-1 group-hover:opacity-80 transition"
-                  style={{ color: action.color }}
-                >
-                  {action.label}
-                </p>
-                <p className="text-xs text-gray-500 leading-snug">{action.desc}</p>
+              <div className="min-w-0">
+                <p className="text-xs font-black truncate" style={{ color: "#E85D04" }}>{action.label}</p>
+                <p className="text-[10px] text-gray-400 truncate">{action.sub}</p>
               </div>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          ZONE 3：履歴とアップグレード
-      ══════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-        {/* 最近調べた疾患 */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-black text-gray-900">最近調べた疾患</h3>
-            <Link
-              href="/history"
-              className="text-xs text-gray-400 hover:text-gray-600 transition"
-            >
-              すべて見る →
-            </Link>
-          </div>
-
-          {recentHistory.length === 0 ? (
-            <p className="text-xs text-gray-400 py-4 text-center">
-              まだ検索履歴がありません
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {recentHistory.map((item) => (
-                <li key={item.id}>
-                  <button
-                    onClick={() => router.push(`/stage1?q=${encodeURIComponent(item.query)}`)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-orange-50 hover:border-orange-200 border border-gray-100 transition text-left group"
-                  >
-                    <span className="text-sm text-gray-700 font-medium group-hover:text-[#E85D04] transition truncate">
-                      {item.query}
-                    </span>
-                    <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#E85D04] shrink-0 ml-2 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-                    </svg>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* アップグレード導線（無料プランのみ） */}
-        {isFree && (
-          <div
-            className="rounded-2xl p-5 flex flex-col justify-between"
-            style={{ background: "linear-gradient(135deg, #1B4332, #2D6A4F)" }}
-          >
-            <div className="mb-4">
-              <p className="text-xs font-bold text-white/60 uppercase tracking-wider mb-1">
-                プランアップグレード
-              </p>
-              <p className="text-white font-black text-lg leading-tight mb-2">
+      {/* ⑧ アップグレード誘導（最下部・オレンジ） */}
+      {isFree && (
+        <div className="rounded-2xl px-5 py-4"
+          style={{ background: "#E85D04" }}>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-bold text-white/70 mb-0.5">プランアップグレード</p>
+              <p className="text-white font-black text-base leading-tight">
                 ¥980/月で<br />検索が無制限に
               </p>
-              <ul className="space-y-1.5">
-                {[
-                  "PT専用GPT 無制限",
-                  "文献検索 無制限",
-                  "スライド自動生成",
-                  "診療報酬・算定ガイド",
-                  "AI治療考察",
-                ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-xs text-white/80">
-                    <span className="text-green-400 font-bold shrink-0">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
             </div>
-            <Link
-              href="/pricing"
-              className="block text-center text-sm font-black py-3 rounded-xl transition hover:opacity-90 shadow-md"
-              style={{ background: "#E85D04", color: "white" }}
-            >
-              アップグレードする →
+            <Link href="/pricing"
+              className="shrink-0 px-4 py-2.5 rounded-xl text-xs font-black bg-white transition hover:opacity-90 active:scale-95"
+              style={{ color: "#E85D04" }}>
+              くわしく見る
             </Link>
           </div>
-        )}
-
-        {/* 有料プラン：サブリンク */}
-        {!isFree && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
-            <h3 className="text-sm font-black text-gray-900 mb-3">クイックリンク</h3>
-            <div className="space-y-2">
-              {[
-                { href: "/stage1/slides", label: "スライド自動生成" },
-                { href: "/learn",         label: "学習コンテンツ" },
-                { href: "/bookmarks",     label: "ブックマーク" },
-                { href: "/pricing",       label: "プラン変更" },
-              ].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-orange-50 border border-gray-100 hover:border-orange-200 transition text-sm text-gray-700 hover:text-[#E85D04] font-medium"
-                >
-                  {item.label}
-                  <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-                  </svg>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════
-          ZONE 4：保存した治療プラン
-      ══════════════════════════════════════════════════════════ */}
-      <div>
-        <h2 className="text-base font-black text-gray-900 mb-3">保存した治療プラン</h2>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          {plans.length === 0 ? (
-            <p className="text-xs text-gray-400 py-4 text-center">
-              治療プランを保存するには、「AI治療考察」タブで提案後に「この内容を保存する」を押してください
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {plans.map(plan => (
-                <li key={plan.id} className="flex items-center gap-2 px-3 py-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-orange-200 hover:bg-orange-50 transition group">
-                  <button
-                    className="flex-1 text-left min-w-0"
-                    onClick={() => setDetailPlan(plan)}
-                  >
-                    <p className="text-sm font-bold text-gray-800 group-hover:text-[#E85D04] transition truncate">{plan.name}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      {plan.disease}　·　{new Date(plan.savedAt).toLocaleDateString("ja-JP")}
-                    </p>
-                  </button>
-                  <button
-                    onClick={() => removePlan(plan.id)}
-                    className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition"
-                    aria-label="削除"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                      <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                    </svg>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════
-          ZONE 5：マイノート
-      ══════════════════════════════════════════════════════════ */}
-      <NotesDictionary />
+      )}
 
     </div>
-
-    {/* プラン詳細モーダル */}
-    {detailPlan && (
-      <PlanDetailModal plan={detailPlan} onClose={() => setDetailPlan(null)} />
-    )}
-    </>
   );
 }

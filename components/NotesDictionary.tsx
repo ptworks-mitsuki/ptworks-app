@@ -237,7 +237,7 @@ function updateStreak(): number {
   } catch { return 1; }
 }
 
-// ── 進捗統計 ──────────────────────────────────────────────────────────────
+// ── 進捗統計（コンパクト1行） ───────────────────────────────────────────────
 
 function ProgressStats({ notes }: { notes: Note[] }) {
   const [streak, setStreak] = useState(0);
@@ -245,33 +245,33 @@ function ProgressStats({ notes }: { notes: Note[] }) {
 
   const totalCount = notes.length;
 
-  // 今週追加
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   weekStart.setHours(0, 0, 0, 0);
   const weekCount = notes.filter(n => new Date(n.createdAt) >= weekStart).length;
 
-  // よく調べる分野（タグ頻度）
   const tagFreq: Record<string, number> = {};
   notes.forEach(n => n.tags.forEach(t => { tagFreq[t] = (tagFreq[t] ?? 0) + 1; }));
-  const topTag = Object.entries(tagFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+  const topTag = Object.entries(tagFreq).sort((a, b) => b[1] - a[1])[0]?.[0];
 
-  const stats = [
-    { label: "保存ノート",     value: `${totalCount}件`,     sub: "合計" },
-    { label: "今週追加",       value: `${weekCount}件`,      sub: "今週" },
-    { label: "よく調べる",     value: topTag,                sub: "分野" },
-    { label: "連続学習",       value: `🔥${streak}日`,       sub: "連続" },
+  const items = [
+    `保存${totalCount}件`,
+    `今週${weekCount}件`,
+    ...(topTag ? [topTag] : []),
+    ...(streak > 0 ? [`🔥${streak}日連続`] : []),
   ];
 
+  if (notes.length === 0) return null;
+
   return (
-    <div className="grid grid-cols-4 gap-2 mb-4">
-      {stats.map(s => (
-        <div key={s.label} className="rounded-2xl p-3 text-center border border-gray-100"
-          style={{ background: "#F9FAFB" }}>
-          <p className="text-[10px] text-gray-400 mb-1 leading-tight">{s.label}</p>
-          <p className="text-sm font-black text-gray-900 leading-snug break-all">{s.value}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">{s.sub}</p>
-        </div>
+    <div className="flex items-center flex-wrap gap-y-1 mb-4">
+      {items.map((item, i) => (
+        <span key={i} className="flex items-center">
+          {i > 0 && (
+            <span className="mx-2 select-none" style={{ color: "#E5E7EB", fontSize: 12 }}>｜</span>
+          )}
+          <span className="text-xs" style={{ color: "#9CA3AF" }}>{item}</span>
+        </span>
       ))}
     </div>
   );
@@ -280,8 +280,9 @@ function ProgressStats({ notes }: { notes: Note[] }) {
 // ── AI学習分析 ──────────────────────────────────────────────────────────────
 
 function AiAnalysisCard({ notes, onReload }: { notes: Note[]; onReload: () => void }) {
-  const [analysis, setAnalysis] = useState<AiAnalysis | null>(null);
-  const [loading,  setLoading]  = useState(false);
+  const [analysis,  setAnalysis]  = useState<AiAnalysis | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [expanded,  setExpanded]  = useState(false);
 
   useEffect(() => {
     try {
@@ -350,54 +351,77 @@ function AiAnalysisCard({ notes, onReload }: { notes: Note[]; onReload: () => vo
 
   return (
     <div className="rounded-2xl overflow-hidden mb-4" style={{ background: GREEN }}>
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-black text-white">AIがあなたの学習を分析</p>
-          <button onClick={generate} disabled={loading}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl transition disabled:opacity-50"
-            style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
-            {loading ? "分析中..." : "再分析する"}
-          </button>
+
+      {/* 折りたたみヘッダー */}
+      <button
+        className="w-full flex items-center justify-between px-4 py-3.5 text-left"
+        onClick={() => setExpanded(v => !v)}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm">💡</span>
+          <p className="text-sm font-black text-white">AIによる学習分析を見る</p>
+          {loading && (
+            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+          )}
         </div>
+        <svg
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          strokeLinecap="round" className="w-4 h-4 text-white/60 transition-transform duration-200 shrink-0"
+          style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
 
-        {loading && !analysis && (
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
-            <span className="text-xs text-white/70">学習データを分析中...</span>
+      {/* 展開コンテンツ */}
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3">
+
+          <div className="flex justify-end">
+            <button onClick={generate} disabled={loading}
+              className="text-xs font-bold px-3 py-1.5 rounded-xl transition disabled:opacity-50"
+              style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+              {loading ? "分析中..." : "再分析する"}
+            </button>
           </div>
-        )}
 
-        {analysis && (
-          <div className="space-y-3">
-            <p className="text-sm text-white/90 leading-relaxed">{analysis.summary}</p>
+          {loading && !analysis && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/70">学習データを分析中...</span>
+            </div>
+          )}
 
-            {analysis.points.length > 0 && (
-              <div className="rounded-xl px-3 py-3" style={{ background: "rgba(255,255,255,0.1)" }}>
-                <p className="text-xs font-bold text-white/60 mb-2">保存したノートから見えてくる共通の臨床ポイント</p>
-                <ul className="space-y-1">
-                  {analysis.points.map((p, i) => (
-                    <li key={i} className="text-xs text-white/90 leading-relaxed">・{p}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          {analysis && (
+            <>
+              <p className="text-sm text-white/90 leading-relaxed">{analysis.summary}</p>
 
-            {analysis.nextTopics.length > 0 && (
-              <div>
-                <p className="text-xs font-bold text-white/60 mb-1.5">次に学ぶと良い関連テーマ</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {analysis.nextTopics.map((t, i) => (
-                    <span key={i} className="text-xs px-2.5 py-1 rounded-full font-bold"
-                      style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
-                      {t}
-                    </span>
-                  ))}
+              {analysis.points.length > 0 && (
+                <div className="rounded-xl px-3 py-3" style={{ background: "rgba(255,255,255,0.1)" }}>
+                  <p className="text-xs font-bold text-white/60 mb-2">保存したノートから見えてくる共通の臨床ポイント</p>
+                  <ul className="space-y-1">
+                    {analysis.points.map((p, i) => (
+                      <li key={i} className="text-xs text-white/90 leading-relaxed">・{p}</li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+              )}
+
+              {analysis.nextTopics.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-white/60 mb-1.5">次に学ぶと良い関連テーマ</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {analysis.nextTopics.map((t, i) => (
+                      <span key={i} className="text-xs px-2.5 py-1 rounded-full font-bold"
+                        style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -657,6 +681,27 @@ function EditModal({
   );
 }
 
+// ── NoteCard helpers ──────────────────────────────────────────────────────
+
+function excerptContent(content: string): string {
+  return content
+    .replace(/^#+\s+.+/gm, "")
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/`[^`]+`/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+}
+
+function relativeTime(dateStr: string): string {
+  const m = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (m < 60)   return `${m}分前に更新`;
+  if (m < 1440) return `${Math.floor(m / 60)}時間前に更新`;
+  return `${Math.floor(m / 1440)}日前に更新`;
+}
+
 // ── NoteCard ──────────────────────────────────────────────────────────────
 
 function NoteCard({
@@ -664,44 +709,50 @@ function NoteCard({
 }: {
   note: Note; onEdit: (n: Note) => void; onDelete: (id: string) => void; onOpen: (n: Note) => void;
 }) {
-  const color = NOTE_TYPE_COLORS[note.type] ?? ORANGE;
-  const label = NOTE_TYPE_LABELS[note.type] ?? note.type;
+  const color   = NOTE_TYPE_COLORS[note.type] ?? ORANGE;
+  const label   = NOTE_TYPE_LABELS[note.type] ?? note.type;
+  const excerpt = excerptContent(note.content);
+  const hasMemo = !!note.memo && stripHtml(note.memo).trim().length > 0;
+  const firstTag = note.tags[0];
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden cursor-pointer"
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden cursor-pointer transition hover:border-orange-200"
       style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
       onClick={() => onOpen(note)}>
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-start gap-2 mb-2">
+      <div className="px-4 pt-3.5 pb-3">
+
+        {/* Row 1: type badge + first tag */}
+        <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
             style={{ background: color }}>{label}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-gray-900 leading-snug line-clamp-2">{note.title}</p>
-          </div>
+          {firstTag && (
+            <span className="text-[10px] text-gray-400 truncate ml-2">{firstTag}</span>
+          )}
         </div>
 
-        {note.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {note.tags.map(t => (
-              <span key={t} className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: "#FFF7ED", color: ORANGE, border: "1px solid #FED7AA" }}>
-                {t}
-              </span>
-            ))}
-          </div>
+        {/* Row 2: title */}
+        <p className="text-sm font-black text-gray-900 leading-snug line-clamp-2 mb-1.5">
+          {note.title}
+        </p>
+
+        {/* Row 3: content excerpt */}
+        {excerpt && (
+          <p className="text-xs text-gray-400 leading-relaxed line-clamp-2 mb-2.5">
+            「{excerpt}{excerpt.length >= 60 ? "…" : "」"}
+          </p>
         )}
 
-        {note.memo && (
-          <div className="rounded-lg px-2.5 py-2 mb-2 border-l-2" style={{ background: "#FFFDE7", borderLeftColor: ORANGE }}>
-            <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{stripHtml(note.memo)}</p>
+        {/* Row 4 + 5: meta + actions */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            {hasMemo && (
+              <span className="text-gray-300 text-xs shrink-0">📝</span>
+            )}
+            <span className="text-[10px] text-gray-400 truncate">
+              {new Date(note.createdAt).toLocaleDateString("ja-JP")}・{relativeTime(note.updatedAt)}
+            </span>
           </div>
-        )}
-
-        <div className="flex items-center justify-between mt-1.5">
-          <span className="text-[10px] text-gray-400">
-            {new Date(note.createdAt).toLocaleDateString("ja-JP")}
-          </span>
-          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1.5 shrink-0 ml-2" onClick={e => e.stopPropagation()}>
             <button onClick={() => onEdit(note)}
               className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-400 hover:text-gray-600">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -718,6 +769,7 @@ function NoteCard({
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );
