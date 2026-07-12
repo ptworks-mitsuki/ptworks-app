@@ -266,21 +266,18 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
   onMemoSaved: () => void;
   onSelect: (n: Note) => void;
 }) {
-  const [memo,       setMemo]       = useState(note.memo);
-  const [toastMsg,   setToastMsg]   = useState("");
+  const [memo,    setMemo]    = useState(note.memo);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const color = NOTE_TYPE_COLORS[note.type] ?? ORANGE;
   const label = NOTE_TYPE_LABELS[note.type] ?? note.type;
 
-  // 自動保存（1秒デバウンス）
+  // 自動保存（1秒デバウンス・通知なし）
   const handleMemoChange = (val: string) => {
     setMemo(val);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       updateMemo(note.id, val);
       onMemoSaved();
-      setToastMsg("メモを保存しました");
-      setTimeout(() => setToastMsg(""), 1000);
     }, 1000);
   };
 
@@ -380,17 +377,16 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
           )}
 
           {/* 自分のメモエリア */}
-          <div className="rounded-xl border-l-4 overflow-hidden"
-            style={{ borderLeftColor: ORANGE, background: "#FFFDE7" }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: "#FFFDE7" }}>
             <div className="px-4 pt-3 pb-1">
-              <p className="text-xs font-bold text-gray-400 mb-2">自分のメモ</p>
+              <p className="text-[10px] font-bold text-gray-400 tracking-wide mb-2">自分のメモ</p>
               <textarea
                 value={memo}
                 onChange={e => handleMemoChange(e.target.value)}
-                placeholder="この内容についてのメモを自由に書き込めます（自動保存されます）"
+                placeholder="メモを追加..."
                 rows={4}
-                className="w-full text-sm outline-none resize-none bg-transparent leading-relaxed"
-                style={{ color: "#1A1A1A" }}
+                className="w-full outline-none resize-none bg-transparent leading-relaxed"
+                style={{ fontSize: 13, color: "#6B7280" }}
               />
             </div>
             <div className="px-4 pb-3">
@@ -402,14 +398,6 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
           <RelatedNotes note={note} allNotes={allNotes} onSelect={onSelect} />
         </div>
 
-        {/* 保存トースト */}
-        {toastMsg && (
-          <div className="shrink-0 px-5 py-2 text-center">
-            <span className="text-xs font-bold text-green-700 bg-green-50 px-4 py-1.5 rounded-full border border-green-200">
-              {toastMsg}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );

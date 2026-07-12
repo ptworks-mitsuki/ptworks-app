@@ -9,24 +9,17 @@ import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast } from "@/components/SaveNoteModal";
 import { withBadges, EvidenceLevelAccordion } from "@/components/EvidenceBadges";
 
-// ── Addition type ──────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 
-interface Addition {
+interface FollowUp {
   id: string;
-  type: "memo" | "ai";
-  question: string;    // user's input
-  content: string;     // memo text or streaming AI answer
+  question: string;
+  answer: string;
   loading: boolean;
   error: boolean;
 }
 
-// ── Pattern: is the input a question? ─────────────────────────────────────
-
-function isQuestion(text: string): boolean {
-  return /[？?]|教えて|なぜ|どうして|���しく|どのよう|どう(すれ|なれ|した|して)|わから|違い|比較|理由|原因|説明|確認|意味/.test(text);
-}
-
-// ── Section parsing ───────────────────────────────────────���────────────────
+// ── Section parsing ────────────────────────────────────────────────────────
 
 interface MarkdownSection {
   title: string;
@@ -159,105 +152,6 @@ function MdBody({ text }: { text: string }) {
   );
 }
 
-// ── Input bar ──────────────────────────────────────────────────────────────
-
-function AddInputBar({
-  placeholder,
-  onSubmit,
-  disabled,
-}: {
-  placeholder?: string;
-  onSubmit: (text: string) => void;
-  disabled: boolean;
-}) {
-  const [value, setValue] = useState("");
-
-  const submit = () => {
-    const t = value.trim();
-    if (!t || disabled) return;
-    onSubmit(t);
-    setValue("");
-  };
-
-  return (
-    <div className="mt-3 flex items-end gap-2">
-      <div className="flex-1 rounded-xl border border-gray-200 overflow-hidden transition-colors focus-within:border-orange-300">
-        <textarea
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          placeholder={placeholder ?? "メモを追加・質問する（任意）"}
-          rows={1}
-          className="w-full px-3 py-2.5 text-sm bg-transparent outline-none resize-none placeholder-gray-300"
-          style={{ maxHeight: 80, color: "#333" }}
-          disabled={disabled}
-        />
-      </div>
-      <button
-        onClick={submit}
-        disabled={!value.trim() || disabled}
-        className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-white transition hover:opacity-90 active:scale-95 disabled:opacity-40 shrink-0"
-        style={{ background: "#E85D04" }}
-      >
-        追加
-      </button>
-    </div>
-  );
-}
-
-// ── Addition item ──────────────────────────────────────────────────────────
-
-function AdditionItem({
-  addition,
-  onDelete,
-}: {
-  addition: Addition;
-  onDelete: (id: string) => void;
-}) {
-  if (addition.type === "memo") {
-    return (
-      <div className="mt-2 rounded-xl px-3 py-3"
-        style={{ background: "#FFFDE7", borderLeft: "3px solid #E85D04" }}>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] font-bold text-gray-400 tracking-wide">自分のメモ</span>
-          <button
-            onClick={() => onDelete(addition.id)}
-            className="text-xs text-gray-300 hover:text-gray-500 transition font-bold w-5 h-5 flex items-center justify-center rounded"
-          >
-            ×
-          </button>
-        </div>
-        <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{addition.content}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-2 rounded-xl px-3 py-3"
-      style={{ background: "#F0FFF4", borderLeft: "3px solid #1B4332" }}>
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-[10px] font-bold text-gray-400 tracking-wide">AIの追加回答</span>
-        {addition.loading && (
-          <span className="inline-block w-3 h-3 border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
-        )}
-      </div>
-      <p className="text-[11px] text-gray-500 mb-2 leading-relaxed">{addition.question}</p>
-      {addition.loading && !addition.content ? (
-        <p className="text-xs text-gray-400">回答を生成中...</p>
-      ) : addition.error ? (
-        <p className="text-xs text-red-500">エラーが発生しました。</p>
-      ) : (
-        <>
-          <MdBody text={stripSuggestions(addition.content)} />
-          {addition.loading && (
-            <span className="inline-block w-0.5 h-3.5 bg-green-500 animate-pulse ml-0.5 align-text-bottom" />
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 // ── Intent label ──────────────────────────────────────────────────────────
 
 const INTENT_LABELS: Record<GptIntent, string> = {
@@ -291,14 +185,16 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
   const [thinkLoading, setThinkLoading] = useState(false);
   const fetchedThink = useRef(false);
 
-  // Additions: keyed by "section-{index}" or "global"
-  const [additions,  setAdditions]  = useState<Record<string, Addition[]>>({});
-  const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  // Follow-up Q&As
+  const [followUps,  setFollowUps]  = useState<FollowUp[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // Save modal
   const [showSave,   setShowSave]   = useState(false);
   const [savedToast, setSavedToast] = useState(false);
 
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // ── Fetch main answer (once on mount) ─────────────────────────────────
@@ -320,7 +216,7 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
       }
     });
     return () => ctrl.abort();
-  }, []); // empty — runs once, query locked in ref
+  }, []);
 
   // ── Think buttons after answer completes ──────────────────────────────
 
@@ -344,85 +240,58 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
     if (mainLoading) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mainRaw, mainLoading]);
 
-  // ── Submit addition ────────────────────────────────────────────────────
+  // ── Submit follow-up ──────────────────────────────────────────────────
 
-  const submitAddition = useCallback(async (
-    sectionKey: string,
-    sectionTitle: string | null,
-    text: string,
-  ) => {
-    if (submitting[sectionKey]) return;
+  const handleSubmit = useCallback(async () => {
+    const q = inputValue.trim();
+    if (!q || submitting) return;
 
-    const id = `add-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const type: Addition["type"] = isQuestion(text) ? "ai" : "memo";
-
-    const newItem: Addition = {
-      id, type,
-      question: text,
-      content:  type === "memo" ? text : "",
-      loading:  type === "ai",
-      error:    false,
+    const newFu: FollowUp = {
+      id: `fu-${Date.now()}`,
+      question: q,
+      answer: "",
+      loading: true,
+      error: false,
     };
 
-    setAdditions(prev => ({ ...prev, [sectionKey]: [...(prev[sectionKey] ?? []), newItem] }));
+    setFollowUps(prev => [...prev, newFu]);
+    setInputValue("");
+    setSubmitting(true);
 
-    if (type === "memo") return; // nothing more to do
-
-    setSubmitting(prev => ({ ...prev, [sectionKey]: true }));
-
-    const contextQ = sectionTitle
-      ? `【${sectionTitle}のセクションについて】${text}`
-      : text;
-
+    const displayAnswer = stripSuggestions(mainRaw);
     const history: Array<{ role: "user" | "assistant"; content: string }> = [
       { role: "user",      content: queryRef.current },
-      { role: "assistant", content: stripSuggestions(mainRaw) },
+      { role: "assistant", content: displayAnswer },
+      ...followUps.filter(f => !f.loading && !f.error).flatMap(f => ([
+        { role: "user"      as const, content: f.question },
+        { role: "assistant" as const, content: f.answer },
+      ])),
     ];
 
     try {
       await streamGptResponse({
-        query: contextQ,
+        query: q,
         history,
-        onChunk: chunk => setAdditions(prev => ({
-          ...prev,
-          [sectionKey]: (prev[sectionKey] ?? []).map(a =>
-            a.id === id ? { ...a, content: a.content + chunk } : a
-          ),
-        })),
+        onChunk: chunk => setFollowUps(prev =>
+          prev.map(f => f.id === newFu.id ? { ...f, answer: f.answer + chunk } : f)
+        ),
         onIntent: _i => {},
         onDone: () => {
-          setAdditions(prev => ({
-            ...prev,
-            [sectionKey]: (prev[sectionKey] ?? []).map(a =>
-              a.id === id ? { ...a, loading: false } : a
-            ),
-          }));
-          setSubmitting(prev => ({ ...prev, [sectionKey]: false }));
+          setFollowUps(prev => prev.map(f => f.id === newFu.id ? { ...f, loading: false } : f));
+          setSubmitting(false);
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         },
         onError: err => {
-          setAdditions(prev => ({
-            ...prev,
-            [sectionKey]: (prev[sectionKey] ?? []).map(a =>
-              a.id === id ? { ...a, loading: false, error: true, content: err } : a
-            ),
-          }));
-          setSubmitting(prev => ({ ...prev, [sectionKey]: false }));
+          setFollowUps(prev => prev.map(f =>
+            f.id === newFu.id ? { ...f, loading: false, error: true, answer: err } : f
+          ));
+          setSubmitting(false);
         },
       });
     } catch {
-      setSubmitting(prev => ({ ...prev, [sectionKey]: false }));
+      setSubmitting(false);
     }
-  }, [submitting, mainRaw]);
-
-  // ── Delete addition ────────────────────────────────────────────────────
-
-  const deleteAddition = useCallback((sectionKey: string, id: string) => {
-    setAdditions(prev => ({
-      ...prev,
-      [sectionKey]: (prev[sectionKey] ?? []).filter(a => a.id !== id),
-    }));
-  }, []);
+  }, [inputValue, submitting, mainRaw, followUps]);
 
   // ── Build note content for saving ─────────────────────────────────────
 
@@ -431,26 +300,8 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
 
   const buildContent = () => {
     let out = `# ${queryRef.current}\n\n${displayAnswer}`;
-
-    sections.forEach((sec, i) => {
-      const adds = (additions[`section-${i}`] ?? []).filter(a => !a.loading && !a.error);
-      if (adds.length === 0) return;
-      out += `\n\n### ${sec.title || "補足"} への追記\n`;
-      for (const a of adds) {
-        out += a.type === "memo"
-          ? `\n**[自分のメモ]** ${a.content}`
-          : `\n\n**Q: ${a.question}**\n\n${a.content}`;
-      }
-    });
-
-    const globalAdds = (additions["global"] ?? []).filter(a => !a.loading && !a.error);
-    if (globalAdds.length > 0) {
-      out += "\n\n---\n\n### 全体への追記\n";
-      for (const a of globalAdds) {
-        out += a.type === "memo"
-          ? `\n**[自分のメモ]** ${a.content}`
-          : `\n\n**Q: ${a.question}**\n\n${a.content}`;
-      }
+    for (const fu of followUps.filter(f => !f.loading && !f.error)) {
+      out += `\n\n---\n\n**Q: ${fu.question}**\n\n${fu.answer}`;
     }
     return out;
   };
@@ -463,24 +314,42 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
       {/* Header */}
       <header className="shrink-0 bg-white border-b border-gray-100"
         style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-        <div className="flex items-center px-4 h-14 gap-3">
-          <button onClick={onBack ?? (() => router.back())}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-gray-500 shrink-0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-5 h-5">
-              <path d="M15 18l-6-6 6-6"/>
-            </svg>
-          </button>
-          <div style={{ borderLeft: "4px solid #E85D04", paddingLeft: 12 }}>
-            <p style={{ fontSize: 18, fontWeight: 900, color: "#111", margin: 0, lineHeight: 1.2 }}>
-              PT<span style={{ color: "#E85D04" }}>専用GPT</span>
-            </p>
-            <p style={{ fontSize: 11, color: "#6B7280", margin: "1px 0 0" }}>疾患・臨床・キャリアまで何でも</p>
+        <div className="flex items-center justify-between px-4 h-14">
+          <div className="flex items-center gap-3">
+            <button onClick={onBack ?? (() => router.back())}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-gray-500 shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-5 h-5">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+            </button>
+            <div style={{ borderLeft: "4px solid #E85D04", paddingLeft: 12 }}>
+              <p style={{ fontSize: 18, fontWeight: 900, color: "#111", margin: 0, lineHeight: 1.2 }}>
+                PT<span style={{ color: "#E85D04" }}>専用GPT</span>
+              </p>
+              <p style={{ fontSize: 11, color: "#6B7280", margin: "1px 0 0" }}>疾患・臨床・キャリアまで何でも</p>
+            </div>
           </div>
+
+          {/* Header save button */}
+          {!mainLoading && !mainError && (
+            <button
+              onClick={() => setShowSave(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black text-white transition hover:opacity-90 shrink-0"
+              style={{ background: "#1B4332" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              保存
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Scrollable content — pb-20 leaves room for fixed save bar */}
-      <div className="flex-1 overflow-y-auto pb-20">
+      {/* Scrollable content — pb-24 leaves room for bottom input bar */}
+      <div className="flex-1 overflow-y-auto pb-24">
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-4">
 
           {/* Question chip */}
@@ -517,40 +386,19 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
             )}
 
             {/* Sections */}
-            {sections.length > 0 && (
+            {sections.length > 0 ? (
               <div>
-                {sections.map((sec, i) => {
-                  const sectionKey = `section-${i}`;
-                  const secAdds    = additions[sectionKey] ?? [];
-                  const isBusy     = submitting[sectionKey] ?? false;
-
-                  return (
-                    <div key={i} className="px-4 py-4 border-b border-gray-50 last:border-b-0">
-                      {sec.title && (
-                        <h2 className="text-sm font-black text-gray-900 mb-2 flex items-center gap-2">
-                          <span className="w-1 h-4 rounded-full shrink-0" style={{ background: "#E85D04" }} />
-                          {sec.title}
-                        </h2>
-                      )}
-
-                      <MdBody text={sec.content} />
-
-                      {/* Additions for this section */}
-                      {secAdds.map(a => (
-                        <AdditionItem key={a.id} addition={a}
-                          onDelete={id => deleteAddition(sectionKey, id)} />
-                      ))}
-
-                      {/* Per-section input */}
-                      {!mainLoading && (
-                        <AddInputBar
-                          onSubmit={text => void submitAddition(sectionKey, sec.title, text)}
-                          disabled={isBusy}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+                {sections.map((sec, i) => (
+                  <div key={i} className="px-4 py-4 border-b border-gray-50 last:border-b-0">
+                    {sec.title && (
+                      <h2 className="text-sm font-black text-gray-900 mb-2 flex items-center gap-2">
+                        <span className="w-1 h-4 rounded-full shrink-0" style={{ background: "#E85D04" }} />
+                        {sec.title}
+                      </h2>
+                    )}
+                    <MdBody text={sec.content} />
+                  </div>
+                ))}
 
                 {/* Streaming cursor */}
                 {mainLoading && (
@@ -559,15 +407,12 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
                   </div>
                 )}
               </div>
-            )}
-
-            {/* Fallback: streaming but no sections parsed yet */}
-            {mainLoading && displayAnswer && sections.length === 0 && (
+            ) : mainLoading && displayAnswer ? (
               <div className="px-4 py-4">
                 <MdBody text={displayAnswer} />
                 <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse align-text-bottom" />
               </div>
-            )}
+            ) : null}
 
             {/* Evidence accordion */}
             {!mainLoading && !mainError && (
@@ -589,7 +434,8 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
               ) : thinkButtons.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
                   {thinkButtons.map((btn, i) => (
-                    <button key={i} onClick={() => void submitAddition("global", null, btn)}
+                    <button key={i}
+                      onClick={() => { setInputValue(btn); inputRef.current?.focus(); }}
                       className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition hover:opacity-80 active:scale-95"
                       style={{ borderColor: "#E85D04", color: "#E85D04", background: "#fff" }}>
                       {btn}
@@ -600,45 +446,73 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
             </div>
           )}
 
-          {/* Global input section */}
-          {!mainLoading && !mainError && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4 mb-4">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                全体へのメモ・質問を追加する
-              </p>
+          {/* Follow-up Q&As */}
+          {followUps.map(fu => (
+            <div key={fu.id} className="mb-4">
+              {/* Question bubble */}
+              <div className="flex justify-end mb-2">
+                <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm text-white leading-relaxed"
+                  style={{ background: "#E85D04" }}>
+                  {fu.question}
+                </div>
+              </div>
 
-              {(additions["global"] ?? []).map(a => (
-                <AdditionItem key={a.id} addition={a}
-                  onDelete={id => deleteAddition("global", id)} />
-              ))}
-
-              <AddInputBar
-                placeholder="全体へのメモを追加・質問する（任意）"
-                onSubmit={text => void submitAddition("global", null, text)}
-                disabled={submitting["global"] ?? false}
-              />
+              {/* Answer card */}
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
+                {fu.loading && !fu.answer ? (
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin inline-block" />
+                    <span className="text-sm text-gray-400">回答を生成中...</span>
+                  </div>
+                ) : fu.error ? (
+                  <p className="text-sm text-red-500">{fu.answer || "エラーが発生しました。"}</p>
+                ) : (
+                  <>
+                    <MdBody text={stripSuggestions(fu.answer)} />
+                    {fu.loading && (
+                      <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          )}
+          ))}
 
           <div ref={bottomRef} className="h-2" />
         </div>
       </div>
 
-      {/* Fixed save button */}
-      {!mainLoading && !mainError && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-30"
-          style={{ boxShadow: "0 -2px 8px rgba(0,0,0,0.06)" }}>
-          <div className="max-w-2xl mx-auto">
-            <button
-              onClick={() => setShowSave(true)}
-              className="w-full py-3.5 rounded-xl font-black text-white text-sm transition hover:opacity-90 active:scale-95"
-              style={{ background: "#E85D04" }}
-            >
-              このトークを全て保存する
-            </button>
+      {/* Fixed bottom input bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 z-30"
+        style={{ boxShadow: "0 -2px 8px rgba(0,0,0,0.06)" }}>
+        <div className="max-w-2xl mx-auto flex items-end gap-2">
+          <div className="flex-1 rounded-2xl border border-gray-200 overflow-hidden transition-colors focus-within:border-orange-400">
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSubmit(); }
+              }}
+              placeholder="疾患名・術式・症状・臨床の疑問を入力"
+              rows={2}
+              className="w-full px-4 py-3 text-sm bg-transparent outline-none resize-none placeholder-gray-400"
+              style={{ color: "#1A1A1A", maxHeight: 120 }}
+              disabled={mainLoading || submitting}
+            />
           </div>
+          <button
+            onClick={() => void handleSubmit()}
+            disabled={!inputValue.trim() || mainLoading || submitting}
+            className="w-11 h-11 rounded-xl flex items-center justify-center transition hover:opacity-90 active:scale-95 disabled:opacity-40 shrink-0"
+            style={{ background: "#E85D04" }}
+          >
+            <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+            </svg>
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Save modal */}
       {showSave && (
