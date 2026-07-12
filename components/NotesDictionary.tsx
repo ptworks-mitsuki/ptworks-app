@@ -628,7 +628,7 @@ export function NotesDictionary() {
 
       {/* ヘッダー行 */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base font-black text-gray-900">自分の辞書</h2>
+        <h2 className="text-base font-black text-gray-900">マイノート</h2>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">{notes.length}件</span>
           <button onClick={exportNotes}
