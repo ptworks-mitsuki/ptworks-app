@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -12,6 +11,190 @@ import { NOTE_TYPE_LABELS, NOTE_TYPE_COLORS } from "@/components/SaveNoteModal";
 
 const ORANGE = "#E85D04";
 const GREEN  = "#1B4332";
+
+// ── HTML helpers ───────────────────────────────────────────────────────────
+
+function stripHtml(html: string): string {
+  if (!html.includes("<")) return html;
+  try {
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    return div.textContent ?? "";
+  } catch { return html.replace(/<[^>]*>/g, ""); }
+}
+
+// ── Rich memo constants ────────────────────────────────────────────────────
+
+const MARKERS = [
+  { color: "#FFF59D", label: "黄" },
+  { color: "#FFCC80", label: "橙" },
+  { color: "#A5D6A7", label: "緑" },
+  { color: "#F8BBD0", label: "桃" },
+];
+
+const TEXT_COLORS = [
+  { color: "default", display: "#374151" },
+  { color: "#EF4444", display: "#EF4444" },
+  { color: "#2563EB", display: "#2563EB" },
+];
+
+// ── RichMemoEditor ─────────────────────────────────────────────────────────
+
+function RichMemoEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+  const editorRef     = useRef<HTMLDivElement>(null);
+  const saveTimerRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mountedRef    = useRef(false);
+  const savedRangeRef = useRef<Range | null>(null);
+
+  const [toolbar,  setToolbar]  = useState<{ x: number; y: number; yBottom: number } | null>(null);
+  const [isEmpty,  setIsEmpty]  = useState(!value);
+
+  // Set initial HTML exactly once on mount
+  useEffect(() => {
+    if (editorRef.current && !mountedRef.current) {
+      mountedRef.current = true;
+      editorRef.current.innerHTML = value || "";
+      setIsEmpty(!editorRef.current.textContent?.trim());
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track text selection
+  useEffect(() => {
+    const onSelection = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !editorRef.current?.contains(sel.anchorNode)) {
+        setToolbar(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      const rect  = range.getBoundingClientRect();
+      if (rect.width === 0) { setToolbar(null); return; }
+      savedRangeRef.current = range.cloneRange();
+      setToolbar({ x: rect.left + rect.width / 2, y: rect.top, yBottom: rect.bottom });
+    };
+    document.addEventListener("selectionchange", onSelection);
+    return () => document.removeEventListener("selectionchange", onSelection);
+  }, []);
+
+  const scheduleSave = useCallback((delay = 1000) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      if (editorRef.current) onChange(editorRef.current.innerHTML);
+    }, delay);
+  }, [onChange]);
+
+  const restoreSelection = () => {
+    const sel = window.getSelection();
+    if (sel && savedRangeRef.current && editorRef.current) {
+      editorRef.current.focus();
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+  };
+
+  const applyHighlight = (color: string | null) => {
+    restoreSelection();
+    if (color) {
+      document.execCommand("hiliteColor", false, color);
+    } else {
+      document.execCommand("removeFormat");
+    }
+    setToolbar(null);
+    scheduleSave(300);
+  };
+
+  const applyTextColor = (color: string) => {
+    restoreSelection();
+    if (color === "default") {
+      document.execCommand("removeFormat");
+    } else {
+      document.execCommand("foreColor", false, color);
+    }
+    setToolbar(null);
+    scheduleSave(300);
+  };
+
+  const handleInput = useCallback(() => {
+    if (editorRef.current) setIsEmpty(!editorRef.current.textContent?.trim());
+    scheduleSave(1000);
+  }, [scheduleSave]);
+
+  const showAbove = toolbar ? toolbar.y > 130 : true;
+
+  return (
+    <div className="relative">
+
+      {/* Floating format toolbar */}
+      {toolbar && (
+        <div
+          className="fixed bg-white rounded-2xl shadow-xl border border-gray-100 px-3 py-2.5"
+          style={{
+            zIndex: 9999,
+            left: toolbar.x,
+            top:  showAbove ? toolbar.y  - 8 : toolbar.yBottom + 8,
+            transform: showAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)",
+            maxWidth: "calc(100vw - 24px)",
+          }}
+          onPointerDown={e => e.preventDefault()}
+        >
+          {/* Marker row */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-semibold text-gray-400 shrink-0 w-11">マーカー</span>
+            <div className="flex gap-1.5">
+              {MARKERS.map(m => (
+                <button key={m.color} aria-label={`マーカー${m.label}`}
+                  onPointerDown={e => { e.preventDefault(); applyHighlight(m.color); }}
+                  className="w-7 h-7 rounded-full border-2 border-transparent hover:border-gray-400 active:scale-90 transition-all shrink-0"
+                  style={{ background: m.color }} />
+              ))}
+            </div>
+          </div>
+
+          {/* Text color row */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-semibold text-gray-400 shrink-0 w-11">文字色</span>
+            <div className="flex gap-1.5">
+              {TEXT_COLORS.map(c => (
+                <button key={c.color} aria-label="文字色"
+                  onPointerDown={e => { e.preventDefault(); applyTextColor(c.color); }}
+                  className="w-7 h-7 rounded-full border-2 border-transparent hover:border-gray-400 active:scale-90 transition-all shrink-0"
+                  style={{ background: c.display }} />
+              ))}
+            </div>
+          </div>
+
+          {/* Clear row */}
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 w-11" />
+            <button
+              onPointerDown={e => { e.preventDefault(); applyHighlight(null); }}
+              className="text-[11px] font-bold px-3 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition">
+              解除
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Placeholder */}
+      {isEmpty && (
+        <span className="absolute top-0 left-0 pointer-events-none select-none"
+          style={{ fontSize: 13, color: "#9CA3AF" }}>
+          メモを追加...
+        </span>
+      )}
+
+      {/* Contenteditable body */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        className="w-full outline-none bg-transparent leading-relaxed min-h-[80px]"
+        style={{ fontSize: 13, color: "#6B7280", wordBreak: "break-word" }}
+      />
+    </div>
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -266,20 +449,16 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
   onMemoSaved: () => void;
   onSelect: (n: Note) => void;
 }) {
-  const [memo,    setMemo]    = useState(note.memo);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // memo is managed by RichMemoEditor; we only need the initial value here
+  const initialMemo = useRef(note.memo).current;
   const color = NOTE_TYPE_COLORS[note.type] ?? ORANGE;
   const label = NOTE_TYPE_LABELS[note.type] ?? note.type;
 
-  // 自動保存（1秒デバウンス・通知なし）
-  const handleMemoChange = (val: string) => {
-    setMemo(val);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      updateMemo(note.id, val);
-      onMemoSaved();
-    }, 1000);
-  };
+  // Called by RichMemoEditor after its own debounce
+  const handleMemoChange = useCallback((html: string) => {
+    updateMemo(note.id, html);
+    onMemoSaved();
+  }, [note.id, onMemoSaved]);
 
   const updatedAt = new Date(note.updatedAt).toLocaleString("ja-JP", {
     year: "numeric", month: "numeric", day: "numeric",
@@ -376,18 +555,11 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
             </div>
           )}
 
-          {/* 自分のメモエリア */}
+          {/* 自分のメモエリア（リッチ編集） */}
           <div className="rounded-xl overflow-hidden" style={{ background: "#FFFDE7" }}>
-            <div className="px-4 pt-3 pb-1">
+            <div className="px-4 pt-3 pb-2">
               <p className="text-[10px] font-bold text-gray-400 tracking-wide mb-2">自分のメモ</p>
-              <textarea
-                value={memo}
-                onChange={e => handleMemoChange(e.target.value)}
-                placeholder="メモを追加..."
-                rows={4}
-                className="w-full outline-none resize-none bg-transparent leading-relaxed"
-                style={{ fontSize: 13, color: "#6B7280" }}
-              />
+              <RichMemoEditor value={initialMemo} onChange={handleMemoChange} />
             </div>
             <div className="px-4 pb-3">
               <p className="text-[10px] text-gray-400">最終更新：{updatedAt}</p>
@@ -521,7 +693,7 @@ function NoteCard({
 
         {note.memo && (
           <div className="rounded-lg px-2.5 py-2 mb-2 border-l-2" style={{ background: "#FFFDE7", borderLeftColor: ORANGE }}>
-            <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{note.memo}</p>
+            <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{stripHtml(note.memo)}</p>
           </div>
         )}
 
