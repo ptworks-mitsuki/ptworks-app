@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PtGptChat } from "@/components/PtGptChat";
 import { PtGptTopicView } from "@/components/PtGptTopicView";
@@ -14,9 +14,9 @@ function PtGptInner() {
   const urlQuery  = searchParams.get("q")       ?? undefined;
   const sessionId = searchParams.get("session")  ?? undefined;
 
-  // Lock the query at first render so URL changes never reset the view.
-  // Also check sessionStorage as a fallback (set by home page before navigation).
-  const [topicQuery] = useState<string | undefined>(() => {
+  // Lock the query on first render from URL param or sessionStorage.
+  // Once set it never clears, so URL changes cannot reset the view.
+  const [topicQuery, setTopicQuery] = useState<string | undefined>(() => {
     if (urlQuery) return urlQuery;
     try {
       const stored = sessionStorage.getItem("ptgpt_pending_query");
@@ -24,6 +24,20 @@ function PtGptInner() {
     } catch { /* ignore */ }
     return undefined;
   });
+
+  // Safety net: catch URL param that arrives after initial render
+  useEffect(() => {
+    if (urlQuery && !topicQuery) setTopicQuery(urlQuery);
+  }, [urlQuery, topicQuery]);
+
+  // Also drain sessionStorage on mount in case useState init was skipped
+  useEffect(() => {
+    if (topicQuery) return;
+    try {
+      const stored = sessionStorage.getItem("ptgpt_pending_query");
+      if (stored) { sessionStorage.removeItem("ptgpt_pending_query"); setTopicQuery(stored); }
+    } catch { /* ignore */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fresh query → topic-document view (locked — never unmounts due to URL change)
   if (topicQuery) {
