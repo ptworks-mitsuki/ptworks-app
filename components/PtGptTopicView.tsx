@@ -8,6 +8,7 @@ import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast } from "@/components/SaveNoteModal";
 import { withBadges, EvidenceLevelAccordion } from "@/components/EvidenceBadges";
+import { saveRecentTopic } from "@/lib/recent-topics";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -165,14 +166,17 @@ const INTENT_LABELS: Record<GptIntent, string> = {
 
 interface PtGptTopicViewProps {
   initialQuery: string;
+  preloadedAnswer?: string;
+  preloadedIntent?: GptIntent;
   onBack?: () => void;
 }
 
-export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
+export function PtGptTopicView({ initialQuery, preloadedAnswer, preloadedIntent, onBack }: PtGptTopicViewProps) {
   const router = useRouter();
 
-  // Lock query permanently on mount
-  const queryRef = useRef(initialQuery);
+  // Lock all props permanently on mount
+  const queryRef     = useRef(initialQuery);
+  const preloadedRef = useRef({ answer: preloadedAnswer, intent: preloadedIntent });
 
   // Main answer
   const [mainRaw,     setMainRaw]     = useState("");
@@ -194,12 +198,21 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
   const [showSave,   setShowSave]   = useState(false);
   const [savedToast, setSavedToast] = useState(false);
 
-  const inputRef  = useRef<HTMLTextAreaElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef      = useRef<HTMLTextAreaElement>(null);
+  const bottomRef     = useRef<HTMLDivElement>(null);
+  const savedTopicRef = useRef(false);
 
   // ── Fetch main answer (once on mount) ─────────────────────────────────
 
   useEffect(() => {
+    // Preloaded path: restore cached answer immediately, no AI call
+    if (preloadedRef.current.answer) {
+      setMainRaw(preloadedRef.current.answer);
+      if (preloadedRef.current.intent) setMainIntent(preloadedRef.current.intent);
+      setMainLoading(false);
+      return;
+    }
+
     const ctrl = new AbortController();
     streamGptResponse({
       query:    queryRef.current,
@@ -217,6 +230,21 @@ export function PtGptTopicView({ initialQuery, onBack }: PtGptTopicViewProps) {
     });
     return () => ctrl.abort();
   }, []);
+
+  // ── Save to recent topics when answer finishes ────────────────────────
+
+  useEffect(() => {
+    if (mainLoading || !mainRaw || mainError || savedTopicRef.current) return;
+    savedTopicRef.current = true;
+    saveRecentTopic({
+      id:      `topic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title:   queryRef.current.slice(0, 20),
+      query:   queryRef.current,
+      answer:  mainRaw,
+      intent:  mainIntent,
+      savedAt: new Date().toISOString(),
+    });
+  }, [mainLoading, mainRaw, mainError, mainIntent]);
 
   // ── Think buttons after answer completes ──────────────────────────────
 

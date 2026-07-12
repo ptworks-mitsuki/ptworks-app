@@ -4,14 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
+import { loadRecentTopics, deleteRecentTopic } from "@/lib/recent-topics";
 
 // ─── 定数 ─────────────────────────────────────────────────────────────────
 
-const BANNER_KEY       = "pt-banner-closed-v2";
-const STREAK_KEY       = "pt-streak-days";
-const GPT_HISTORY_KEY  = "pt-gpt-history";   // legacy fallback
-const GPT_SESSIONS_KEY = "pt-gpt-sessions";
-const PLANS_KEY        = "pt-saved-plans";
+const BANNER_KEY = "pt-banner-closed-v2";
+const STREAK_KEY = "pt-streak-days";
+const PLANS_KEY  = "pt-saved-plans";
 
 const QUICK_TAGS = [
   "変形性膝関節症",
@@ -242,9 +241,8 @@ const NOTIFICATIONS = [
 
 // ─── ホームページ ─────────────────────────────────────────────────────────
 
-interface GptMessage  { id: string; role: string; content: string; }
-interface GptSession  { id: string; title: string; messages: GptMessage[]; createdAt: string; updatedAt: string; }
-interface SavedPlan   { id: string; name: string; disease: string; savedAt: number; }
+interface SavedPlan { id: string; name: string; disease: string; savedAt: number; }
+interface RecentItem { id: string; title: string; sub: string; href: string; topicId?: string; }
 
 export default function HomePage() {
   const router = useRouter();
@@ -254,7 +252,9 @@ export default function HomePage() {
   const [bannerClosed, setBannerClosed] = useState(true);
   const [showNotif,    setShowNotif]    = useState(false);
   const [streak,       setStreak]       = useState(0);
-  const [recentItems,  setRecentItems]  = useState<{ id: string; title: string; sub: string; href: string }[]>([]);
+  const [recentItems,  setRecentItems]  = useState<RecentItem[]>([]);
+  const [deleteToast,  setDeleteToast]  = useState(false);
+  const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const [query,        setQuery]        = useState("");
   const [focused,      setFocused]      = useState(false);
@@ -272,49 +272,28 @@ export default function HomePage() {
       const s = localStorage.getItem(STREAK_KEY);
       if (s) setStreak(Number(s));
 
-      // PT-GPT 会話セッション一覧
-      const sessRaw = localStorage.getItem(GPT_SESSIONS_KEY);
-      const sessions: GptSession[] = sessRaw ? (JSON.parse(sessRaw) as GptSession[]) : [];
-
-      // セッションがない場合は旧形式(GPT_HISTORY_KEY)からフォールバック
-      const gptItems = sessions.length > 0
-        ? sessions.slice(0, 3).map(s => {
-            const msgCount = s.messages.length;
-            const updatedAt = new Date(s.updatedAt);
-            const now = new Date();
-            const diffMs = now.getTime() - updatedAt.getTime();
-            const diffMin = Math.floor(diffMs / 60000);
-            const timeStr = diffMin < 60
-              ? `${diffMin}分前`
-              : diffMin < 1440
-              ? `${Math.floor(diffMin / 60)}時間前`
-              : `${Math.floor(diffMin / 1440)}日前`;
-            return {
-              id:    s.id,
-              title: s.title,
-              sub:   `${Math.floor(msgCount / 2)}件のやり取り・${timeStr}`,
-              href:  `/pt-gpt?session=${encodeURIComponent(s.id)}`,
-            };
-          })
-        : (() => {
-            const gh = localStorage.getItem(GPT_HISTORY_KEY);
-            return gh
-              ? (JSON.parse(gh) as GptMessage[])
-                  .filter(m => m.role === "user")
-                  .slice(-3)
-                  .reverse()
-                  .map(m => ({
-                    id:    m.id,
-                    title: m.content.slice(0, 40) + (m.content.length > 40 ? "..." : ""),
-                    sub:   "PT専用GPT",
-                    href:  `/pt-gpt?q=${encodeURIComponent(m.content)}`,
-                  }))
-              : [];
-          })();
+      // PT専用GPT 直近トピック
+      const topics = loadRecentTopics();
+      const gptItems: RecentItem[] = topics.slice(0, 3).map(t => {
+        const diffMs  = Date.now() - new Date(t.savedAt).getTime();
+        const diffMin = Math.floor(diffMs / 60000);
+        const timeStr = diffMin < 60
+          ? `${diffMin}分前`
+          : diffMin < 1440
+          ? `${Math.floor(diffMin / 60)}時間前`
+          : `${Math.floor(diffMin / 1440)}日前`;
+        return {
+          id:      t.id,
+          title:   t.title || t.query.slice(0, 20),
+          sub:     `PT専用GPT・${timeStr}`,
+          href:    `/pt-gpt?topic=${encodeURIComponent(t.id)}`,
+          topicId: t.id,
+        };
+      });
 
       // 保存プラン
       const pp = localStorage.getItem(PLANS_KEY);
-      const planItems = pp
+      const planItems: RecentItem[] = pp
         ? (JSON.parse(pp) as SavedPlan[])
             .slice(0, 2)
             .map(p => ({
@@ -328,6 +307,15 @@ export default function HomePage() {
       setRecentItems([...gptItems, ...planItems].slice(0, 3));
     } catch { /* ignore */ }
   }, []);
+
+  // ── 続きから始める 削除 ──
+  const handleDeleteRecent = (topicId: string) => {
+    deleteRecentTopic(topicId);
+    setRecentItems(prev => prev.filter(item => item.topicId !== topicId));
+    if (deleteToastTimer.current) clearTimeout(deleteToastTimer.current);
+    setDeleteToast(true);
+    deleteToastTimer.current = setTimeout(() => setDeleteToast(false), 1000);
+  };
 
   // 通知ドロップ外クリックで閉じる
   useEffect(() => {
@@ -590,16 +578,27 @@ export default function HomePage() {
             <div className="rounded-2xl overflow-hidden border"
               style={{ borderColor: "#F3F4F6", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
               {recentItems.map(item => (
-                <a key={item.id} href={item.href}
-                  className="flex items-center gap-3 px-4 py-3.5 bg-white border-b last:border-0 transition hover:bg-gray-50 active:bg-gray-100"
+                <div key={item.id}
+                  className="flex items-center bg-white border-b last:border-0"
                   style={{ borderColor: "#F3F4F6" }}>
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "#E85D04" }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate" style={{ color: "#1A1A1A" }}>{item.title}</p>
-                    <p className="text-[11px] mt-0.5 truncate" style={{ color: "#888" }}>{item.sub}</p>
-                  </div>
-                  <span style={{ color: "#ccc" }}><IconChevronRight /></span>
-                </a>
+                  <a href={item.href}
+                    className="flex items-center gap-3 flex-1 min-w-0 px-4 py-3.5 transition hover:bg-gray-50 active:bg-gray-100">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "#E85D04" }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate" style={{ color: "#1A1A1A" }}>{item.title}</p>
+                      <p className="text-[11px] mt-0.5 truncate" style={{ color: "#888" }}>{item.sub}</p>
+                    </div>
+                    <span style={{ color: "#ccc" }}><IconChevronRight /></span>
+                  </a>
+                  {item.topicId && (
+                    <button
+                      onClick={() => handleDeleteRecent(item.topicId!)}
+                      className="shrink-0 w-11 h-11 flex items-center justify-center text-gray-300 hover:text-red-400 transition"
+                      aria-label="削除">
+                      <IconClose size={12} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -607,6 +606,13 @@ export default function HomePage() {
 
       </div>{/* /max-w-xl */}
 
+      {/* 削除トースト */}
+      {deleteToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-bold pointer-events-none"
+          style={{ background: "rgba(0,0,0,0.72)", whiteSpace: "nowrap" }}>
+          削除しました
+        </div>
+      )}
 
     </div>
   );

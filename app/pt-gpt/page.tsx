@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PtGptChat } from "@/components/PtGptChat";
 import { PtGptTopicView } from "@/components/PtGptTopicView";
+import { getRecentTopic } from "@/lib/recent-topics";
+import type { GptIntent } from "@/app/api/pt-gpt/route";
 
 // ─── Inner (uses useSearchParams) ─────────────────────────────────────────
 
@@ -12,11 +14,23 @@ function PtGptInner() {
   const searchParams = useSearchParams();
 
   const urlQuery  = searchParams.get("q")       ?? undefined;
+  const topicId   = searchParams.get("topic")    ?? undefined;
   const sessionId = searchParams.get("session")  ?? undefined;
 
-  // Lock the query on first render from URL param or sessionStorage.
+  // Load preloaded topic from localStorage (when navigating from 続きから始める)
+  const [preloaded] = useState<{ answer: string; intent: GptIntent | null; query: string } | undefined>(() => {
+    if (!topicId) return undefined;
+    try {
+      const t = getRecentTopic(topicId);
+      if (t) return { answer: t.answer, intent: t.intent, query: t.query };
+    } catch { /* ignore */ }
+    return undefined;
+  });
+
+  // Lock the query on first render from preloaded, URL param, or sessionStorage.
   // Once set it never clears, so URL changes cannot reset the view.
   const [topicQuery, setTopicQuery] = useState<string | undefined>(() => {
+    if (preloaded?.query) return preloaded.query;
     if (urlQuery) return urlQuery;
     try {
       const stored = sessionStorage.getItem("ptgpt_pending_query");
@@ -41,7 +55,14 @@ function PtGptInner() {
 
   // Fresh query → topic-document view (locked — never unmounts due to URL change)
   if (topicQuery) {
-    return <PtGptTopicView initialQuery={topicQuery} onBack={() => router.back()} />;
+    return (
+      <PtGptTopicView
+        initialQuery={topicQuery}
+        preloadedAnswer={preloaded?.answer}
+        preloadedIntent={preloaded?.intent ?? undefined}
+        onBack={() => router.back()}
+      />
+    );
   }
 
   // Session / direct open → legacy chat view
