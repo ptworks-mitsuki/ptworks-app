@@ -182,8 +182,8 @@ function SuggestionsBlock({ suggestions }: { suggestions: Suggestion[] }) {
 // ─── Split markdown at 参考資料 section ──────────────────────────────────
 
 function splitAtReferences(text: string): { before: string; refs: string[] } {
-  // "## 参考資料" などのセクション見出しを探す
-  const re = /\n#{1,3}\s*参考(?:資料|文献)[^\n]*\n/;
+  // "## 関連情報（AI選定）" / "## 参考資料" などのセクション見出しを探す
+  const re = /\n#{1,3}\s*(?:関連情報|参考(?:資料|文献))[^\n]*\n/;
   const match = re.exec(text);
   if (!match) return { before: text, refs: [] };
 
@@ -607,7 +607,8 @@ function AssistantBubble({
           {/* 参考資料セクション（文献カード） */}
           {refs.length > 0 && (
             <div className="border-t border-gray-100 px-4 pb-4 pt-3">
-              <p className="text-sm font-black text-gray-900 mb-2">参考資料</p>
+              <p className="text-sm font-black text-gray-900 mb-1">関連情報（AI選定）</p>
+              <p className="text-[11px] mb-2 leading-relaxed" style={{ color: "#9CA3AF" }}>AIがこのテーマに関連が深いと判断した情報です。必ずしも本文全ての内容の直接的な根拠ではありません。学会発表や正式な引用の際は必ず原典をご自身でご確認ください。</p>
               <div className="space-y-2">
                 {refs.map((ref, i) => (
                   <LiteratureDetailCard key={i} citation={ref} />

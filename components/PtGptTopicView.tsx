@@ -164,25 +164,30 @@ function ReferencesSection({ content }: { content: string }) {
   if (lines.length === 0) return <MdBody text={content} />;
 
   return (
-    <div className="space-y-2.5">
-      {lines.map((ref, i) => (
-        <div key={i} className="flex items-start gap-2">
-          <span className="text-xs text-gray-400 mt-0.5 shrink-0 w-4">{i + 1}.</span>
-          <p className="flex-1 text-xs text-gray-700 leading-relaxed min-w-0">{ref}</p>
-          <a
-            href={`/stage1/literature?q=${encodeURIComponent(ref.slice(0, 50))}`}
-            className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition hover:opacity-80 active:scale-95"
-            style={{ color: "#E85D04", borderColor: "#FED7AA", background: "#FFF7ED" }}
-          >
-            詳しく見る
-          </a>
-        </div>
-      ))}
+    <div>
+      <p className="text-[11px] leading-relaxed mb-2.5" style={{ color: "#9CA3AF" }}>
+        AIがこのテーマに関連が深いと判断した情報です。必ずしも本文全ての内容の直接的な根拠ではありません。学会発表や正式な引用の際は必ず原典をご自身でご確認ください。
+      </p>
+      <div className="space-y-2.5">
+        {lines.map((ref, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="text-xs text-gray-400 mt-0.5 shrink-0 w-4">{i + 1}.</span>
+            <p className="flex-1 text-xs text-gray-700 leading-relaxed min-w-0">{ref}</p>
+            <a
+              href={`/stage1/literature?q=${encodeURIComponent(ref.slice(0, 50))}`}
+              className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition hover:opacity-80 active:scale-95"
+              style={{ color: "#E85D04", borderColor: "#FED7AA", background: "#FFF7ED" }}
+            >
+              詳しく見る
+            </a>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-const IS_REFS_TITLE = (title: string) => /^参考/.test(title);
+const IS_REFS_TITLE = (title: string) => /^参考|^関連情報/.test(title);
 
 // ── Follow-up answer (parses sections, treats 参考資料 specially) ──────────
 
@@ -199,7 +204,7 @@ function FollowUpAnswer({ text }: { text: string }) {
           {sec.title && (
             <h2 className="text-sm font-black text-gray-900 mb-2 mt-3 first:mt-0 flex items-center gap-2">
               <span className="w-1 h-4 rounded-full shrink-0" style={{ background: "#E85D04" }} />
-              {sec.title}
+              {refsDisplayTitle(sec.title)}
             </h2>
           )}
           {IS_REFS_TITLE(sec.title) ? (
@@ -211,6 +216,10 @@ function FollowUpAnswer({ text }: { text: string }) {
       ))}
     </>
   );
+}
+
+function refsDisplayTitle(title: string): string {
+  return IS_REFS_TITLE(title) ? "関連情報（AI選定）" : title;
 }
 
 // ── Intent label ──────────────────────────────────────────────────────────
@@ -508,7 +517,7 @@ export function PtGptTopicView({
                     {sec.title && (
                       <h2 className="text-sm font-black text-gray-900 mb-2 flex items-center gap-2">
                         <span className="w-1 h-4 rounded-full shrink-0" style={{ background: "#E85D04" }} />
-                        {sec.title}
+                        {refsDisplayTitle(sec.title)}
                       </h2>
                     )}
                     {IS_REFS_TITLE(sec.title) ? (
