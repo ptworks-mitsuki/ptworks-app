@@ -12,12 +12,10 @@ const BANNER_KEY = "pt-banner-closed-v2";
 const STREAK_KEY = "pt-streak-days";
 const PLANS_KEY  = "pt-saved-plans";
 
-const QUICK_TAGS = [
-  "変形性膝関節症",
-  "人工股関節の禁忌",
-  "脳梗塞の評価",
-  "算定日数",
-  "副業の始め方",
+const SAMPLE_QUESTIONS = [
+  "変形性膝関節症の運動療法はどこまでエビデンスがある？",
+  "肩関節周囲炎の禁忌は？",
+  "脳梗塞発症後のリハビリ開始時期は？",
 ];
 
 const QUICK_ACCESS_TOP = [
@@ -32,7 +30,6 @@ const QUICK_ACCESS_SUB = [
   { id: "calc",      label: "診療報酬",   sub: "点数・加算", href: "/learn/reimbursement", icon: <IconCalc      size={18} /> },
   { id: "homeex",    label: "自主トレ",   sub: "患者指導",   href: "/stage1/homeexercise", icon: <IconSheet     size={18} /> },
 ];
-
 
 // ─── アイコン ─────────────────────────────────────────────────────────────
 
@@ -126,116 +123,7 @@ function IconClose({ size = 12 }: { size?: number }) {
   );
 }
 
-// ─── 挨拶 ──────────────────────────────────────────────────────────────────
-
-const GREETINGS: Record<"morning" | "afternoon" | "evening" | "night", string[]> = {
-  morning: [
-    "おはようございます。今日も最善の準備を。",
-    "おはよう。カンファ前に疾患確認、済ませちゃいましょう。",
-    "おはよう。昨日の疑問、今朝解決しておきませんか。",
-    "おはよう。算定日数、なんとなく合ってる自信ある？",
-    "おはようございます。今日の患者さん、禁忌は把握できてますか。",
-    "おはよう。学会発表の締め切り、そろそろ気にしてる頃では。",
-    "おはようございます。文献読む時間ない人こそ、PT Worksを。",
-    "おはよう。今日も現場で戦う準備、できてますか。",
-    "おはようございます。新人さん、わからないことは恥ずかしくない。",
-    "おはよう。パーキンソンのキーパーソンは家族です。忘れずに。",
-    "おはよう。今日こそ定時で帰りましょう。たぶん無理だけど。",
-    "おはようございます。脳梗塞発症から何日か、すぐ言えますか。",
-    "おはよう。患者さんに『先生』って呼ばれた時、訂正してますか。",
-    "おはようございます。廃用は待ってくれません。今日も早期離床を。",
-    "おはよう。昨日の患者さん、夢に出てきませんでしたか。",
-    "おはようございます。MMT4と4+の違い、説明できますか。",
-    "おはよう。FIMの採点、甘くなってませんか。",
-    "おはようございます。サマリー、締め切り大丈夫ですか。",
-    "おはよう。TUGとBBS、今日使いますか。",
-    "おはようございます。今日の臨床、根拠を持って臨みましょう。",
-  ],
-  afternoon: [
-    "お疲れ様です。午前中うまくいきましたか。",
-    "お昼休み、5分だけ気になる疾患調べてみませんか。",
-    "お疲れ様です。午前中に迷った治療、ここで相談を。",
-    "昼休みに副業のこと、少しだけ考えてみてもいいかも。",
-    "お疲れ様です。自主トレ指導書、毎回手書きしてませんか。",
-    "午後の患者さん、治療方針固まってますか。",
-    "お疲れ様です。文献読みたいけど時間ない、そんな時のPT Works。",
-    "昼休みくらい休めって話ですが、気になったらどうぞ。",
-    "お疲れ様です。今日のカンファ、うまく発言できましたか。",
-    "午後もあと少し、患者さんのために頑張りましょう。",
-    "お疲れ様です。ROM測定の結果、メモしましたか。",
-    "禁忌肢位、患者さんにちゃんと伝わってますか。",
-    "お疲れ様です。NRS6の患者さんに運動療法、根拠ありますか。",
-    "昼ごはん食べましたか。PTが倒れたら誰が診るんですか。",
-    "お疲れ様です。回診で主治医に何か言われましたか。",
-    "退院サマリー、ギリギリまで溜めてませんか。",
-    "お疲れ様です。家屋環境、把握してますか。",
-    "廃用と廃用じゃない境界線、実は曖昧ですよね。",
-    "お疲れ様です。訪問と外来の違い、後輩に説明できますか。",
-    "昼休みくらい休みましょう。でも気になったらどうぞ。",
-  ],
-  evening: [
-    "お疲れ様でした。今日もよく頑張りました。",
-    "今日の臨床で気になったこと、記録しておきましょう。",
-    "あの患者さんの治療、これで良かったかな、って思ってませんか。",
-    "今日わからなかったこと、明日までに調べておきませんか。",
-    "お疲れ様です。スライド、締め切り大丈夫ですか。",
-    "副業、そろそろ本気で考えてみませんか。",
-    "お疲れ様でした。明日の準備、少しだけしておきますか。",
-    "今日学んだこと、ノートに残しておくと役に立ちます。",
-    "お疲れ様です。残業中ですか。お体に気をつけて。",
-    "夜のほうが集中できる派の人、一緒に勉強しましょう。",
-    "お疲れ様でした。今日何人診ましたか。多すぎませんか。",
-    "転倒ゼロで終われましたか。それだけで十分すごいです。",
-    "PTの年収、上げていきたいですよね。副業、始めませんか。",
-    "残業代、ちゃんと出てますか。",
-    "後輩に優しくできましたか。自分も最初は新人でした。",
-    "患者さんに『ありがとう』って言ってもらえましたか。",
-    "今日の自分を100点満点で採点すると何点ですか。",
-    "今日の悔しさ、明日の臨床に変えていきましょう。",
-    "記録、ちゃんと終わりましたか。家に持ち帰らないでください。",
-    "今日の患者さん、歩けるようになりましたか。",
-  ],
-  night: [
-    "遅くまでお疲れ様です。早めに寝てください。",
-    "こんな時間まで働いてるんですか。PTって大変ですよね。",
-    "遅くまでお疲れ様です。明日も頑張れますように。",
-    "夜中に勉強してるPT、かっこいいと思います。",
-    "気になることだけ調べて、早めに寝てください。",
-    "こんな時間に開いてくれてありがとうございます。",
-    "深夜の勉強、明日の臨床できっと活きます。",
-    "PTの仕事、誰かがちゃんと見てますよ。",
-    "こんな時間に何してるんですか。記録ですか。サマリーですか。",
-    "学会発表の前日ですか。今からでも間に合います。",
-    "PTって本当に不器用に頑張りますよね。",
-    "こんな時間まで勉強してるあなた、絶対いいPTになります。",
-    "夜中にPT Worksを開く人生、悪くないと思います。",
-    "何かに追われてますか。一緒に解決しましょう。",
-    "遅くまでお疲れ様です。誰かがちゃんと見てますよ。",
-    "こんな時間に開いてくれてありがとうございます。一緒に頑張りましょう。",
-  ],
-};
-
-const LAST_GREETING_KEY = "ptworks_last_greeting";
-
-function getGreeting(): string {
-  const h = new Date().getHours();
-  const band: keyof typeof GREETINGS =
-    h >= 6  && h < 12 ? "morning"   :
-    h >= 12 && h < 17 ? "afternoon" :
-    h >= 17 && h < 22 ? "evening"   : "night";
-
-  const pool = GREETINGS[band];
-  const lastKey = `${LAST_GREETING_KEY}_${band}`;
-  let last = "";
-  try { last = localStorage.getItem(lastKey) ?? ""; } catch { /* ignore */ }
-
-  const candidates = pool.filter(g => g !== last);
-  const chosen = candidates[Math.floor(Math.random() * candidates.length)] ?? pool[0];
-  try { localStorage.setItem(lastKey, chosen); } catch { /* ignore */ }
-  return chosen;
-}
-
-// ─── 通知ドロップダウン ───────────────────────────────────────────────────
+// ─── 通知 ─────────────────────────────────────────────────────────────────
 
 const NOTIFICATIONS = [
   { id: 1, text: "PT専用GPTが追加されました。疾患・相談が1つの窓口に",  date: "2026-07-06", read: false },
@@ -260,14 +148,13 @@ export default function HomePage() {
   const [deleteToast,  setDeleteToast]  = useState(false);
   const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const [query,        setQuery]        = useState("");
-  const [focused,      setFocused]      = useState(false);
+  const [query,   setQuery]   = useState("");
+  const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const notifRef    = useRef<HTMLDivElement>(null);
 
-  const unread  = NOTIFICATIONS.filter(n => !n.read).length;
-  const isLow   = remaining <= 2;
-  const [greeting] = useState(() => getGreeting());
+  const unread = NOTIFICATIONS.filter(n => !n.read).length;
+  const isLow  = remaining <= 2;
 
   // ── localStorage 読み込み ──
   useEffect(() => {
@@ -276,7 +163,6 @@ export default function HomePage() {
       const s = localStorage.getItem(STREAK_KEY);
       if (s) setStreak(Number(s));
 
-      // PT専用GPT 直近トピック
       const topics = loadRecentTopics();
       const gptItems: RecentItem[] = topics.slice(0, 3).map(t => {
         const diffMs  = Date.now() - new Date(t.savedAt).getTime();
@@ -295,24 +181,17 @@ export default function HomePage() {
         };
       });
 
-      // 保存プラン
       const pp = localStorage.getItem(PLANS_KEY);
       const planItems: RecentItem[] = pp
         ? (JSON.parse(pp) as SavedPlan[])
             .slice(0, 2)
-            .map(p => ({
-              id:    p.id,
-              title: p.name || p.disease,
-              sub:   "治療プラン",
-              href:  "/stage1",
-            }))
+            .map(p => ({ id: p.id, title: p.name || p.disease, sub: "治療プラン", href: "/stage1" }))
         : [];
 
       setRecentItems([...gptItems, ...planItems].slice(0, 3));
     } catch { /* ignore */ }
   }, []);
 
-  // ── 続きから始める 削除 ──
   const handleDeleteRecent = (topicId: string) => {
     deleteRecentTopic(topicId);
     setRecentItems(prev => prev.filter(item => item.topicId !== topicId));
@@ -321,7 +200,6 @@ export default function HomePage() {
     deleteToastTimer.current = setTimeout(() => setDeleteToast(false), 1000);
   };
 
-  // 通知ドロップ外クリックで閉じる
   useEffect(() => {
     const handle = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false);
@@ -330,7 +208,6 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", handle);
   }, [showNotif]);
 
-  // textarea 自動リサイズ
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -350,9 +227,9 @@ export default function HomePage() {
     router.push(`/pt-gpt?q=${encodeURIComponent(q)}`);
   };
 
-  const handleTag = (tag: string) => {
-    try { sessionStorage.setItem("ptgpt_pending_query", tag); } catch { /* ignore */ }
-    router.push(`/pt-gpt?q=${encodeURIComponent(tag)}`);
+  const handleSample = (q: string) => {
+    setQuery(q);
+    textareaRef.current?.focus();
   };
 
   return (
@@ -444,55 +321,43 @@ export default function HomePage() {
 
       <div className="max-w-xl mx-auto px-4">
 
-        {/* ③ 挨拶・残り回数・ストリーク */}
-        <section className="pt-6 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            {/* 挨拶 */}
-            <p className="text-[22px] leading-tight" style={{ color: "#1A1A1A", fontWeight: 400 }}>
-              {greeting}
-            </p>
+        {/* ③ キャッチコピー・サービス説明 */}
+        <section className="pt-7 pb-5">
+          <h1 className="text-[20px] font-black leading-tight mb-2" style={{ color: "#1A1A1A" }}>
+            理学療法士のための<br />AI思考パートナー
+          </h1>
+          <p className="text-sm leading-relaxed" style={{ color: "#6B7280" }}>
+            有料版Claude AIを基盤に、理学療法士専用へ進化。<br />
+            PubMed・J-STAGEの文献データベースと連携し<br />
+            無料で月5回まで利用可能です。
+          </p>
+        </section>
 
-            {/* ストリーク */}
-            {streak > 0 && (
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-full shrink-0"
-                style={{ background: "#FFF7ED", border: "1px solid #FED7AA" }}>
-                <span className="text-base leading-none">🔥</span>
-                <span className="text-sm font-black" style={{ color: "#E85D04" }}>{streak}</span>
-                <span className="text-[11px] font-semibold" style={{ color: "#EA580C" }}>日連続</span>
-              </div>
-            )}
-          </div>
-
-          {/* 無料枠 */}
-          <div className="rounded-2xl px-4 py-3"
-            style={{
-              background:   isExhausted ? "#FEF2F2" : isLow ? "#FFF7ED" : "#F9FAFB",
-              border:       `1px solid ${isExhausted ? "#FECACA" : isLow ? "#FED7AA" : "#F3F4F6"}`,
-            }}>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-bold" style={{ color: isLow ? "#9A3412" : "#888" }}>
-                今月の無料枠
-              </p>
-              <div className="flex items-baseline gap-0.5">
-                <span className="text-[11px] font-semibold" style={{ color: isLow ? "#EA580C" : "#888" }}>残り</span>
-                <span className="text-xl font-black leading-none" style={{ color: isLow ? "#E85D04" : "#1A1A1A" }}>{remaining}</span>
-                <span className="text-[11px] font-semibold" style={{ color: isLow ? "#EA580C" : "#888" }}>回</span>
-              </div>
-            </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: isLow ? "#FED7AA" : "#E5E7EB" }}>
-              <div className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${percentage}%`, background: isLow ? "#E85D04" : "#1B4332" }} />
-            </div>
-            {isExhausted && (
-              <p className="text-[10px] mt-2 font-bold text-red-600">
-                今月の無料枠を使い切りました —{" "}
-                <a href="/pricing" className="underline underline-offset-2">アップグレード</a>
-              </p>
-            )}
+        {/* ④ 質問例（吹き出しカード） */}
+        <section className="mb-4">
+          <p className="text-xs font-bold mb-2.5" style={{ color: "#9CA3AF" }}>こんな質問ができます</p>
+          <div className="space-y-2">
+            {SAMPLE_QUESTIONS.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => handleSample(q)}
+                className="w-full text-left px-4 py-3 rounded-2xl border transition hover:border-orange-300 hover:bg-orange-50 active:scale-[0.98]"
+                style={{
+                  background:   "#F9FAFB",
+                  borderColor:  "#E5E7EB",
+                  borderRadius: "16px",
+                }}
+              >
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 shrink-0 text-base leading-none">💬</span>
+                  <p className="text-sm leading-snug" style={{ color: "#374151" }}>{q}</p>
+                </div>
+              </button>
+            ))}
           </div>
         </section>
 
-        {/* ④ PT専用GPT 検索窓 */}
+        {/* ⑤ PT専用GPT 検索窓 */}
         <section className="mb-4">
           <div
             className="rounded-2xl overflow-hidden transition-all duration-200"
@@ -531,22 +396,43 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+        </section>
 
-          {/* クイックタグ */}
-          <div className="flex gap-2 overflow-x-auto mt-3 pb-1" style={{ scrollbarWidth: "none" }}>
-            {QUICK_TAGS.map(tag => (
-              <button key={tag} onClick={() => handleTag(tag)}
-                className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition hover:border-orange-400 hover:text-orange-600 active:scale-95"
-                style={{ background: "#F9FAFB", borderColor: "#E5E7EB", color: "#888" }}>
-                {tag}
-              </button>
-            ))}
+        {/* ⑥ 残り回数・ストリーク（控えめ） */}
+        <section className="mb-6">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
+            style={{ background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
+            {/* 無料枠 */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "#E5E7EB", maxWidth: 80 }}>
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${percentage}%`, background: isLow ? "#E85D04" : "#9CA3AF" }} />
+              </div>
+              <p className="text-xs" style={{ color: isLow ? "#E85D04" : "#9CA3AF" }}>
+                <span className="font-black">{remaining}</span>
+                <span className="font-normal">/{total}回</span>
+              </p>
+              {isExhausted && (
+                <a href="/pricing" className="text-[11px] font-bold underline underline-offset-2"
+                  style={{ color: "#E85D04" }}>
+                  アップグレード
+                </a>
+              )}
+            </div>
+
+            {/* ストリーク */}
+            {streak > 0 && (
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-sm leading-none">🔥</span>
+                <span className="text-xs font-black" style={{ color: "#9CA3AF" }}>{streak}日</span>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* ⑤ クイックアクセス */}
+        {/* ⑦ クイックアクセス */}
         <section className="mb-6">
-          <h2 className="text-base font-black mb-3" style={{ color: "#1A1A1A" }}>クイックアクセス</h2>
+          <h2 className="text-sm font-black mb-3" style={{ color: "#1A1A1A" }}>クイックアクセス</h2>
 
           {/* 上段：大 3列 */}
           <div className="grid grid-cols-3 gap-3 mb-3">
@@ -583,9 +469,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ⑥ 続きから始める */}
+        {/* ⑧ 続きから始める */}
         <section className="mb-28">
-          <h2 className="text-base font-black mb-3" style={{ color: "#1A1A1A" }}>続きから始める</h2>
+          <h2 className="text-sm font-black mb-3" style={{ color: "#1A1A1A" }}>続きから始める</h2>
           {recentItems.length === 0 ? (
             <div className="rounded-2xl px-5 py-6 text-center"
               style={{ background: "#F9FAFB", border: "1px solid #F3F4F6" }}>
@@ -626,7 +512,7 @@ export default function HomePage() {
           )}
         </section>
 
-      </div>{/* /max-w-xl */}
+      </div>
 
       {/* 削除トースト */}
       {deleteToast && (
