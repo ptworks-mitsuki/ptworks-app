@@ -7,7 +7,6 @@ import remarkGfm from "remark-gfm";
 import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast } from "@/components/SaveNoteModal";
-import { withBadges, EvidenceLevelAccordion } from "@/components/EvidenceBadges";
 import { saveRecentTopic, updateRecentTopic, type SavedFollowUp } from "@/lib/recent-topics";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -107,14 +106,20 @@ async function streamGptResponse(opts: {
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
 
+// Strip legacy [Lv.X ...] badge markers from saved data
+function stripLevels(text: string): string {
+  return text.replace(/\s*\[Lv\.[ABCD][^\]]*\]/g, "");
+}
+
 function MdBody({ text }: { text: string }) {
+  text = stripLevels(text);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }) => (
           <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
-            {withBadges(children)}
+            {children}
           </p>
         ),
         strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
@@ -127,7 +132,7 @@ function MdBody({ text }: { text: string }) {
         li: ({ children }) => (
           <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed">
             <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
-            <span>{withBadges(children)}</span>
+            <span>{children}</span>
           </li>
         ),
         blockquote: ({ children }) => (
@@ -542,12 +547,6 @@ export function PtGptTopicView({
               </div>
             ) : null}
 
-            {/* Evidence accordion */}
-            {!mainLoading && !mainError && (
-              <div className="px-4 pb-4">
-                <EvidenceLevelAccordion />
-              </div>
-            )}
           </div>
 
           {/* Think buttons */}

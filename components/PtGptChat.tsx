@@ -8,7 +8,6 @@ import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import type { LiteratureDetailResponse } from "@/app/api/literature-detail/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast, SaveIconButton } from "@/components/SaveNoteModal";
-import { withBadges, EvidenceLevelAccordion } from "@/components/EvidenceBadges";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -78,14 +77,6 @@ const INTENT_COLORS: Record<GptIntent, string> = {
   career:  "#7C3AED",
 };
 
-// ─── Evidence level meta ──────────────────────────────────────────────────
-
-const EVIDENCE_META: Record<string, { label: string; bg: string; text: string }> = {
-  A: { label: "Lv.A  強い根拠",   bg: "#1B4332", text: "#fff" },
-  B: { label: "Lv.B  根拠あり",   bg: "#1D4ED8", text: "#fff" },
-  C: { label: "Lv.C  専門家意見", bg: "#6B7280", text: "#fff" },
-  D: { label: "Lv.D  経験則",     bg: "#D1D5DB", text: "#374151" },
-};
 
 // ─── Split at 関連機能 suggestions section ────────────────────────────────
 
@@ -267,7 +258,6 @@ function LiteratureDetailCard({ citation }: { citation: string }) {
     setTimeout(() => setToast(false), 2000);
   };
 
-  const evMeta = detail ? (EVIDENCE_META[detail.evidenceLevel] ?? EVIDENCE_META.C) : null;
 
   return (
     <div className="mt-1.5 rounded-xl border border-gray-200 overflow-hidden bg-white">
@@ -306,15 +296,6 @@ function LiteratureDetailCard({ citation }: { citation: string }) {
 
           {detail && (
             <>
-              {/* エビデンスレベル */}
-              <div className="flex items-start gap-2 pt-1">
-                <span className="text-xs font-black px-2 py-1 rounded-lg shrink-0"
-                  style={{ background: evMeta!.bg, color: evMeta!.text }}>
-                  {evMeta!.label}
-                </span>
-                <p className="text-xs text-gray-500 leading-snug pt-0.5">{detail.evidenceLevelReason}</p>
-              </div>
-
               {/* AI日本語要約 */}
               <div className="rounded-xl px-3 py-3" style={{ background: "#F9FAFB" }}>
                 <p className="text-xs font-bold text-gray-500 mb-1.5">AI日本語要約</p>
@@ -372,14 +353,19 @@ function cleanMarkdown(text: string): string {
 }
 
 
+function stripLevels(text: string): string {
+  return text.replace(/\s*\[Lv\.[ABCD][^\]]*\]/g, "");
+}
+
 function MdBody({ text }: { text: string }) {
+  text = stripLevels(text);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }) => (
           <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
-            {withBadges(children)}
+            {children}
           </p>
         ),
         strong:     ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
@@ -392,7 +378,7 @@ function MdBody({ text }: { text: string }) {
         li:         ({ children }) => (
           <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed">
             <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
-            <span>{withBadges(children)}</span>
+            <span>{children}</span>
           </li>
         ),
         blockquote: ({ children }) => (
@@ -594,9 +580,6 @@ function AssistantBubble({
           <div className="px-4 py-4">
             <MdBody text={before} />
             {msg.loading && <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />}
-            {!msg.loading && msg.intent !== "service" && (
-              <EvidenceLevelAccordion />
-            )}
             {!msg.loading && !msg.intent && (
               <div className="flex justify-end mt-3">
                 <SaveIconButton saved={saved} onClick={() => setShowModal(true)} />

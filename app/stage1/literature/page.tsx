@@ -39,14 +39,6 @@ function searchBooks(books: Book[], keywords: string[], category: BookCategoryId
   );
 }
 
-function evidenceBadge(level: string) {
-  const colors: Record<string, string> = { A: "#16a34a", B: "#2563eb", C: "#d97706", D: "#9ca3af" };
-  return (
-    <span style={{ background: colors[level] ?? "#9ca3af", color: "#fff", borderRadius: 4, padding: "1px 7px", fontSize: 11, fontWeight: 700, marginLeft: 6 }}>
-      Lv.{level}
-    </span>
-  );
-}
 
 // ──────────────────────────────────────────────────────────────
 // PaperCard
@@ -112,7 +104,6 @@ function PaperCard({ paper, onSaved }: { paper: Paper; onSaved?: () => void }) {
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "#374151" }}>{paper.authors}</p>
           <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6b7280" }}>{paper.journal}, {paper.year}</p>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-            {evidenceBadge(paper.evidenceLevel)}
             {paper.isOpenAccess
               ? <span style={{ background: "#dcfce7", color: "#16a34a", borderRadius: 4, padding: "1px 8px", fontSize: 11, fontWeight: 600 }}>全文無料</span>
               : <span style={{ background: "#f3f4f6", color: "#6b7280", borderRadius: 4, padding: "1px 8px", fontSize: 11, fontWeight: 600 }}>要約のみ</span>
@@ -163,9 +154,6 @@ function PaperCard({ paper, onSaved }: { paper: Paper; onSaved?: () => void }) {
                   <li key={i} style={{ fontSize: 13, color: "#374151", lineHeight: 1.7, marginBottom: 4 }}>{pt}</li>
                 ))}
               </ul>
-              <p style={{ margin: "10px 0 0", fontSize: 12, color: "#78350f" }}>
-                エビデンスレベル：<strong>{detail.evidenceLevel}</strong>　{detail.evidenceLevelReason}
-              </p>
               <a href={paper.url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 10, fontSize: 12, background: BRAND_GREEN, color: "#fff", borderRadius: 6, padding: "4px 12px", textDecoration: "none" }}>
                 原文を読む →
               </a>
