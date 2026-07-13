@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { OnboardingModal, isOnboardingDone } from "@/components/OnboardingModal";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
 import { loadRecentTopics, deleteRecentTopic } from "@/lib/recent-topics";
 
@@ -147,6 +148,8 @@ export default function HomePage() {
   const [recentItems,  setRecentItems]  = useState<RecentItem[]>([]);
   const [deleteToast,      setDeleteToast]      = useState(false);
   const [comingSoonToast,  setComingSoonToast]  = useState(false);
+  const [showOnboarding,   setShowOnboarding]   = useState(false);
+  const [onboardingHelp,   setOnboardingHelp]   = useState(false);
   const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const comingSoonTimer  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -157,6 +160,11 @@ export default function HomePage() {
 
   const unread = NOTIFICATIONS.filter(n => !n.read).length;
   const isLow  = remaining <= 2;
+
+  // ── 初回オンボーディング ──
+  useEffect(() => {
+    if (!isOnboardingDone()) setShowOnboarding(true);
+  }, []);
 
   // ── localStorage 読み込み ──
   useEffect(() => {
@@ -265,6 +273,12 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setOnboardingHelp(true); setShowOnboarding(true); }}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-sm font-black"
+              style={{ color: "#9CA3AF" }} aria-label="使い方を見る">
+              ？
+            </button>
             <div ref={notifRef} className="relative">
               <button onClick={() => setShowNotif(v => !v)}
                 className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition"
@@ -538,6 +552,14 @@ export default function HomePage() {
           style={{ background: "rgba(0,0,0,0.72)", whiteSpace: "nowrap" }}>
           準備中です
         </div>
+      )}
+
+      {/* オンボーディングモーダル */}
+      {showOnboarding && (
+        <OnboardingModal
+          helpMode={onboardingHelp}
+          onClose={() => { setShowOnboarding(false); setOnboardingHelp(false); }}
+        />
       )}
 
     </div>

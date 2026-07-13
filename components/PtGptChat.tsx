@@ -930,7 +930,7 @@ export function PtGptChat({ initialQuery, sessionId, onClear }: PtGptChatProps) 
 
             {/* 4. よく使う質問タグ */}
             <div className="mb-5 mt-5">
-              <p className="text-xs font-bold text-gray-400 mb-2 text-center">よく使う質問</p>
+              <p className="text-xs font-bold text-gray-400 mb-2 text-center">こんな質問ができます</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {QUICK_TAGS.map(tag => (
                   <button key={tag} onClick={() => void handleSend(tag)}
