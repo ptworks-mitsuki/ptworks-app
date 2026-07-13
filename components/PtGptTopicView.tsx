@@ -8,6 +8,11 @@ import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast } from "@/components/SaveNoteModal";
 import { saveRecentTopic, updateRecentTopic, type SavedFollowUp } from "@/lib/recent-topics";
+import { recordUsage } from "@/lib/usage-tracker";
+import { CURRENT_PLAN, PLAN_LIMIT_YEN } from "@/lib/plan";
+import { useWindowUsage } from "@/hooks/useWindowUsage";
+import { UsageIndicator } from "@/components/UsageIndicator";
+import { UsageLimitModal } from "@/components/UsageLimitModal";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -67,11 +72,12 @@ async function streamGptResponse(opts: {
   history: Array<{ role: "user" | "assistant"; content: string }>;
   onChunk: (text: string) => void;
   onIntent: (intent: GptIntent) => void;
+  onUsage?: (inputTokens: number, outputTokens: number) => void;
   onDone: () => void;
   onError: (msg: string) => void;
   signal?: AbortSignal;
 }): Promise<void> {
-  const { query, history, onChunk, onIntent, onDone, onError, signal } = opts;
+  const { query, history, onChunk, onIntent, onUsage, onDone, onError, signal } = opts;
   const res = await fetch("/api/pt-gpt", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -95,10 +101,11 @@ async function streamGptResponse(opts: {
       if (!line.startsWith("data: ")) continue;
       try {
         const ev = JSON.parse(line.slice(6)) as PtGptEvent;
-        if (ev.type === "intent") onIntent(ev.intent);
-        else if (ev.type === "chunk") onChunk(ev.text);
-        else if (ev.type === "done")  onDone();
-        else if (ev.type === "error") onError(ev.error);
+        if      (ev.type === "intent") onIntent(ev.intent);
+        else if (ev.type === "chunk")  onChunk(ev.text);
+        else if (ev.type === "usage")  onUsage?.(ev.inputTokens, ev.outputTokens);
+        else if (ev.type === "done")   onDone();
+        else if (ev.type === "error")  onError(ev.error);
       } catch { /* ignore */ }
     }
   }
@@ -281,6 +288,10 @@ export function PtGptTopicView({
   const [inputValue, setInputValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Usage limit modal
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const { isBlocked, refresh: refreshUsage } = useWindowUsage();
+
   // Save modal
   const [showSave,   setShowSave]   = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -305,6 +316,7 @@ export function PtGptTopicView({
       history:  [],
       onChunk:  text => setMainRaw(prev => prev + text),
       onIntent: intent => setMainIntent(intent),
+      onUsage:  (inp, out) => { recordUsage(inp, out); refreshUsage(); },
       onDone:   () => setMainLoading(false),
       onError:  err => { setMainError(err); setMainLoading(false); },
       signal:   ctrl.signal,
@@ -375,6 +387,12 @@ export function PtGptTopicView({
     const q = inputValue.trim();
     if (!q || submitting) return;
 
+    // Block if 3-hr usage limit reached (paid plans only)
+    if (PLAN_LIMIT_YEN[CURRENT_PLAN] !== null && isBlocked) {
+      setShowLimitModal(true);
+      return;
+    }
+
     const newFu: FollowUp = {
       id: `fu-${Date.now()}`,
       question: q,
@@ -405,6 +423,7 @@ export function PtGptTopicView({
           prev.map(f => f.id === newFu.id ? { ...f, answer: f.answer + chunk } : f)
         ),
         onIntent: _i => {},
+        onUsage: (inp, out) => { recordUsage(inp, out); refreshUsage(); },
         onDone: () => {
           setFollowUps(prev => prev.map(f => f.id === newFu.id ? { ...f, loading: false } : f));
           setSubmitting(false);
@@ -476,6 +495,9 @@ export function PtGptTopicView({
           )}
         </div>
       </header>
+
+      {/* 3-hr usage indicator (paid plans only) */}
+      <UsageIndicator />
 
       {/* Scrollable content — pb-24 leaves room for bottom input bar */}
       <div className="flex-1 overflow-y-auto pb-24">
@@ -665,6 +687,8 @@ export function PtGptTopicView({
       )}
 
       <NoteToast visible={savedToast} />
+
+      {showLimitModal && <UsageLimitModal onClose={() => setShowLimitModal(false)} />}
     </div>
   );
 }

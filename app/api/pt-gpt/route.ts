@@ -135,6 +135,7 @@ function getSystemPrompt(intent: GptIntent): string {
 export type PtGptEvent =
   | { type: "intent";   intent: GptIntent; service?: ServiceSuggestion }
   | { type: "chunk";    text: string }
+  | { type: "usage";    inputTokens: number; outputTokens: number }
   | { type: "done" }
   | { type: "error";    error: string };
 
@@ -227,10 +228,21 @@ export async function POST(req: NextRequest) {
           messages: rawMessages as Parameters<typeof client.messages.stream>[0]["messages"],
         });
 
+        let inputTokens  = 0;
+        let outputTokens = 0;
         for await (const event of anthropicStream) {
-          if (event.type !== "content_block_delta" || event.delta.type !== "text_delta") continue;
-          const text = event.delta.text;
-          if (text) send({ type: "chunk", text });
+          if (event.type === "message_start") {
+            inputTokens = event.message.usage?.input_tokens ?? 0;
+          } else if (event.type === "message_delta") {
+            outputTokens = (event.usage as { output_tokens?: number })?.output_tokens ?? 0;
+          } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+            const text = event.delta.text;
+            if (text) send({ type: "chunk", text });
+          }
+        }
+        // Emit token usage so the client can record cost
+        if (inputTokens > 0 || outputTokens > 0) {
+          send({ type: "usage", inputTokens, outputTokens });
         }
       }
 

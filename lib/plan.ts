@@ -2,6 +2,13 @@
 
 export type Plan = "free" | "basic" | "pro";
 
+// 3-hour cost limit per plan (¥). null = unlimited
+export const PLAN_LIMIT_YEN: Record<Plan, number | null> = {
+  free:  null,  // free plan uses monthly-count quota (useFreeQuota), not cost
+  basic: 100,   // ¥980/月 → ¥100 per 3 hrs
+  pro:   180,   // ¥1,980/月 → ¥180 per 3 hrs
+};
+
 // Mock: "pro" keeps all existing users unblocked during development.
 // Change to "basic" to test the upgrade modal.
 export const CURRENT_PLAN: Plan = "pro";
