@@ -557,9 +557,8 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
                   td:    ({ children }) => <td className="px-2 py-1.5 border-t border-gray-200 border-r border-gray-100 last:border-r-0">{children}</td>,
                 }}
               >
-                {note.content.slice(0, 2000)}
+                {note.content}
               </ReactMarkdown>
-              {note.content.length > 2000 && <p className="text-gray-400 mt-1">…（続きはノートで確認）</p>}
             </div>
           </div>
 
