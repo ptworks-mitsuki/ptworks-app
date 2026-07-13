@@ -367,11 +367,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* 臨床サポート・プロ */}
           <SectionLabel label="臨床サポート・プロ　¥1,980" color="#7C3AED" />
 
-          <ProNavLink href="/stage1/treatment"    label="AI治療考察"         pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
-          <ProNavLink href="/stage1/slides"       label="スライド自動生成"     pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
-          <ProNavLink href="/learn/reimbursement" label="診療報酬・算定ガイド" pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
-          <ProNavLink href="/stage1/homeexercise" label="自主トレ指導書作成"   pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
-          <ProNavLink href="/learn"               label="学習コンテンツ"       pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
+          <ComingSoonItem label="AI治療考察"         onToast={handleComingSoon} />
+          <ComingSoonItem label="スライド自動生成"     onToast={handleComingSoon} />
+          <ComingSoonItem label="診療報酬・算定ガイド" onToast={handleComingSoon} />
+          <ComingSoonItem label="自主トレ指導書作成"   onToast={handleComingSoon} />
+          <ComingSoonItem label="学習コンテンツ"       onToast={handleComingSoon} />
 
           <Divider />
 

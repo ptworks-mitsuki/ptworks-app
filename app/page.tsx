@@ -145,8 +145,10 @@ export default function HomePage() {
   const [showNotif,    setShowNotif]    = useState(false);
   const [streak,       setStreak]       = useState(0);
   const [recentItems,  setRecentItems]  = useState<RecentItem[]>([]);
-  const [deleteToast,  setDeleteToast]  = useState(false);
+  const [deleteToast,      setDeleteToast]      = useState(false);
+  const [comingSoonToast,  setComingSoonToast]  = useState(false);
   const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const comingSoonTimer  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const [query,   setQuery]   = useState("");
   const [focused, setFocused] = useState(false);
@@ -230,6 +232,12 @@ export default function HomePage() {
   const handleSample = (q: string) => {
     setQuery(q);
     textareaRef.current?.focus();
+  };
+
+  const handleComingSoon = () => {
+    if (comingSoonTimer.current) clearTimeout(comingSoonTimer.current);
+    setComingSoonToast(true);
+    comingSoonTimer.current = setTimeout(() => setComingSoonToast(false), 1000);
   };
 
   return (
@@ -451,20 +459,22 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* 下段：小 4列 */}
+          {/* 下段：小 4列（準備中） */}
           <div className="grid grid-cols-4 gap-2">
             {QUICK_ACCESS_SUB.map(item => (
-              <a key={item.id} href={item.href}
-                className="flex flex-col items-center text-center py-3 px-1 rounded-xl border transition active:scale-95"
+              <button key={item.id} type="button" onClick={handleComingSoon}
+                className="relative flex flex-col items-center text-center py-3 px-1 rounded-xl border"
                 style={{
                   background:  "#F9FAFB",
                   borderColor: "#F3F4F6",
                   boxShadow:   "0 2px 8px rgba(0,0,0,0.04)",
                 }}>
-                <span className="mb-1.5" style={{ color: "#888" }}>{item.icon}</span>
-                <p className="text-[10px] font-black leading-snug" style={{ color: "#1A1A1A" }}>{item.label}</p>
-                <p className="text-[9px] mt-0.5" style={{ color: "#aaa" }}>{item.sub}</p>
-              </a>
+                <span className="absolute top-1 right-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: "#E5E7EB", color: "#9CA3AF" }}>準備中</span>
+                <span className="mb-1.5" style={{ color: "#D1D5DB" }}>{item.icon}</span>
+                <p className="text-[10px] font-black leading-snug" style={{ color: "#D1D5DB" }}>{item.label}</p>
+                <p className="text-[9px] mt-0.5" style={{ color: "#D1D5DB" }}>{item.sub}</p>
+              </button>
             ))}
           </div>
         </section>
@@ -519,6 +529,14 @@ export default function HomePage() {
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-bold pointer-events-none"
           style={{ background: "rgba(0,0,0,0.72)", whiteSpace: "nowrap" }}>
           削除しました
+        </div>
+      )}
+
+      {/* 準備中トースト */}
+      {comingSoonToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-bold pointer-events-none"
+          style={{ background: "rgba(0,0,0,0.72)", whiteSpace: "nowrap" }}>
+          準備中です
         </div>
       )}
 
