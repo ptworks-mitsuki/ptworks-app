@@ -198,16 +198,33 @@ export async function POST(req: NextRequest) {
       send({ type: "intent", intent });
 
       async function run(): Promise<void> {
-        const messages: Array<{ role: "user" | "assistant"; content: string }> = [
-          ...history,
+        // Build messages with cache_control on the last assistant turn so
+        // accumulated conversation history is cached for subsequent requests.
+        type CachedMsg = {
+          role: "user" | "assistant";
+          content: string | Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }>;
+        };
+
+        const rawMessages: CachedMsg[] = [
+          ...history.map(m => ({ role: m.role, content: m.content })),
           { role: "user", content: query },
         ];
+
+        // Find the last assistant message and wrap its content with cache_control
+        const lastAssistantIdx = rawMessages.map(m => m.role).lastIndexOf("assistant");
+        if (lastAssistantIdx !== -1) {
+          const msg = rawMessages[lastAssistantIdx];
+          rawMessages[lastAssistantIdx] = {
+            role: "assistant",
+            content: [{ type: "text", text: msg.content as string, cache_control: { type: "ephemeral" } }],
+          };
+        }
 
         const anthropicStream = client.messages.stream({
           model:      "claude-sonnet-4-6",
           max_tokens: intent === "disease" ? 2500 : 1500,
           system: [{ type: "text", text: getSystemPrompt(intent), cache_control: { type: "ephemeral" } }],
-          messages,
+          messages: rawMessages as Parameters<typeof client.messages.stream>[0]["messages"],
         });
 
         for await (const event of anthropicStream) {

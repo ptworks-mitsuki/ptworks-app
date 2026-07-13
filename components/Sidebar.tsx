@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useFreeQuota } from "@/hooks/useFreeQuota";
 import { useState } from "react";
+import { CURRENT_PLAN, canAccess } from "@/lib/plan";
 
 interface SidebarProps {
   isOpen:  boolean;
@@ -41,6 +42,55 @@ function useToast() {
   return { visible, message, show };
 }
 
+// ─── プロアップグレードモーダル ────────────────────────────────────────────
+
+function ProUpgradeModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center px-5"
+      style={{ background: "rgba(0,0,0,0.45)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-xs rounded-2xl bg-white p-6 shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="mb-4 text-center">
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl mb-3"
+            style={{ background: "#FFF7ED" }}>
+            <span className="text-2xl">🚀</span>
+          </div>
+          <h2 className="text-base font-black text-gray-900 leading-snug mb-2">
+            この機能は「臨床サポート・プロ」<br />でご利用いただけます
+          </h2>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            AI治療考察・スライド自動生成・<br />
+            診療報酬ガイドなど<br />
+            さらに便利な機能が使えます
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Link
+            href="/pricing"
+            onClick={onClose}
+            className="flex items-center justify-center w-full py-3 rounded-xl font-black text-white text-sm transition hover:opacity-90 active:scale-95"
+            style={{ background: "#E85D04" }}
+          >
+            プロにアップグレード →
+          </Link>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-full py-2.5 rounded-xl text-sm font-semibold text-gray-500 transition hover:bg-gray-100"
+          >
+            今は閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── NavLink ──────────────────────────────────────────────────────────────
 
 function NavLink({
@@ -72,6 +122,60 @@ function NavLink({
         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#E85D04" }} />
       )}
     </Link>
+  );
+}
+
+// ─── ProNavLink（プロ機能：プランによりモーダル表示） ─────────────────────
+
+function ProNavLink({
+  href, label, pathname, onClose, onUpgrade,
+}: {
+  href: string; label: string; pathname: string; onClose: () => void; onUpgrade: () => void;
+}) {
+  const isActive  = pathname === href;
+  const hasAccess = canAccess(CURRENT_PLAN, href);
+
+  if (hasAccess) {
+    return (
+      <Link
+        href={href}
+        onClick={onClose}
+        className="flex items-center justify-between rounded-xl transition-all"
+        style={{
+          marginLeft: "0.75rem", marginRight: "0.5rem", marginBottom: "2px",
+          padding: "9px 12px",
+          background: isActive ? "#FFF7ED" : "transparent",
+          color:      isActive ? "#E85D04" : "#555555",
+          fontWeight: isActive ? 700 : 400,
+          fontSize:   "13px",
+        }}
+      >
+        <span className="truncate">{label}</span>
+        {isActive && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#E85D04" }} />}
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onUpgrade}
+      className="w-full flex items-center justify-between rounded-xl transition-all text-left"
+      style={{
+        marginLeft: "0.75rem", marginRight: "0.5rem", marginBottom: "2px",
+        width: "calc(100% - 1.25rem)",
+        padding: "9px 12px",
+        color:      "#9CA3AF",
+        fontSize:   "13px",
+        fontWeight: 400,
+      }}
+    >
+      <span className="truncate">{label}</span>
+      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0"
+        style={{ background: "#FFF7ED", color: "#E85D04" }}>
+        PRO
+      </span>
+    </button>
   );
 }
 
@@ -160,9 +264,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { used, total, remaining, isExhausted, percentage } = useFreeQuota();
   const toast = useToast();
+  const [showProModal, setShowProModal] = useState(false);
 
   const handleComingSoon = () => {
     toast.show("現在準備中です。\nもうしばらくお待ちください。");
+  };
+
+  const handleUpgrade = () => {
+    setShowProModal(true);
   };
 
   return (
@@ -246,7 +355,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* 臨床サポートパック */}
           <SectionLabel label="臨床サポートパック　無料〜¥980" color="#E85D04" />
 
-          {/* メインサービス（オレンジ強調） */}
           <div className="mx-2 mb-2 overflow-hidden rounded-xl"
             style={{ background: "#FFF5F0", borderLeft: "4px solid #E85D04" }}>
             <SubLabel label="メインサービス" />
@@ -254,13 +362,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <MainServiceLink href="/stage1/literature" label="文献検索"  pathname={pathname} onClose={onClose} />
           </div>
 
-          {/* 専用サービス */}
-          <SubLabel label="専用サービス" />
-          <NavLink href="/stage1/treatment"    label="AI治療考察"         sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1/slides"       label="スライド自動生成"     sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/learn/reimbursement" label="診療報酬・算定ガイド" sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/stage1/homeexercise"              label="自主トレ指導書作成"   sub pathname={pathname} onClose={onClose} />
-          <NavLink href="/learn"               label="学習コンテンツ"       sub pathname={pathname} onClose={onClose} />
+          <Divider />
+
+          {/* 臨床サポート・プロ */}
+          <SectionLabel label="臨床サポート・プロ　¥1,980" color="#7C3AED" />
+
+          <ProNavLink href="/stage1/treatment"    label="AI治療考察"         pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
+          <ProNavLink href="/stage1/slides"       label="スライド自動生成"     pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
+          <ProNavLink href="/learn/reimbursement" label="診療報酬・算定ガイド" pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
+          <ProNavLink href="/stage1/homeexercise" label="自主トレ指導書作成"   pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
+          <ProNavLink href="/learn"               label="学習コンテンツ"       pathname={pathname} onClose={onClose} onUpgrade={handleUpgrade} />
 
           <Divider />
 
@@ -283,6 +394,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </aside>
 
       <Toast message={toast.message} visible={toast.visible} />
+
+      {showProModal && <ProUpgradeModal onClose={() => setShowProModal(false)} />}
     </>
   );
 }
