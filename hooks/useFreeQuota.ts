@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { IS_TEST_MODE } from "@/lib/plan";
 
 const KEY   = "pt-free-quota";
 const TOTAL = 5; // free searches per month
@@ -43,9 +44,9 @@ export function useFreeQuota() {
     });
   }, []);
 
-  const remaining  = Math.max(TOTAL - state.used, 0);
-  const isExhausted = remaining === 0;
-  const percentage  = (state.used / TOTAL) * 100;
+  const remaining   = IS_TEST_MODE ? TOTAL : Math.max(TOTAL - state.used, 0);
+  const isExhausted = IS_TEST_MODE ? false : remaining === 0;
+  const percentage  = IS_TEST_MODE ? 0 : (state.used / TOTAL) * 100;
 
   return { used: state.used, total: TOTAL, remaining, isExhausted, percentage, consume };
 }

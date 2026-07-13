@@ -2,6 +2,15 @@
 
 export type Plan = "free" | "basic" | "pro";
 
+// テストモード：NEXT_PUBLIC_TEST_MODE=true の間は全ユーザーをproとして扱う
+export const IS_TEST_MODE = process.env.NEXT_PUBLIC_TEST_MODE === "true";
+
+if (IS_TEST_MODE && typeof window !== "undefined") {
+  console.log(
+    "⚠️ テストモードが有効です。本番リリース前にNEXT_PUBLIC_TEST_MODEをfalseに変更してください。"
+  );
+}
+
 // 3-hour cost limit per plan (¥). null = unlimited
 export const PLAN_LIMIT_YEN: Record<Plan, number | null> = {
   free:  null,  // free plan uses monthly-count quota (useFreeQuota), not cost
@@ -9,9 +18,8 @@ export const PLAN_LIMIT_YEN: Record<Plan, number | null> = {
   pro:   180,   // ¥1,980/月 → ¥180 per 3 hrs
 };
 
-// Mock: "pro" keeps all existing users unblocked during development.
-// Change to "basic" to test the upgrade modal.
-export const CURRENT_PLAN: Plan = "pro";
+// テストモード中は強制的にproプラン扱い
+export const CURRENT_PLAN: Plan = IS_TEST_MODE ? "pro" : "pro";
 
 // URLs that require the "pro" plan
 export const PRO_URLS = [
