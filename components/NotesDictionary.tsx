@@ -524,58 +524,133 @@ function NoteDetail({ note, allNotes, onClose, onMemoSaved, onSelect }: {
             </div>
           )}
 
-          {/* 保存内容 */}
-          <div className="rounded-xl border border-gray-200 px-4 py-3" style={{ background: "#F9FAFB" }}>
-            <p className="text-xs font-bold text-gray-400 mb-2">AIの回答内容</p>
-            <div className="text-xs text-gray-700 leading-relaxed note-md">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  p:      ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
-                  strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
-                  em:     ({ children }) => <em className="italic">{children}</em>,
-                  h2:     ({ children }) => <h2 className="font-black text-gray-900 text-sm mt-3 mb-1 first:mt-0">{children}</h2>,
-                  h3:     ({ children }) => <h3 className="font-bold text-gray-800 mt-2 mb-0.5">{children}</h3>,
-                  hr:     () => <hr className="my-2 border-gray-300" />,
-                  ul:     ({ children }) => <ul className="space-y-0.5 my-1 pl-0">{children}</ul>,
-                  ol:     ({ children }) => <ol className="space-y-0.5 my-1 pl-4 list-decimal">{children}</ol>,
-                  li:     ({ children }) => (
-                    <li className="flex items-start gap-1.5 leading-relaxed">
-                      <span className="mt-1.5 w-1 h-1 rounded-full bg-gray-400 shrink-0" />
-                      <span>{children}</span>
-                    </li>
-                  ),
-                  table: ({ children }) => (
-                    <div className="overflow-x-auto my-2 rounded-lg border border-gray-200">
-                      <table className="w-full text-xs border-collapse">{children}</table>
-                    </div>
-                  ),
-                  thead: ({ children }) => <thead style={{ background: "#1B4332" }}>{children}</thead>,
-                  th:    ({ children }) => <th className="px-2 py-1.5 text-left text-white font-bold border-r border-white/20 last:border-r-0">{children}</th>,
-                  tbody: ({ children }) => <tbody>{children}</tbody>,
-                  tr:    ({ children }) => <tr className="even:bg-gray-50 odd:bg-white">{children}</tr>,
-                  td:    ({ children }) => <td className="px-2 py-1.5 border-t border-gray-200 border-r border-gray-100 last:border-r-0">{children}</td>,
-                }}
-              >
-                {note.content}
-              </ReactMarkdown>
-            </div>
-          </div>
-
-          {/* 参考文献 */}
-          {note.literature.length > 0 && (
-            <div>
-              <p className="text-xs font-bold text-gray-400 mb-1.5">参考文献</p>
-              <div className="space-y-1">
-                {note.literature.map((lit, i) => (
-                  <p key={i} className="text-xs text-gray-600 leading-snug">
-                    {lit.author && <span className="font-semibold">{lit.author} </span>}
-                    {lit.title}
-                    {lit.year && <span className="text-gray-400"> ({lit.year})</span>}
+          {/* 保存内容 — 文献ノートは専用レイアウト */}
+          {note.type === "literature" && note.literature[0] ? (() => {
+            const lit = note.literature[0];
+            return (
+              <div className="space-y-3">
+                {/* 書誌情報 */}
+                <div className="rounded-xl border border-gray-200 px-4 py-3" style={{ background: "#F9FAFB" }}>
+                  <p className="text-xs font-bold text-gray-400 mb-2">書誌情報</p>
+                  {lit.titleJa && lit.titleJa !== note.title && (
+                    <p className="text-xs font-bold text-gray-900 mb-1">{lit.titleJa}</p>
+                  )}
+                  {lit.title && (
+                    <p className="text-xs text-gray-500 mb-2 leading-snug">{lit.title}</p>
+                  )}
+                  <p className="text-xs text-gray-700">
+                    {lit.author}
+                    {lit.journal && <span className="text-gray-500">｜{lit.journal}</span>}
+                    {lit.year && <span className="text-gray-500">（{lit.year}）</span>}
                   </p>
-                ))}
+                  <div className="mt-2">
+                    {lit.fullTextFree
+                      ? <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: "#dcfce7", color: "#16a34a" }}>全文無料</span>
+                      : <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: "#f3f4f6", color: "#6b7280" }}>要約のみ</span>
+                    }
+                  </div>
+                </div>
+
+                {/* 概要 */}
+                <div className="rounded-xl border border-gray-200 px-4 py-3" style={{ background: "#F9FAFB" }}>
+                  <p className="text-xs font-bold text-gray-400 mb-2">概要</p>
+                  <p className="text-xs text-gray-700 leading-relaxed">{note.content}</p>
+                </div>
+
+                {/* AI詳細要約 */}
+                {lit.aiDetailedSummary ? (
+                  <div className="rounded-xl border px-4 py-3" style={{ background: "#fffbeb", borderColor: "#fde68a" }}>
+                    <p className="text-xs font-bold mb-2" style={{ color: "#92400e" }}>AI詳細要約</p>
+                    <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>{lit.aiDetailedSummary}</p>
+                    {lit.clinicalPoints && lit.clinicalPoints.length > 0 && (
+                      <>
+                        <p className="text-xs font-bold mt-3 mb-1.5" style={{ color: "#92400e" }}>臨床応用ポイント</p>
+                        <ul className="space-y-1">
+                          {lit.clinicalPoints.map((pt, i) => (
+                            <li key={i} className="flex items-start gap-1.5 text-xs" style={{ color: "#374151" }}>
+                              <span className="mt-1.5 w-1 h-1 rounded-full shrink-0" style={{ background: "#92400e" }} />
+                              <span className="leading-relaxed">{pt}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-gray-200 px-4 py-3" style={{ background: "#F9FAFB" }}>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      詳細情報は保存されていません。<br />
+                      文献検索ページで「詳しく見る」を確認してから保存すると詳細も一緒に保存されます。
+                    </p>
+                  </div>
+                )}
+
+                {/* PubMedリンク */}
+                {lit.url && (
+                  <a href={lit.url} target="_blank" rel="noopener noreferrer"
+                    className="text-xs font-semibold underline"
+                    style={{ color: GREEN }}>
+                    PubMedで原文を確認 →
+                  </a>
+                )}
               </div>
-            </div>
+            );
+          })() : (
+            <>
+              {/* 通常ノート（GPT・治療考察など） */}
+              <div className="rounded-xl border border-gray-200 px-4 py-3" style={{ background: "#F9FAFB" }}>
+                <p className="text-xs font-bold text-gray-400 mb-2">AIの回答内容</p>
+                <div className="text-xs text-gray-700 leading-relaxed note-md">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p:      ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+                      strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+                      em:     ({ children }) => <em className="italic">{children}</em>,
+                      h2:     ({ children }) => <h2 className="font-black text-gray-900 text-sm mt-3 mb-1 first:mt-0">{children}</h2>,
+                      h3:     ({ children }) => <h3 className="font-bold text-gray-800 mt-2 mb-0.5">{children}</h3>,
+                      hr:     () => <hr className="my-2 border-gray-300" />,
+                      ul:     ({ children }) => <ul className="space-y-0.5 my-1 pl-0">{children}</ul>,
+                      ol:     ({ children }) => <ol className="space-y-0.5 my-1 pl-4 list-decimal">{children}</ol>,
+                      li:     ({ children }) => (
+                        <li className="flex items-start gap-1.5 leading-relaxed">
+                          <span className="mt-1.5 w-1 h-1 rounded-full bg-gray-400 shrink-0" />
+                          <span>{children}</span>
+                        </li>
+                      ),
+                      table: ({ children }) => (
+                        <div className="overflow-x-auto my-2 rounded-lg border border-gray-200">
+                          <table className="w-full text-xs border-collapse">{children}</table>
+                        </div>
+                      ),
+                      thead: ({ children }) => <thead style={{ background: "#1B4332" }}>{children}</thead>,
+                      th:    ({ children }) => <th className="px-2 py-1.5 text-left text-white font-bold border-r border-white/20 last:border-r-0">{children}</th>,
+                      tbody: ({ children }) => <tbody>{children}</tbody>,
+                      tr:    ({ children }) => <tr className="even:bg-gray-50 odd:bg-white">{children}</tr>,
+                      td:    ({ children }) => <td className="px-2 py-1.5 border-t border-gray-200 border-r border-gray-100 last:border-r-0">{children}</td>,
+                    }}
+                  >
+                    {note.content}
+                  </ReactMarkdown>
+                </div>
+              </div>
+
+              {/* 参考文献 */}
+              {note.literature.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-gray-400 mb-1.5">参考文献</p>
+                  <div className="space-y-1">
+                    {note.literature.map((lit, i) => (
+                      <p key={i} className="text-xs text-gray-600 leading-snug">
+                        {lit.author && <span className="font-semibold">{lit.author} </span>}
+                        {lit.title}
+                        {lit.year && <span className="text-gray-400"> ({lit.year})</span>}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* 自分のメモエリア（リッチ編集） */}

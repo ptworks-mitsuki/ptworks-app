@@ -55,6 +55,10 @@ function PaperCard({ paper, onSaved }: { paper: Paper; onSaved?: () => void }) {
     if (existing) setNoteSaved(true);
   }, [paper.url]);
 
+  const [detail, setDetail] = useState<LiteratureDetailResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
   const handleSaveNote = useCallback(() => {
     if (noteSaved) return;
     saveNewNote({
@@ -63,14 +67,22 @@ function PaperCard({ paper, onSaved }: { paper: Paper; onSaved?: () => void }) {
       content: paper.summary,
       memo: "",
       tags: [],
-      literature: [{ title: paper.title, author: paper.authors, year: String(paper.year), url: paper.url }],
+      literature: [{
+        title:              paper.title,
+        titleJa:            paper.titleJa,
+        author:             paper.authors,
+        year:               String(paper.year),
+        url:                paper.url,
+        journal:            paper.journal,
+        fullTextFree:       paper.isOpenAccess,
+        summary:            paper.summary,
+        aiDetailedSummary:  detail?.summaryJa,
+        clinicalPoints:     detail?.clinicalPoints,
+      }],
     });
     setNoteSaved(true);
     onSaved?.();
-  }, [noteSaved, paper, onSaved]);
-  const [detail, setDetail] = useState<LiteratureDetailResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
+  }, [noteSaved, paper, detail, onSaved]);
 
   const handleExpand = useCallback(async () => {
     if (!paper.isOpenAccess) return;
@@ -444,25 +456,64 @@ function SavedLiteratureTab() {
   return (
     <div>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6b7280" }}>{notes.length}件の保存済み文献</p>
-      {notes.map(note => (
-        <div key={note.id} style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "14px 16px", marginBottom: 10, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "#111" }}>{note.title}</p>
-          {note.literature[0] && (
-            <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>{note.literature[0].author}（{note.literature[0].year}）</p>
-          )}
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#374151", lineHeight: 1.6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{note.content}</p>
-          {note.tags.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-              {note.tags.map(t => <span key={t} style={{ background: "#FFF7ED", color: "#E85D04", borderRadius: 20, padding: "1px 8px", fontSize: 11, fontWeight: 600, border: "1px solid #FED7AA" }}>{t}</span>)}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-            {note.literature[0]?.url && (
-              <a href={note.literature[0].url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: BRAND_GREEN, textDecoration: "underline" }}>PubMedで確認 →</a>
+      {notes.map(note => {
+        const lit = note.literature[0];
+        return (
+          <div key={note.id} style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "16px 18px", marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            {/* タイトル */}
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: "#111", lineHeight: 1.5 }}>{note.title}</p>
+            {lit?.title && lit.title !== note.title && (
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6b7280" }}>{lit.title}</p>
+            )}
+            {/* 著者・雑誌・年 */}
+            {lit && (
+              <p style={{ margin: "4px 0 0", fontSize: 12, color: "#374151" }}>
+                {lit.author}
+                {lit.journal && <span style={{ color: "#6b7280" }}>｜{lit.journal}</span>}
+                {lit.year && <span style={{ color: "#6b7280" }}>（{lit.year}）</span>}
+              </p>
+            )}
+            {/* 全文無料バッジ */}
+            {lit && (
+              <div style={{ marginTop: 6 }}>
+                {lit.fullTextFree
+                  ? <span style={{ background: "#dcfce7", color: "#16a34a", borderRadius: 4, padding: "1px 8px", fontSize: 11, fontWeight: 600 }}>全文無料</span>
+                  : <span style={{ background: "#f3f4f6", color: "#6b7280", borderRadius: 4, padding: "1px 8px", fontSize: 11, fontWeight: 600 }}>要約のみ</span>
+                }
+              </div>
+            )}
+            {/* 概要 */}
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: "#374151", lineHeight: 1.7, background: "#f9fafb", borderRadius: 6, padding: "8px 12px" }}>{note.content}</p>
+            {/* AI詳細要約 */}
+            {lit?.aiDetailedSummary ? (
+              <div style={{ marginTop: 10, background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a", padding: "10px 14px" }}>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#92400e" }}>AI詳細要約</p>
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: "#374151", lineHeight: 1.7 }}>{lit.aiDetailedSummary}</p>
+                {lit.clinicalPoints && lit.clinicalPoints.length > 0 && (
+                  <>
+                    <p style={{ margin: "10px 0 4px", fontWeight: 700, fontSize: 13, color: "#92400e" }}>臨床応用ポイント</p>
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {lit.clinicalPoints.map((pt, i) => (
+                        <li key={i} style={{ fontSize: 13, color: "#374151", lineHeight: 1.7, marginBottom: 4 }}>{pt}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: "#9ca3af", background: "#f9fafb", borderRadius: 6, padding: "8px 12px" }}>
+                詳細情報は保存されていません。文献検索ページで「詳しく見る」を確認してから保存すると詳細も一緒に保存されます。
+              </p>
+            )}
+            {/* PubMedリンク */}
+            {lit?.url && (
+              <div style={{ marginTop: 10 }}>
+                <a href={lit.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: BRAND_GREEN, textDecoration: "underline" }}>PubMedで確認 →</a>
+              </div>
             )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

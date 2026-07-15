@@ -3,10 +3,16 @@
 export type NoteType = "gpt" | "treatment" | "literature" | "homeexercise";
 
 export interface NoteLiterature {
-  title:  string;
-  author: string;
-  year:   string;
-  url?:   string;
+  title:              string;   // 原題（英語）
+  titleJa?:           string;   // 日本語タイトル
+  author:             string;
+  year:               string;
+  url?:               string;
+  journal?:           string;
+  fullTextFree?:      boolean;
+  summary?:           string;   // 検索結果カードの概要
+  aiDetailedSummary?: string;   // 「詳しく見る」で取得したAI詳細要約
+  clinicalPoints?:    string[]; // 臨床応用ポイント
 }
 
 export interface Note {
