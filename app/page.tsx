@@ -149,7 +149,6 @@ export default function HomePage() {
   const [deleteToast,      setDeleteToast]      = useState(false);
   const [comingSoonToast,  setComingSoonToast]  = useState(false);
   const [showOnboarding,   setShowOnboarding]   = useState(false);
-  const [onboardingHelp,   setOnboardingHelp]   = useState(false);
   const deleteToastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const comingSoonTimer  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -273,13 +272,6 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setOnboardingHelp(true); setShowOnboarding(true); }}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition"
-              style={{ color: "#9CA3AF" }} aria-label="使い方を見る">
-              <span className="text-sm font-black leading-none">？</span>
-              <span className="text-xs font-semibold">ヘルプ</span>
-            </button>
             <div ref={notifRef} className="relative">
               <button onClick={() => setShowNotif(v => !v)}
                 className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition"
@@ -558,8 +550,7 @@ export default function HomePage() {
       {/* オンボーディングモーダル */}
       {showOnboarding && (
         <OnboardingModal
-          helpMode={onboardingHelp}
-          onClose={() => { setShowOnboarding(false); setOnboardingHelp(false); }}
+          onClose={() => setShowOnboarding(false)}
         />
       )}
 
