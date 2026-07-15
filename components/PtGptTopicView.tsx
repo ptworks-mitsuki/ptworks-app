@@ -543,11 +543,6 @@ export function PtGptTopicView({
       .finally(() => setThinkLoading(false));
   }, [mainLoading, mainRaw]);
 
-  // ── Auto-scroll during streaming ──────────────────────────────────────
-
-  useEffect(() => {
-    if (mainLoading) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mainRaw, mainLoading]);
 
   // ── Submit follow-up ──────────────────────────────────────────────────
 
