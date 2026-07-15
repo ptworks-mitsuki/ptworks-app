@@ -18,7 +18,7 @@ export default function AboutPage() {
             PT Works について
           </p>
           <h1 className="text-3xl sm:text-5xl font-black text-white leading-[1.22] tracking-tight">
-            理学療法士の「思考」は、<br />財産であり、<br className="sm:hidden" />新たな価値を生む。
+            理学療法士の「思考」は、財産であり、新たな価値を生む。
           </h1>
         </div>
       </section>
@@ -32,60 +32,16 @@ export default function AboutPage() {
           </h2>
           <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
             <p>理学療法に、唯一の正解はありません。</p>
-            <p>
-              患者さん一人ひとりの身体や生活、価値観は異なり、
-              <br />
-              同じ疾患であっても最適な評価や治療は変わります。
-            </p>
-            <p>
-              だからこそ、理学療法士には知識だけではなく、
-              <br />
-              「なぜそう考えるのか」を問い続ける
-              <br />
-              思考する力が求められます。
-            </p>
-            <p>
-              しかし、医療は日々進歩し、
-              <br />
-              膨大な論文やガイドライン、新しい知見が
-              <br />
-              生まれ続けています。
-              <br />
-              そのすべてを追いながら、日々の臨床で
-              <br />
-              深く思考し続けることは決して簡単ではありません。
-            </p>
+            <p>患者さん一人ひとりの身体や生活、価値観は異なり、同じ疾患であっても最適な評価や治療は変わります。</p>
+            <p>だからこそ、理学療法士には知識だけではなく、「なぜそう考えるのか」を問い続ける思考する力が求められます。</p>
+            <p>しかし、医療は日々進歩し、膨大な論文やガイドライン、新しい知見が生まれ続けています。そのすべてを追いながら、日々の臨床で深く思考し続けることは決して簡単ではありません。</p>
             <p>PT Worksは、その課題をAIで解決したいと考えました。</p>
-            <p>
-              私たちが目指すのは、
-              <br />
-              AIが理学療法士の代わりに答えを出すことではありません。
-            </p>
-            <p>
-              AIとの対話を通して、
-              <br />
-              理学療法士一人ひとりの思考を育み、
-              <br />
-              思考を加速・拡張させること。
-            </p>
-            <p>
-              AIは答えを押し付ける存在ではなく、
-              <br />
-              新たな視点を示し、見落としを減らし、
-              <br />
-              臨床推論を支える思考パートナーです。
-            </p>
+            <p>私たちが目指すのは、AIが理学療法士の代わりに答えを出すことではありません。</p>
+            <p>AIとの対話を通して、理学療法士一人ひとりの思考を育み、思考を加速・拡張させること。</p>
+            <p>AIは答えを押し付ける存在ではなく、新たな視点を示し、見落としを減らし、臨床推論を支える思考パートナーです。</p>
             <p>理学療法士がより深く思考し、学び続けること。</p>
-            <p>
-              その積み重ねが、患者さんへ提供できる医療の質を高め、
-              <br />
-              業界全体の未来をより良いものにすると信じています。
-            </p>
-            <p className="font-bold text-gray-900">
-              PT Worksは、理学療法士の思考を育むAIとして、
-              <br />
-              あなたとともに成長し続けます。
-            </p>
+            <p>その積み重ねが、患者さんへ提供できる医療の質を高め、業界全体の未来をより良いものにすると信じています。</p>
+            <p className="font-bold text-gray-900">PT Worksは、理学療法士の思考を育むAIとして、あなたとともに成長し続けます。</p>
           </div>
         </div>
       </section>
@@ -111,66 +67,16 @@ export default function AboutPage() {
             </h2>
             <div className="space-y-5 text-gray-700 text-base sm:text-lg leading-[1.95]">
               <p>AIは非常に便利な技術です。</p>
-              <p>
-                しかし、その便利さは使い方を誤れば、
-                <br />
-                人の思考を止めてしまう可能性もあります。
-              </p>
+              <p>しかし、その便利さは使い方を誤れば、人の思考を止めてしまう可能性もあります。</p>
               <p>私たちは、そのようなAIをつくりたいわけではありません。</p>
-              <p>
-                PT Worksが目指すのは、
-                <br />
-                思考を代替するAIではなく、
-                <br />
-                思考を加速・拡張するAIです。
-              </p>
-              <p>
-                わからないことを調べる。
-                <br />
-                症例について思考する。
-                <br />
-                論文を読み、エビデンスを理解する。
-                <br />
-                新たな視点に触れ、自分の考えを更新する。
-              </p>
-              <p>
-                そのすべての過程でAIが寄り添い、
-                <br />
-                「もっとこういう考え方もある」
-                <br />
-                「この視点は見落としていないか」
-                <br />
-                と対話を重ねることで、
-                <br />
-                理学療法士自身の臨床推論能力を育みます。
-              </p>
-              <p>
-                PT Worksが届けたいのは、
-                <br />
-                「早く答えを得る体験」ではありません。
-              </p>
-              <p>
-                より深く思考し、
-                <br />
-                より良い判断ができる理学療法士へ
-                <br />
-                成長する体験です。
-              </p>
+              <p>PT Worksが目指すのは、思考を代替するAIではなく、思考を加速・拡張するAIです。</p>
+              <p>わからないことを調べる。症例について思考する。論文を読み、エビデンスを理解する。新たな視点に触れ、自分の考えを更新する。</p>
+              <p>そのすべての過程でAIが寄り添い、「もっとこういう考え方もある」「この視点は見落としていないか」と対話を重ねることで、理学療法士自身の臨床推論能力を育みます。</p>
+              <p>PT Worksが届けたいのは、「早く答えを得る体験」ではありません。</p>
+              <p>より深く思考し、より良い判断ができる理学療法士へ成長する体験です。</p>
               <p>AIは目的ではなく、あくまで道具です。</p>
-              <p>
-                その道具をどう使うかで、
-                <br />
-                理学療法士の未来も、
-                <br />
-                患者さんの未来も変わります。
-              </p>
-              <p className="font-bold text-gray-900">
-                私たちは、AIの力で理学療法士の可能性を広げ、
-                <br />
-                思考を加速・拡張させ、
-                <br />
-                業界全体の発展に貢献していきます。
-              </p>
+              <p>その道具をどう使うかで、理学療法士の未来も、患者さんの未来も変わります。</p>
+              <p className="font-bold text-gray-900">私たちは、AIの力で理学療法士の可能性を広げ、思考を加速・拡張させ、業界全体の発展に貢献していきます。</p>
             </div>
           </div>
         </div>
@@ -193,21 +99,21 @@ export default function AboutPage() {
               {
                 num: "01",
                 title: "思考を育む",
-                body: "AIは答えを与えません。\n新しい視点を提示し、\n理学療法士自身が考えるきっかけをつくります。",
+                body: "AIは答えを与えません。新しい視点を提示し、理学療法士自身が考えるきっかけをつくります。",
                 accent: "#1B4332",
                 top: "#1B4332",
               },
               {
                 num: "02",
                 title: "根拠を示す",
-                body: "感覚ではなく、エビデンスに基づいた情報を提供します。\nただし、最終判断は常に理学療法士が行います。",
+                body: "感覚ではなく、エビデンスに基づいた情報を提供します。ただし、最終判断は常に理学療法士が行います。",
                 accent: "#1d4ed8",
                 top: "#2563EB",
               },
               {
                 num: "03",
                 title: "依存させない",
-                body: "AIへの依存は、思考力の低下を招きます。\nPT Worksは、使えば使うほど\n理学療法士の思考力が育つよう設計されています。",
+                body: "AIへの依存は、思考力の低下を招きます。PT Worksは、使えば使うほど理学療法士の思考力が育つよう設計されています。",
                 accent: "#b45309",
                 top: "#E85D04",
               },
@@ -218,7 +124,7 @@ export default function AboutPage() {
                 <div className="p-6 flex flex-col flex-1">
                   <p className="text-3xl font-black mb-4 leading-none" style={{ color: c.top, opacity: 0.15 }}>{c.num}</p>
                   <p className="text-lg font-black text-gray-900 mb-3">{c.title}</p>
-                  <p className="text-sm text-gray-600 leading-relaxed flex-1 whitespace-pre-line">{c.body}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed flex-1">{c.body}</p>
                 </div>
               </div>
             ))}
@@ -232,9 +138,7 @@ export default function AboutPage() {
       <section style={{ background: "#1B4332" }}>
         <div className="max-w-4xl mx-auto px-6 py-14 sm:py-20 text-center">
           <p className="text-2xl sm:text-4xl font-black text-white leading-[1.4]">
-            理学療法士の思考を育むAI。
-            <br />
-            それが、PT Worksです。
+            理学療法士の思考を育むAI。それが、PT Worksです。
           </p>
         </div>
       </section>
@@ -295,8 +199,7 @@ export default function AboutPage() {
 
               <blockquote className="border-l-4 pl-5 py-1" style={{ borderColor: "#1B4332" }}>
                 <p className="text-sm sm:text-base text-gray-700 leading-[1.9] italic">
-                  「現場を知る人間が、現場のために作ったツール」であることが、<br />
-                  PT Worksの最大の強みです。
+                  「現場を知る人間が、現場のために作ったツール」であることが、PT Worksの最大の強みです。
                 </p>
                 <p className="text-xs text-gray-400 mt-2 not-italic">— 藤 充輝</p>
               </blockquote>
