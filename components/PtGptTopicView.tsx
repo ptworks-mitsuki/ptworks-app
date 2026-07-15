@@ -167,6 +167,149 @@ function MdBody({ text }: { text: string }) {
 
 // ── References section ────────────────────────────────────────────────────
 
+interface LitDetail {
+  summaryJa:          string;
+  clinicalPoints:     string[];
+  evidenceLevel:      string;
+  evidenceLevelReason: string;
+}
+
+function RefDetailCard({ citation }: { citation: string }) {
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [detail,  setDetail]  = useState<LitDetail | null>(null);
+  const [error,   setError]   = useState("");
+  const [saved,   setSaved]   = useState(false);
+  const [toast,   setToast]   = useState(false);
+
+  const pubmedUrl = `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(citation.slice(0, 80))}`;
+
+  const handleToggle = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (detail || loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/literature-detail", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ citation }),
+      });
+      const data = await res.json() as LitDetail & { error?: string };
+      if (data.error) throw new Error(data.error);
+      setDetail(data);
+    } catch (e) {
+      setError((e instanceof Error ? e.message : null) ?? "読み込みに失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = () => {
+    if (saved || !detail) return;
+    saveNewNote({
+      type:    "literature",
+      title:   citation.slice(0, 60),
+      content: [
+        `文献：${citation}`,
+        "",
+        `エビデンスレベル：${detail.evidenceLevel}（${detail.evidenceLevelReason}）`,
+        "",
+        "AI日本語要約：",
+        detail.summaryJa,
+        "",
+        "臨床ポイント：",
+        ...detail.clinicalPoints.map(p => `・${p}`),
+        "",
+        `PubMed: ${pubmedUrl}`,
+      ].join("\n"),
+      memo: "",
+      tags: ["文献", `Lv.${detail.evidenceLevel}`],
+      literature: [{
+        title:              citation,
+        author:             "",
+        year:               "",
+        aiDetailedSummary:  detail.summaryJa,
+        clinicalPoints:     detail.clinicalPoints,
+      }],
+    });
+    setSaved(true);
+    setToast(true);
+    setTimeout(() => setToast(false), 2000);
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+      {toast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full text-white text-xs font-bold shadow-lg"
+          style={{ background: "#1B4332" }}>
+          ノートに保存しました
+        </div>
+      )}
+      <div className="px-3 py-2.5 flex items-start justify-between gap-2 bg-gray-50">
+        <p className="text-xs text-gray-600 leading-relaxed flex-1">{citation}</p>
+        <button
+          onClick={handleToggle}
+          className="shrink-0 flex items-center gap-1 text-[11px] font-bold transition whitespace-nowrap"
+          style={{ color: "#E85D04" }}
+        >
+          {open ? "閉じる ▲" : "詳しく見る ▼"}
+        </button>
+      </div>
+      {open && (
+        <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-3">
+          {loading && (
+            <div className="flex items-center gap-2 py-3">
+              <span className="w-4 h-4 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin shrink-0" />
+              <span className="text-xs text-gray-400">文献情報を読み込み中...</span>
+            </div>
+          )}
+          {error && <p className="text-xs text-red-500 py-2">{error}</p>}
+          {detail && (
+            <>
+              <div className="rounded-xl px-3 py-3" style={{ background: "#F9FAFB" }}>
+                <p className="text-xs font-bold text-gray-500 mb-1.5">AI日本語要約</p>
+                <p className="text-xs text-gray-700 leading-relaxed">{detail.summaryJa}</p>
+              </div>
+              <div className="border-l-4 pl-3 py-1" style={{ borderLeftColor: "#E85D04" }}>
+                <p className="text-xs font-bold mb-1.5" style={{ color: "#E85D04" }}>臨床ポイント</p>
+                <ul className="space-y-1">
+                  {detail.clinicalPoints.map((pt, i) => (
+                    <li key={i} className="text-xs text-gray-700 leading-relaxed">・{pt}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <a href={pubmedUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs font-bold transition hover:opacity-70"
+                  style={{ color: "#E85D04" }}>
+                  PubMedで確認
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3 h-3">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </a>
+                <button
+                  onClick={handleSave}
+                  className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg border-2 transition"
+                  style={{
+                    borderColor: saved ? "#E85D04" : "#E5E7EB",
+                    color:       saved ? "#E85D04" : "#6B7280",
+                    background:  saved ? "#FFF7ED" : "#fff",
+                  }}>
+                  {saved ? "保存済み" : "ノートに保存"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReferencesSection({ content }: { content: string }) {
   const lines = content
     .split("\n")
@@ -183,15 +326,10 @@ function ReferencesSection({ content }: { content: string }) {
       <div className="space-y-2.5">
         {lines.map((ref, i) => (
           <div key={i} className="flex items-start gap-2">
-            <span className="text-xs text-gray-400 mt-0.5 shrink-0 w-4">{i + 1}.</span>
-            <p className="flex-1 text-xs text-gray-700 leading-relaxed min-w-0">{ref}</p>
-            <a
-              href={`/stage1/literature?q=${encodeURIComponent(ref.slice(0, 50))}`}
-              className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition hover:opacity-80 active:scale-95"
-              style={{ color: "#E85D04", borderColor: "#FED7AA", background: "#FFF7ED" }}
-            >
-              詳しく見る
-            </a>
+            <span className="text-xs text-gray-400 mt-1 shrink-0 w-4">{i + 1}.</span>
+            <div className="flex-1 min-w-0">
+              <RefDetailCard citation={ref} />
+            </div>
           </div>
         ))}
       </div>
