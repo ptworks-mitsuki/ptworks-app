@@ -275,9 +275,10 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setOnboardingHelp(true); setShowOnboarding(true); }}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-sm font-black"
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition"
               style={{ color: "#9CA3AF" }} aria-label="使い方を見る">
-              ？
+              <span className="text-sm font-black leading-none">？</span>
+              <span className="text-xs font-semibold">ヘルプ</span>
             </button>
             <div ref={notifRef} className="relative">
               <button onClick={() => setShowNotif(v => !v)}
@@ -316,8 +317,8 @@ export default function HomePage() {
             </div>
 
             <a href="/pricing"
-              className="px-4 py-2 rounded-xl text-xs font-black text-white transition hover:opacity-90 active:scale-95"
-              style={{ background: "#E85D04" }}>
+              className="px-3 py-2 rounded-xl text-xs font-black text-white transition hover:opacity-90 active:scale-95"
+              style={{ background: "#E85D04", whiteSpace: "nowrap" }}>
               プランを見る
             </a>
           </div>
@@ -344,7 +345,7 @@ export default function HomePage() {
       <div className="max-w-xl mx-auto px-4">
 
         {/* ③ キャッチコピー・サービス説明 */}
-        <section className="pt-7 pb-5">
+        <section className="pt-7 pb-5 text-center">
           <h1 className="text-[20px] font-black leading-tight mb-2" style={{ color: "#1A1A1A" }}>
             理学療法士のための<br />AI思考パートナー
           </h1>
