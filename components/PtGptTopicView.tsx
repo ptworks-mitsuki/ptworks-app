@@ -434,6 +434,36 @@ export function PtGptTopicView({
   const [showSave,   setShowSave]   = useState(false);
   const [savedToast, setSavedToast] = useState(false);
 
+  // Delete state
+  const [mainDeleted,       setMainDeleted]       = useState(false);
+  const [deletedFollowUpIds, setDeletedFollowUpIds] = useState<Set<string>>(new Set());
+  const [undoToast, setUndoToast] = useState<{ type: "main" | "fu"; fuId?: string } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showUndoToast = (payload: { type: "main" | "fu"; fuId?: string }) => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoToast(payload);
+    undoTimerRef.current = setTimeout(() => setUndoToast(null), 2000);
+  };
+
+  const handleDeleteMain = () => {
+    setMainDeleted(true);
+    showUndoToast({ type: "main" });
+  };
+
+  const handleDeleteFollowUp = (id: string) => {
+    setDeletedFollowUpIds(prev => new Set([...prev, id]));
+    showUndoToast({ type: "fu", fuId: id });
+  };
+
+  const handleUndo = () => {
+    if (!undoToast) return;
+    if (undoToast.type === "main") setMainDeleted(false);
+    else if (undoToast.fuId) setDeletedFollowUpIds(prev => { const s = new Set(prev); s.delete(undoToast.fuId!); return s; });
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoToast(null);
+  };
+
   const inputRef  = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -585,11 +615,12 @@ export function PtGptTopicView({
   const sections = displayAnswer ? parseMarkdownSections(displayAnswer) : [];
 
   const buildContent = () => {
-    let out = `# ${queryRef.current}\n\n${displayAnswer}`;
-    for (const fu of followUps.filter(f => !f.loading && !f.error)) {
-      out += `\n\n---\n\n**Q: ${fu.question}**\n\n${fu.answer}`;
+    const parts: string[] = [];
+    if (!mainDeleted) parts.push(`# ${queryRef.current}\n\n${displayAnswer}`);
+    for (const fu of followUps.filter(f => !f.loading && !f.error && !deletedFollowUpIds.has(f.id))) {
+      parts.push(`**Q: ${fu.question}**\n\n${fu.answer}`);
     }
-    return out;
+    return parts.join("\n\n---\n\n");
   };
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -652,15 +683,29 @@ export function PtGptTopicView({
           </div>
 
           {/* Main answer card */}
+          {!mainDeleted && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-5">
 
-            {mainIntent && mainIntent !== "service" && (
-              <div className="px-4 pt-3 pb-2 border-b border-gray-100" style={{ background: "#FAFAFA" }}>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  {INTENT_LABELS[mainIntent]}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center justify-between border-b border-gray-100" style={{ background: "#FAFAFA" }}>
+              {mainIntent && mainIntent !== "service" ? (
+                <div className="px-4 pt-3 pb-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {INTENT_LABELS[mainIntent]}
+                  </span>
+                </div>
+              ) : <div />}
+              {!mainLoading && !mainError && (
+                <button
+                  onClick={handleDeleteMain}
+                  className="group w-8 h-8 flex items-center justify-center rounded-full transition mr-1 my-1"
+                  title="この回答を削除"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 text-gray-300 group-hover:text-red-400 transition-colors">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              )}
+            </div>
 
             {/* Loading placeholder */}
             {mainLoading && !displayAnswer && (
@@ -708,6 +753,7 @@ export function PtGptTopicView({
             ) : null}
 
           </div>
+          )} {/* end !mainDeleted */}
 
           {/* Think buttons */}
           {!mainLoading && !mainError && (
@@ -734,7 +780,7 @@ export function PtGptTopicView({
           )}
 
           {/* Follow-up Q&As */}
-          {followUps.map(fu => (
+          {followUps.filter(fu => !deletedFollowUpIds.has(fu.id)).map(fu => (
             <div key={fu.id} className="mb-4">
               {/* Question bubble */}
               <div className="flex justify-end mb-2">
@@ -745,22 +791,38 @@ export function PtGptTopicView({
               </div>
 
               {/* Answer card */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
-                {fu.loading && !fu.answer ? (
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin inline-block" />
-                    <span className="text-sm text-gray-400">回答を生成中...</span>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                {/* Card header with delete button */}
+                {!fu.loading && !fu.error && (
+                  <div className="flex justify-end" style={{ background: "#FAFAFA", borderBottom: "1px solid #F3F4F6" }}>
+                    <button
+                      onClick={() => handleDeleteFollowUp(fu.id)}
+                      className="group w-8 h-8 flex items-center justify-center rounded-full transition mr-1 my-1"
+                      title="この回答を削除"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 text-gray-300 group-hover:text-red-400 transition-colors">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
                   </div>
-                ) : fu.error ? (
-                  <p className="text-sm text-red-500">{fu.answer || "エラーが発生しました。"}</p>
-                ) : (
-                  <>
-                    <FollowUpAnswer text={stripSuggestions(fu.answer)} />
-                    {fu.loading && (
-                      <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />
-                    )}
-                  </>
                 )}
+                <div className="px-4 py-4">
+                  {fu.loading && !fu.answer ? (
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-gray-200 border-t-orange-500 rounded-full animate-spin inline-block" />
+                      <span className="text-sm text-gray-400">回答を生成中...</span>
+                    </div>
+                  ) : fu.error ? (
+                    <p className="text-sm text-red-500">{fu.answer || "エラーが発生しました。"}</p>
+                  ) : (
+                    <>
+                      <FollowUpAnswer text={stripSuggestions(fu.answer)} />
+                      {fu.loading && (
+                        <span className="inline-block w-0.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-text-bottom" />
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -825,6 +887,20 @@ export function PtGptTopicView({
       )}
 
       <NoteToast visible={savedToast} />
+
+      {/* Undo toast */}
+      {undoToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-full shadow-lg text-sm font-bold"
+          style={{ background: "#374151", color: "#fff", whiteSpace: "nowrap" }}>
+          <span>削除しました</span>
+          <button
+            onClick={handleUndo}
+            className="text-orange-300 hover:text-orange-200 transition font-black underline underline-offset-2"
+          >
+            元に戻す
+          </button>
+        </div>
+      )}
 
       {showLimitModal && <UsageLimitModal onClose={() => setShowLimitModal(false)} />}
     </div>
