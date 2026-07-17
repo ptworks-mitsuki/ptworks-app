@@ -127,25 +127,25 @@ function MdBody({ text }: { text: string }) {
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           p: ({ children }) => (
-            <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0 break-words w-full">
+            <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0 w-full" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
               {children}
             </p>
           ),
           strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
           em:     ({ children }) => <em className="italic text-gray-700">{children}</em>,
-          h2: ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-4 mb-1.5 first:mt-0 break-words">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mt-3 mb-1 break-words">{children}</h3>,
+          h2: ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-4 mb-1.5 first:mt-0" style={{ overflowWrap: "anywhere" }}>{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mt-3 mb-1" style={{ overflowWrap: "anywhere" }}>{children}</h3>,
           hr: () => <hr className="my-3 border-gray-200" />,
           ul: ({ children }) => <ul className="space-y-1 my-2 pl-0 w-full">{children}</ul>,
           ol: ({ children }) => <ol className="space-y-1 my-2 pl-4 list-decimal w-full">{children}</ol>,
           li: ({ children }) => (
             <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed w-full min-w-0">
               <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
-              <span className="min-w-0 break-words flex-1">{children}</span>
+              <span className="min-w-0 flex-1" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{children}</span>
             </li>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-gray-300 pl-3 my-2 text-sm text-gray-600 italic break-words">{children}</blockquote>
+            <blockquote className="border-l-4 border-gray-300 pl-3 my-2 text-sm text-gray-600 italic" style={{ overflowWrap: "anywhere" }}>{children}</blockquote>
           ),
           table: ({ children }) => (
             <div className="overflow-x-auto my-3 w-full">
