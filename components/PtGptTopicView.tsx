@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import type { GptIntent, PtGptEvent } from "@/app/api/pt-gpt/route";
 import { saveNewNote } from "@/lib/notes";
 import { SaveNoteModal, NoteToast } from "@/components/SaveNoteModal";
@@ -122,7 +123,7 @@ function MdBody({ text }: { text: string }) {
   text = stripLevels(text);
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkBreaks]}
       components={{
         p: ({ children }) => (
           <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
