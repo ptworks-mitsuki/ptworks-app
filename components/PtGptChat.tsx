@@ -361,54 +361,56 @@ function stripLevels(text: string): string {
 function MdBody({ text }: { text: string }) {
   text = stripLevels(text);
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkBreaks]}
-      components={{
-        p: ({ children }) => (
-          <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
-            {children}
-          </p>
-        ),
-        strong:     ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
-        em:         ({ children }) => <em className="italic text-gray-700">{children}</em>,
-        h2:         ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-4 mb-1.5 first:mt-0">{children}</h2>,
-        h3:         ({ children }) => <h3 className="text-sm font-bold text-gray-800 mt-3 mb-1">{children}</h3>,
-        hr:         () => <hr className="my-3 border-gray-200" />,
-        ul:         ({ children }) => <ul className="space-y-1 my-2 pl-0">{children}</ul>,
-        ol:         ({ children }) => <ol className="space-y-1 my-2 pl-4 list-decimal">{children}</ol>,
-        li:         ({ children }) => (
-          <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed">
-            <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
-            <span>{children}</span>
-          </li>
-        ),
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-4 border-gray-300 pl-3 my-2 text-sm text-gray-600 italic">{children}</blockquote>
-        ),
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-3 rounded-xl border border-gray-200">
-            <table className="w-full text-sm border-collapse min-w-[360px]">{children}</table>
-          </div>
-        ),
-        thead: ({ children }) => <thead style={{ background: "#1B4332" }}>{children}</thead>,
-        th:    ({ children }) => (
-          <th className="px-3 py-2 text-left text-xs font-bold text-white border-r border-white/20 last:border-r-0 whitespace-nowrap">{children}</th>
-        ),
-        tbody: ({ children }) => <tbody>{children}</tbody>,
-        tr:    ({ children }) => <tr className="even:bg-gray-50 odd:bg-white">{children}</tr>,
-        td:    ({ children }) => (
-          <td className="px-3 py-2 text-xs text-gray-700 border-t border-gray-200 border-r border-gray-100 last:border-r-0 leading-relaxed">{children}</td>
-        ),
-        code: ({ children, className }) => {
-          const isBlock = className?.includes("language-");
-          return isBlock
-            ? <code className="block bg-gray-50 rounded-lg px-4 py-3 text-xs font-mono text-gray-800 overflow-x-auto my-2">{children}</code>
-            : <code className="bg-gray-100 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800">{children}</code>;
-        },
-      }}
-    >
-      {cleanMarkdown(text)}
-    </ReactMarkdown>
+    <div className="w-full min-w-0 overflow-hidden">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={{
+          p: ({ children }) => (
+            <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0 break-words w-full">
+              {children}
+            </p>
+          ),
+          strong:     ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+          em:         ({ children }) => <em className="italic text-gray-700">{children}</em>,
+          h2:         ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-4 mb-1.5 first:mt-0 break-words">{children}</h2>,
+          h3:         ({ children }) => <h3 className="text-sm font-bold text-gray-800 mt-3 mb-1 break-words">{children}</h3>,
+          hr:         () => <hr className="my-3 border-gray-200" />,
+          ul:         ({ children }) => <ul className="space-y-1 my-2 pl-0 w-full">{children}</ul>,
+          ol:         ({ children }) => <ol className="space-y-1 my-2 pl-4 list-decimal w-full">{children}</ol>,
+          li:         ({ children }) => (
+            <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed w-full min-w-0">
+              <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
+              <span className="min-w-0 break-words flex-1">{children}</span>
+            </li>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-4 border-gray-300 pl-3 my-2 text-sm text-gray-600 italic break-words">{children}</blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-3 rounded-xl border border-gray-200 w-full">
+              <table className="text-sm border-collapse min-w-[360px]">{children}</table>
+            </div>
+          ),
+          thead: ({ children }) => <thead style={{ background: "#1B4332" }}>{children}</thead>,
+          th:    ({ children }) => (
+            <th className="px-3 py-2 text-left text-xs font-bold text-white border-r border-white/20 last:border-r-0 whitespace-nowrap">{children}</th>
+          ),
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr:    ({ children }) => <tr className="even:bg-gray-50 odd:bg-white">{children}</tr>,
+          td:    ({ children }) => (
+            <td className="px-3 py-2 text-xs text-gray-700 border-t border-gray-200 border-r border-gray-100 last:border-r-0 leading-relaxed break-words">{children}</td>
+          ),
+          code: ({ children, className }) => {
+            const isBlock = className?.includes("language-");
+            return isBlock
+              ? <code className="block bg-gray-50 rounded-lg px-4 py-3 text-xs font-mono text-gray-800 overflow-x-auto my-2 w-full">{children}</code>
+              : <code className="bg-gray-100 rounded px-1.5 py-0.5 text-xs font-mono text-gray-800 break-all">{children}</code>;
+          },
+        }}
+      >
+        {cleanMarkdown(text)}
+      </ReactMarkdown>
+    </div>
   );
 }
 

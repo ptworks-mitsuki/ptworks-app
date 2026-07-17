@@ -122,47 +122,49 @@ function stripLevels(text: string): string {
 function MdBody({ text }: { text: string }) {
   text = stripLevels(text);
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkBreaks]}
-      components={{
-        p: ({ children }) => (
-          <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0">
-            {children}
-          </p>
-        ),
-        strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
-        em:     ({ children }) => <em className="italic text-gray-700">{children}</em>,
-        h2: ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-4 mb-1.5 first:mt-0">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mt-3 mb-1">{children}</h3>,
-        hr: () => <hr className="my-3 border-gray-200" />,
-        ul: ({ children }) => <ul className="space-y-1 my-2 pl-0">{children}</ul>,
-        ol: ({ children }) => <ol className="space-y-1 my-2 pl-4 list-decimal">{children}</ol>,
-        li: ({ children }) => (
-          <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed">
-            <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
-            <span>{children}</span>
-          </li>
-        ),
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-4 border-gray-300 pl-3 my-2 text-sm text-gray-600 italic">{children}</blockquote>
-        ),
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-3">
-            <table className="w-full text-xs border-collapse">{children}</table>
-          </div>
-        ),
-        th: ({ children }) => <th className="border border-gray-200 bg-gray-50 px-2 py-1.5 text-left font-bold text-gray-800">{children}</th>,
-        td: ({ children }) => <td className="border border-gray-200 px-2 py-1.5 text-gray-700">{children}</td>,
-        code: ({ children, className }) => {
-          const isBlock = className?.startsWith("language-");
-          return isBlock
-            ? <pre className="bg-gray-900 text-green-300 text-xs p-3 rounded-xl my-3 overflow-x-auto"><code>{children}</code></pre>
-            : <code className="bg-gray-100 text-gray-800 text-xs px-1.5 py-0.5 rounded font-mono">{children}</code>;
-        },
-      }}
-    >
-      {text}
-    </ReactMarkdown>
+    <div className="w-full min-w-0 overflow-hidden">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={{
+          p: ({ children }) => (
+            <p className="text-sm text-gray-800 leading-relaxed mb-2 last:mb-0 break-words w-full">
+              {children}
+            </p>
+          ),
+          strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+          em:     ({ children }) => <em className="italic text-gray-700">{children}</em>,
+          h2: ({ children }) => <h2 className="text-sm font-black text-gray-900 mt-4 mb-1.5 first:mt-0 break-words">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mt-3 mb-1 break-words">{children}</h3>,
+          hr: () => <hr className="my-3 border-gray-200" />,
+          ul: ({ children }) => <ul className="space-y-1 my-2 pl-0 w-full">{children}</ul>,
+          ol: ({ children }) => <ol className="space-y-1 my-2 pl-4 list-decimal w-full">{children}</ol>,
+          li: ({ children }) => (
+            <li className="flex items-start gap-2 text-sm text-gray-800 leading-relaxed w-full min-w-0">
+              <span className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
+              <span className="min-w-0 break-words flex-1">{children}</span>
+            </li>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-4 border-gray-300 pl-3 my-2 text-sm text-gray-600 italic break-words">{children}</blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-3 w-full">
+              <table className="text-xs border-collapse">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => <th className="border border-gray-200 bg-gray-50 px-2 py-1.5 text-left font-bold text-gray-800 break-words">{children}</th>,
+          td: ({ children }) => <td className="border border-gray-200 px-2 py-1.5 text-gray-700 break-words">{children}</td>,
+          code: ({ children, className }) => {
+            const isBlock = className?.startsWith("language-");
+            return isBlock
+              ? <pre className="bg-gray-900 text-green-300 text-xs p-3 rounded-xl my-3 overflow-x-auto w-full"><code>{children}</code></pre>
+              : <code className="bg-gray-100 text-gray-800 text-xs px-1.5 py-0.5 rounded font-mono break-all">{children}</code>;
+          },
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -249,7 +251,7 @@ function RefDetailCard({ citation }: { citation: string }) {
         </div>
       )}
       <div className="px-3 py-2.5 flex items-start justify-between gap-2 bg-gray-50">
-        <p className="text-xs text-gray-600 leading-relaxed flex-1">{citation}</p>
+        <p className="text-xs text-gray-600 leading-relaxed flex-1 min-w-0 break-words">{citation}</p>
         <button
           onClick={handleToggle}
           className="shrink-0 flex items-center gap-1 text-[11px] font-bold transition whitespace-nowrap"
@@ -622,7 +624,7 @@ export function PtGptTopicView({
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col bg-white" style={{ height: "100dvh" }}>
+    <div className="flex flex-col bg-white w-full overflow-hidden" style={{ height: "100dvh" }}>
 
       {/* Header */}
       <header className="shrink-0 bg-white border-b border-gray-100"
@@ -665,8 +667,8 @@ export function PtGptTopicView({
       <UsageIndicator />
 
       {/* Scrollable content — pb-24 leaves room for bottom input bar */}
-      <div className="flex-1 overflow-y-auto pb-24">
-        <div className="max-w-2xl mx-auto px-4 pt-4 pb-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24 min-w-0 w-full">
+        <div className="max-w-2xl mx-auto px-4 pt-4 pb-4 w-full min-w-0">
 
           {/* Question chip */}
           <div className="mb-4">
