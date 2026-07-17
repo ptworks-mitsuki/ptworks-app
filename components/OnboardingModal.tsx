@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const ONBOARDING_KEY = "onboarding_completed";
@@ -44,6 +44,15 @@ function IconNote() {
   return (
     <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+    </svg>
+  );
+}
+
+function IconCycle() {
+  return (
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+      <path d="M3 3v5h5"/>
     </svg>
   );
 }
@@ -145,6 +154,37 @@ const SLIDES: Slide[] = [
             style={{ background: "#F3F4F6", color: "#555", maxWidth: "220px" }}>
             回答画面の「ノートに保存」を<br />タップするだけです
           </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    icon: <IconCycle />,
+    title: "検索 → 保存 → 復習",
+    body: (
+      <div className="space-y-4 w-full">
+        <p className="text-sm leading-relaxed text-center" style={{ color: "#444" }}>
+          PT専用GPTで疑問を検索して<br />
+          気になった回答はマイノートに<br />
+          保存できます。<br /><br />
+          1週間後、1ヶ月後に<br />
+          復習することで<br />
+          臨床知識がどんどん<br />
+          積み重なっていきます。
+        </p>
+        <div className="flex items-center justify-center gap-2">
+          {(["検索", "保存", "復習"] as const).map((label, i) => (
+            <React.Fragment key={label}>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xs font-black"
+                  style={{ background: i === 0 ? "#E85D04" : i === 1 ? "#1B4332" : "#2563EB" }}>
+                  {label === "検索" ? "🔍" : label === "保存" ? "📓" : "🔁"}
+                </div>
+                <span className="text-[10px] font-black" style={{ color: i === 0 ? "#E85D04" : i === 1 ? "#1B4332" : "#2563EB" }}>{label}</span>
+              </div>
+              {i < 2 && <span className="text-gray-400 font-black text-sm mt-[-10px]">→</span>}
+            </React.Fragment>
+          ))}
         </div>
       </div>
     ),

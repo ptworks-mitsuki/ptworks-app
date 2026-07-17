@@ -346,6 +346,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           {/* マイアカウント */}
           <SectionLabel label="マイアカウント" />
+          <NavLink href="/mynote"    label="マイノート"         sub pathname={pathname} onClose={onClose} />
           <NavLink href="/mypage"    label="マイページ"         sub pathname={pathname} onClose={onClose} />
           <NavLink href="/history"   label="利用履歴"           sub pathname={pathname} onClose={onClose} />
           <NavLink href="/bookmarks" label="ブックマーク・メモ" sub pathname={pathname} onClose={onClose} />
@@ -360,6 +361,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <SubLabel label="メインサービス" />
             <MainServiceLink href="/pt-gpt"            label="PT専用GPT" pathname={pathname} onClose={onClose} />
             <MainServiceLink href="/stage1/literature" label="文献検索"  pathname={pathname} onClose={onClose} />
+            <MainServiceLink href="/mynote"            label="マイノート" pathname={pathname} onClose={onClose} />
           </div>
 
           <Divider />

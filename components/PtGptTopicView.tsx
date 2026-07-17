@@ -647,18 +647,23 @@ export function PtGptTopicView({
 
           {/* Header save button */}
           {!mainLoading && !mainError && (
-            <button
-              onClick={() => setShowSave(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black text-white transition hover:opacity-90 shrink-0"
-              style={{ background: "#1B4332" }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                <polyline points="17 21 17 13 7 13 7 21"/>
-                <polyline points="7 3 7 8 15 8"/>
-              </svg>
-              保存
-            </button>
+            <div className="flex flex-col items-end gap-0.5 shrink-0">
+              <button
+                onClick={() => setShowSave(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black text-white transition hover:opacity-90"
+                style={{ background: "#1B4332" }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/>
+                  <polyline points="7 3 7 8 15 8"/>
+                </svg>
+                保存
+              </button>
+              {!savedToast && (
+                <p className="text-[9px] text-gray-400 leading-none">気になる内容を保存・後で復習</p>
+              )}
+            </div>
           )}
         </div>
       </header>

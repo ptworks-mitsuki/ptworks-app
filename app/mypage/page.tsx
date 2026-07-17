@@ -114,8 +114,26 @@ export default function MyPage() {
         </div>
       </div>
 
-      {/* ② マイノート（最優先） */}
-      <NotesDictionary />
+      {/* ② マイノートへのリンク */}
+      <Link href="/mynote"
+        className="flex items-center justify-between px-4 py-3.5 rounded-2xl border transition hover:opacity-90 active:scale-95"
+        style={{ background: "#1B4332", borderColor: "#1B4332" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/20">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-black text-white">📓 マイノート</p>
+            <p className="text-[10px] text-white/60">保存した回答・文献を復習する</p>
+          </div>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 opacity-60">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+      </Link>
 
       {/* ⑦ クイックアクセス */}
       <div>

@@ -200,7 +200,7 @@ export function NoteToast({ visible }: { visible: boolean }) {
         transform:  `translateX(-50%) translateY(${visible ? "0" : "12px"})`,
         opacity:    visible ? 1 : 0,
       }}>
-      ノートに保存しました
+      マイノートに保存しました。後で復習することができます
     </div>
   );
 }

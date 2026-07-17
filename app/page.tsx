@@ -22,7 +22,7 @@ const SAMPLE_QUESTIONS = [
 const QUICK_ACCESS_TOP = [
   { id: "gpt",  label: "PT専用GPT", sub: "AI何でも相談", href: "/pt-gpt",             icon: <IconChat />,  },
   { id: "lit",  label: "文献検索",  sub: "論文・書籍",   href: "/stage1/literature", icon: <IconBook />,  },
-  { id: "myp",  label: "マイページ", sub: "ノート・履歴",  href: "/mypage",            icon: <IconGraduate /> },
+  { id: "myp",  label: "マイノート", sub: "保存・復習",    href: "/mynote",            icon: <IconSheet size={22} /> },
 ];
 
 const QUICK_ACCESS_SUB = [
